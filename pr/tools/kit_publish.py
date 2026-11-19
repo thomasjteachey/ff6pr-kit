@@ -27,8 +27,7 @@ PARTS = [
     ("pr/tests", ["test_prkit.py"]),
     ("pr", ["MODDING.md", "PORTING.md"]),
 ]
-# prkit/migrate_wc.py moves the WC plugin onto PrKit inside this project (one use, then deleted)
-NOT_PUBLISHED = {"pr/tools/prkit/migrate_wc.py"}
+NOT_PUBLISHED = set()
 
 README = """# FF6 Pixel Remaster modding kit
 

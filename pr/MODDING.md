@@ -218,14 +218,17 @@ install from the build and compares it file by file.
   plus BNW's `party`/`skipmsg`/`quit`, and `FormulaProbe` blocks saves and mutes with `TestRun`. Its log now
   starts with a `[kit]` line and says `[test] saves blocked ...` / `[test] save to slot N skipped` where it
   said `[probe] ...`. Built and unit-tested (Rules.Tests); not yet deployed or run in game.
-- **Worlds Collide is next**, held for the session working on WC until it says WcPlugin is free (it edits
-  `WcSeeds.cs`/`WcTest.cs` across turns, and without git overlapping edits would clobber each other). The
-  change is small and agreed: `PrKit.props`, WC's `LiveData.cs`/`PadFix.cs` replaced by the kit's
-  `LiveData`/`SingleGamepad` (same switch), `using PrKit;` in four files, WcTest's device check and mute
-  through the kit. WC's own `h.Patch` hooks stay as they are (no tiny-code check: switching them could turn
-  off a hook that works). `plugin/Shared` goes once WC no longer compiles it. The change is a script,
-  `tools/prkit/migrate_wc.py` (one-off: `--check` first; it edits by exact text and writes nothing if a
-  line has moved), to delete once applied.
+- **Worlds Collide is on the kit** (2026-11-19): `WcPlugin.csproj` imports `PrKit.props` (from `../PrKit`, or
+  the `kit/` submodule in ff6pr-worlds-collide), WC's `LiveData.cs`/`PadFix.cs` gave way to the kit's
+  `LiveData`/`SingleGamepad` (same `[Input] SingleGamepad` switch), `using PrKit;` in five files, WcTest's
+  device check and mute go through the kit, `Kit.Init` starts `Load`. WC's own `h.Patch` hooks stay as they
+  are, and its `FeatureHost` has `TestRuns = false`: WC's self-tests are WcTest's, not `prkit_test`
+  requests. `plugin/Shared` and the one-off `migrate_wc.py` are gone.
+- **The SNES monster AI interpreter is the kit's** (2026-11-19): `PrKit/Ff6/SnesAi.cs`, namespace
+  `PrKit.Ff6`, compiled into FF6 plugins only (`PrKit.props`: `Ff6\*.cs` when `PrGame` is ff6). WC's
+  `WcEnemyAi*.cs` run it in the PR's battles; WcAi.Tests checks it on WC's scripts. Brave New World's
+  plugin compiles it too, for its own monsters next (BNW's AI changes are a few conditions: c2.asm FC 06/07,
+  counters that can't trigger counters, the Lore range from $84, the vindictive-targeting fix).
 - **Worlds Collide's player setup** (2026-11-12, `WcGameData.cs`): the first thing in `Plugin.Load`,
   when `generator/vanilla/.complete` is missing or isn't `generator/gamedata.json`'s `"id"`, runs
   `wc_gamedata.py setup` with the bundled Python (42 s on the PC, in the console before the game
