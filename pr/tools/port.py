@@ -833,6 +833,11 @@ def main(profile):
         for name, ids in port_events.port(van, bnw, tables, encounters, OUT, log).items():
             changed.setdefault(name, set()).update(ids)
     import port_ai
+    # a mod whose plugin runs its monsters' own SNES scripts (the kit's SnesAiHost): BNW since 2026-11-19
+    if getattr(profile, "snes_ai", False):
+        port_ai.SNES_AI = True
+        port_ai.SNES_AI_RULES = getattr(profile, "snes_ai_rules", "vanilla")
+        port_ai.SNES_AI_STATUS = getattr(profile, "snes_ai_status", False)
     for name, ids in port_ai.port(van, bnw, tables, OUT, log, getattr(profile, "battle_messages", False)).items():
         changed.setdefault(name, set()).update(ids)
     for name, ids in battle_constants(tables, profile, log).items():

@@ -1,0 +1,7 @@
+# Separate save folders for the mods (the user, 2026-11-19: "wc/bnw need to be using different save
+# directories than the vanilla ones"): where the PR puts its save files and how it names them
+Last\.Management\.SaveSlotManager\$\$(GetSavePath|\.ctor|Save|LoadSlotAsync|LoadSystemSlotAsync|Remove|SaveSlot)
+Systems\.Files\.FileOperationUtility\$\$(FileWrite|FileRead|FileDelete|ConvertSha256)
+Last\.Management\.PictureBookSaveManager\$\$.*
+Last\.Management\.SystemConfigManager\$\$(Save|Load.*|\.ctor|GetSavePath)
+SteamManager\$\$.*

@@ -36,6 +36,46 @@ namespace PrKit.Ff6
         };
     }
 
+    // What a mod's battle engine changes in how scripts run (default: the SNES game's own). A mod's
+    // data names its rules (SnesAiData "rules"); the porter also exports its attack -> command table.
+    public sealed class SnesAiRules
+    {
+        public string Name = "vanilla";
+        // BNW (c2.asm C21BB7, Seibaby): FC 07 "MP low" compares MP with its value x 128, as FC 06 does HP
+        public bool MpTimes128;
+        // BNW (c2.asm C21C3B, Bropedio's double-counter fix): FC 01-05 never match a hit by a
+        // counterattack, and FC 05's second byte asks what hit it (Seibaby's melee counter: bit 0
+        // melee = physical and respects row, bit 1 MP damage; ISnesAiBattle.RetalFlags)
+        public bool CounterRules;
+        // BNW (C22002): target $45 (the last attacker) only when that's a character
+        public bool VindictiveCharactersOnly;
+        // BNW (c2.asm C213A1 BossDeath): HP loss never kills a boss (its data's flag, SnesAiData.BossDeath);
+        // its counter script's "if HP <= 0" block does (SnesAiHost)
+        public bool BossDeathByScript;
+        // GetCmdForAI (C2/1DD8): the first attack of each range and its command (BNW: $65-$7C are Lore,
+        // Lore from $84)
+        public int[] AttackFirst = { 0x36, 0x51, 0x55, 0x5D, 0x65, 0x7D, 0x82, 0x83, 0x8B, 0xEE, 0xF0 };
+        public int[] AttackCmd = { 0x19, 0x02, 0x07, 0x0A, 0x02, 0x09, 0x1B, 0x1D, 0x0C, 0x00, 0x02 };
+
+        public static readonly SnesAiRules Vanilla = new SnesAiRules();
+        public static readonly SnesAiRules Bnw = new SnesAiRules
+        {
+            Name = "bnw", MpTimes128 = true, CounterRules = true, VindictiveCharactersOnly = true, BossDeathByScript = true,
+            AttackFirst = new[] { 0x36, 0x51, 0x55, 0x5D, 0x65, 0x7D, 0x82, 0x83, 0x84, 0xEE, 0xF0 },
+            AttackCmd = new[] { 0x19, 0x02, 0x07, 0x0A, 0x0C, 0x09, 0x1B, 0x1D, 0x0C, 0x00, 0x02 },
+        };
+
+        public static SnesAiRules ByName(string name) => name == "bnw" ? Bnw : Vanilla;
+
+        public SnesAiRules WithCommandTable(int[] first, int[] cmd)
+        {
+            var r = (SnesAiRules)MemberwiseClone();
+            r.AttackFirst = first;
+            r.AttackCmd = cmd;
+            return r;
+        }
+    }
+
     // What the interpreter asks about the battle. Units: 0-3 the character slots, 4-9 the monster slots;
     // masks as FF6's: bit u for a character slot, bit 8 + (u - 4) for a monster slot.
     public interface ISnesAiBattle
@@ -69,6 +109,7 @@ namespace PrKit.Ff6
         int RetalItem(int unit);
         int RetalElemTarget(int unit);
         int RetalElements(int unit);
+        int RetalFlags(int unit);        // BNW's $327D: what last hit it: $80 a counterattack, $02 MP damage, $01 melee
         int PrevAttacker(int unit);      // $32E0: unit that last attacked it (target $45), -1 if none
         int TargettingTarget(int unit);  // $32F5 (target $4D), -1 if none; the interpreter clears it
         void ClearTargettingTarget(int unit);
@@ -82,10 +123,11 @@ namespace PrKit.Ff6
         public int MainStart, CounterStart = -1;     // -1: no counter section
         public int MainLoop, MainCount = 0xFF, CounterLoop, CounterCount = 0xFF;
         public byte Var;
+        public SnesAiRules Rules = SnesAiRules.Vanilla;
 
-        public static SnesAiMonster FromScript(byte[] script)
+        public static SnesAiMonster FromScript(byte[] script, SnesAiRules rules = null)
         {
-            var m = new SnesAiMonster { Script = script, MainStart = 0 };
+            var m = new SnesAiMonster { Script = script, MainStart = 0, Rules = rules ?? SnesAiRules.Vanilla };
             // InitAI: the counter section starts after the main section's FF, if it has anything
             int end = SnesAi.FindEnd(script, 0, out int term);
             while (term != 0xFF && end < script.Length) end = SnesAi.FindEnd(script, end, out term);
@@ -100,15 +142,14 @@ namespace PrKit.Ff6
     {
         static readonly int[] CmdSize = { 4, 2, 4, 3, 4, 4, 4, 2, 3, 4, 4, 3, 4, 1, 1, 1 };  // F0..FF (AICmdSizeTbl)
 
-        // attack index -> battle command (GetCmdForAI: first attack of each range, from the top)
-        static readonly int[] AttackFirst = { 0x36, 0x51, 0x55, 0x5D, 0x65, 0x7D, 0x82, 0x83, 0x8B, 0xEE, 0xF0 };
-        static readonly int[] AttackCmd = { 0x19, 0x02, 0x07, 0x0A, 0x02, 0x09, 0x1B, 0x1D, 0x0C, 0x00, 0x02 };
         public const int CmdItem = 0x01, CmdThrow = 0x08, CmdMagic = 0x02;
 
-        public static int CommandFor(int attack)
+        // attack index -> battle command (GetCmdForAI: first attack of each range, from the top)
+        public static int CommandFor(int attack, SnesAiRules rules = null)
         {
-            for (int i = AttackFirst.Length - 1; i >= 0; i--)
-                if (attack >= AttackFirst[i]) return AttackCmd[i];
+            rules ??= SnesAiRules.Vanilla;
+            for (int i = rules.AttackFirst.Length - 1; i >= 0; i--)
+                if (attack >= rules.AttackFirst[i]) return rules.AttackCmd[i];
             return CmdMagic;
         }
 
@@ -146,8 +187,9 @@ namespace PrKit.Ff6
 
         // CheckAITarget: the mask for target code `code` as monster `self` sees it, 0 if nobody valid.
         // filterPresent: actions filter by who can be targeted now (CheckTargetsPresent); conditions don't.
-        public static int Target(ISnesAiBattle b, int self, int code, bool filterPresent)
+        public static int Target(ISnesAiBattle b, int self, int code, bool filterPresent, SnesAiRules rules = null)
         {
+            rules ??= SnesAiRules.Vanilla;
             int z = 0;
             for (int s = 0; s < 4; s++) if (b.CharActor(s) >= 0) z |= MaskOf(s);
             for (int s = 0; s < 6; s++) if (b.MonsterPresent(s)) z |= MaskOf(4 + s);
@@ -191,10 +233,10 @@ namespace PrKit.Ff6
                 case 0x42: return RandBit(b, Reflect() & 0xFF00);
                 case 0x43: return lo;
                 case 0x44: return RandBit(b, lo);
-                case 0x45:
+                case 0x45:   // C2/1FFF: CMP #$0A (BNW: #$04, characters only)
                     {
                         int u = b.PrevAttacker(self);
-                        return u >= 0 && u < 10 ? MaskOf(u) : 0;
+                        return u >= 0 && u < (rules.VindictiveCharactersOnly ? 4 : 10) ? MaskOf(u) : 0;
                     }
                 case 0x46: return z;
                 case 0x47: return 0;
@@ -279,7 +321,7 @@ namespace PrKit.Ff6
                                 break;
                             }
                         case 0xF1:
-                            r.Fc = Target(r.B, r.Self, b1, false);   // clc: the action filter applies later (default when 0)
+                            r.Fc = Target(r.B, r.Self, b1, false, r.M.Rules);   // clc: the action filter applies later (default when 0)
                             break;
                         case 0xF4:
                             {
@@ -341,13 +383,13 @@ namespace PrKit.Ff6
 
         static void Queue(Run r, int attack, bool confused)
         {
-            r.Out.Add(new SnesAiAction { Op = SnesAiOp.Attack, Attack = attack, Command = CommandFor(attack), Targets = confused ? 0 : r.Fc });
+            r.Out.Add(new SnesAiAction { Op = SnesAiOp.Attack, Attack = attack, Command = CommandFor(attack, r.M.Rules), Targets = confused ? 0 : r.Fc });
         }
 
         // IF_TARGET_VALID: sets the target to `code`'s (except self: no forced target); the unit tested
         static bool TargetValid(Run r, int code, out int unit)
         {
-            int mask = Target(r.B, r.Self, code, false);
+            int mask = Target(r.B, r.Self, code, false, r.M.Rules);
             unit = -1;
             if (mask == 0) return false;
             r.Fc = mask;
@@ -359,6 +401,9 @@ namespace PrKit.Ff6
         static bool Condition(Run r, int kind, int a, int v, ref bool f8)
         {
             var b = r.B;
+            var rules = r.M.Rules;
+            // BNW: a hit by a counterattack never matches a counter condition (CounterCheck: $327D bit 7)
+            if (rules.CounterRules && kind >= 0x01 && kind <= 0x05 && (b.RetalFlags(r.Self) & 0x80) != 0) return false;
             switch (kind)
             {
                 case 0x01: // IF_CMD: a command (a or v) was used against it
@@ -395,17 +440,18 @@ namespace PrKit.Ff6
                         r.Fc = MaskOf(u);
                         return true;
                     }
-                case 0x05: // IF_HIT: by anything
+                case 0x05: // IF_HIT: by anything (BNW TargetMelee: v = what it must have been, $01 melee, $02 MP damage)
                     {
                         int u = b.RetalTarget(r.Self);
                         if (u < 0) return false;
+                        if (rules.CounterRules && (b.RetalFlags(r.Self) & v) != v) return false;
                         r.Fc = MaskOf(u);
                         return true;
                     }
                 case 0x06: // IF_HP: target's HP <= v * 128
                     return TargetValid(r, a, out int hu) && v * 128 >= b.Hp(hu);
-                case 0x07: // IF_MP
-                    return TargetValid(r, a, out int mu) && v >= b.Mp(mu);
+                case 0x07: // IF_MP: MP <= v (BNW MPLowCounter: v * 128)
+                    return TargetValid(r, a, out int mu) && (rules.MpTimes128 ? v * 128 : v) >= b.Mp(mu);
                 case 0x08: // IF_STATUS_SET: a random one of the targets with status v becomes the target
                     return StatusSet(r, a, v);
                 case 0x09: // IF_STATUS_CLR

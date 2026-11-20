@@ -248,6 +248,7 @@ namespace PrKit
             Add("battle", Battle, "battle <party>: a real battle with any monster party, as EncountBoss");
             Add("encount", Encount, "encount <party>: a random-encounter style battle");
             Add("log", _ => TakeLog(), "log: battle actions since the last log");
+            Add("enemyhp", EnemyHp, "enemyhp <hp> [unique]: set the battle's enemies' HP (one by its unique id), so a real hit finishes them");
             Add("quit", _ => { TestRun.Quit("harness: quit"); return "quitting"; }, "quit: end the run");
         }
 
@@ -377,6 +378,22 @@ namespace PrKit
             if (Object.FindObjectOfType<FieldMap>()?.fieldController != null) return "field";
             if (Object.FindObjectOfType<Last.UI.KeyInput.TitleWindowController>() != null) return "title";
             return "other";
+        }
+
+        static string EnemyHp(string[] a)
+        {
+            if (!InBattle) return "error: not in battle";
+            if (a.Length < 1 || !int.TryParse(a[0], out int hp) || hp < 1) return "error: enemyhp <hp >= 1> [unique]";
+            int only = a.Length > 1 && int.TryParse(a[1], out int u) ? u : -1;
+            var done = new List<string>();
+            foreach (var e in BattlePlugManager.Instance().GetEnemyUnits() ?? new BattleEnemyData[0])
+            {
+                var p = e?.BattleUnitDataInfo?.Parameter;
+                if (p == null || p.CurrentHP <= 0 || (only >= 0 && e.UniqueId != only)) continue;
+                p.CurrentHP = Math.Min(hp, p.ConfirmedMaxHp());
+                done.Add($"{Who(e)} (unique {e.UniqueId}) {p.CurrentHP}");
+            }
+            return done.Count == 0 ? "no enemy changed" : "enemy HP: " + string.Join(", ", done);
         }
 
         static string State()

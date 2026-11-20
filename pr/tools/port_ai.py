@@ -121,6 +121,11 @@ class BossPolicy:
 # the PR's own default: its Battle (FF6 RandMonsterAction acts at random too).
 MARK_TURN, MARK_COUNTER, MARK_FINAL = 7680, 7681, 7682
 SNES_AI = os.environ.get("WC_SNES_AI") == "1"
+# a mod whose plugin runs its scripts on the kit's SnesAiHost (PrKit/Ff6): the porter sets these from its
+# profile (port.py: snes_ai, snes_ai_rules). Rules: the mod engine's script changes (SnesAiRules: "bnw");
+# status effects: the host's FB 0B/0C/02 (BNW's boss deaths), off for Worlds Collide until tested there
+SNES_AI_RULES = "vanilla"
+SNES_AI_STATUS = False
 SNES_AI_F5 = True     # F5 (monsters in and out) by the plugin (WcEnemyAiEntries.cs): on once its fights pass in game
 SNES_AI_VERSION = 5   # v5: Nelapa's SNES AI owns its one-shot Doom opening (not PR sc_b_2019)
 
@@ -131,6 +136,7 @@ SNES_AI_VERSION = 5   # v5: Nelapa's SNES AI owns its one-shot Doom opening (not
 # anything else (bringing monsters in or out, battle events, formation changes, items, forced commands,
 # other misc effects) keeps its previous AI until the plugin does it
 SNES_AI_MISC = {0x00, 0x04}
+SNES_AI_STATUS_MISC = {0x02, 0x0B, 0x0C}   # with SNES_AI_STATUS: the battle's end, a status set/cleared on itself
 # WC's items and commands (F6 use/throw, F4) as the PR's monster abilities, as Square ported them:
 # a thrown weapon is a physical hit with its power (Square's 740-756: Mythril Knife 30 = 740 ... Fuma
 # Shuriken 132 = 747; animation by kind), a used item an ability with the item's own effect (Square's
@@ -149,7 +155,7 @@ def snes_ai_unsupported(main, counter):
         for op, args in ops:
             if op in ("formation", "event"):
                 return f"{section}: {op}"
-            if op == "misc" and args[0] not in SNES_AI_MISC:
+            if op == "misc" and args[0] not in SNES_AI_MISC | (SNES_AI_STATUS_MISC if SNES_AI_STATUS else set()):
                 return f"{section}: misc {args[0]:02x}"
             if op == "command" and any(c != 0xFE and c not in CMD_ABILITY for c in args):
                 return f"{section}: command {' '.join(f'{c:02x}' for c in args)}"
@@ -286,11 +292,16 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
             if abt.rows.get(aid) != row:
                 abt.rows[aid] = row
                 changed["ability"].add(aid)
-        port.item_abilities = item_abilities(bnw, abt, tables, changed["ability"])
+        # past the specials' copies (port_specials.COPY_BASE, the same 7700 on: BNW splits shared specials;
+        # 2026-11-19 a throw row overwrote monster 184's special copy 7700; WC makes no copies)
+        port.item_abilities = item_abilities(bnw, abt, tables, changed["ability"], taken=set(port_specials.plan(van, bnw)[1]))
     shimmed = set()   # monsters whose turns the plugin runs (their PR script is the shim)
     for e in range(384):
         vmain, vcounter = A.script(van, e)
         bmain, bcounter = A.script(bnw, e)
+        if SNES_AI and _S.blank_enemy(bnw, e) and not _S.blank_enemy(van, e):
+            stats["slot BNW emptied (kept PR script)"] += 1   # the PR's own fights still field the vanilla monster
+            continue
         if SNES_AI:
             # every monster runs its WC script in the plugin, but bosses whose PR battle events need
             # the PR's own AI (modes, variables they read, other fights' entrances) keep it for now
@@ -317,7 +328,7 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
                 ctx = AC.Context(e, battle_ability(ab, vdoc), None)
                 compiled[e] = (shim_script(ctx.battle), ctx)
                 shimmed.add(e)
-                stats["WC script in the plugin"] += 1
+                stats["own script in the plugin"] += 1
                 continue
             reasons[f"plugin can't yet: {why}"] += 1   # its previous AI (compiled, or the PR's own)
         if (vmain, vcounter) == (bmain, bcounter):
@@ -411,7 +422,13 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
                 if mo[c]["script_id"] != mo[e + 1]["script_id"]:
                     mo[c]["script_id"] = mo[e + 1]["script_id"]
                     changed["monster"].add(c)
-    used = set()
+    # every monster's SNES AI for the plugin's interpreter (the kit's SnesAiHost: WC's seeds, BNW's
+    # bnw_data.json), which runs the mod's own scripts the way the SNES runs them (the user, 2026-11-12:
+    # "please make all enemies/bosses behave like WC SNES"; 2026-11-19: BNW's too)
+    sa = None
+    if SNES_AI:
+        sa = snes_ai_data(van, bnw, ab, vmo, scripts, tables.get("monster_party"), formation_parties, battle_lines)
+    used = set(k for ks in (sa["message_keys"].values() if sa else []) for k in ks if k.startswith("BNW_BTL_"))
     for e in compiled:
         for m in compiled[e][0]:
             used.update(x for x in m["operands"].get("sValues", []) if x.startswith("BNW_BTL_"))
@@ -425,11 +442,9 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
     for e, why in sorted(boss_kept.items()):
         log(f"  boss {e} kept PR script: {why}")
     port.boss_tests = boss_tests
-    # every monster's SNES AI for the WC plugin's interpreter (WcPlugin/SnesAi.cs), which runs the
-    # mod's own scripts the way the SNES runs them (the user, 2026-11-12: "please make all
-    # enemies/bosses behave like WC SNES")
-    port.snes_ai = snes_ai_data(van, bnw, ab, vmo, scripts, tables.get("monster_party"), formation_parties)
-    sa = port.snes_ai
+    if sa is None:
+        sa = snes_ai_data(van, bnw, ab, vmo, scripts, tables.get("monster_party"), formation_parties)
+    port.snes_ai = sa
     sa["plugin"] = sorted(e for e in shimmed if e in compiled)
     sa.update(getattr(port, "item_abilities", {}))
     sa["copies"] = copies
@@ -438,7 +453,7 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
     return changed
 
 
-def item_abilities(bnw, abt, tables, changed):
+def item_abilities(bnw, abt, tables, changed, taken=()):
     """{"item_use": {SNES item: ability}, "throws": {SNES item: ability}, "commands": {command: ability}}
     for every item WC's scripts use or throw (F6 00/01 i1 i2): Square's monster ability where it made one
     (by the weapon's power, the item's effect), else a row of our own from ITEM_ABILITY_BASE up."""
@@ -457,6 +472,8 @@ def item_abilities(bnw, abt, tables, changed):
 
     def new_row(base, **cols):
         nonlocal next_id
+        while next_id in taken:   # another part of the port's rows (the specials' copies)
+            next_id += 1
         aid = next_id
         next_id += 1
         if aid in P.Table("ability").rows:
@@ -549,10 +566,14 @@ def party_slots(rom, mp, formations, members=None):
     return out
 
 
-def snes_ai_data(van, bnw, ab, vmo, scripts, mp=None, resolver=None):
+def snes_ai_data(van, bnw, ab, vmo, scripts, mp=None, resolver=None, battle_lines=None):
     """{scripts: {SNES id: hex of its main and counter sections}, battle/special: {SNES id: PR ability
     of its Battle (0xEE) / special (0xEF)}, attacks: [PR ability for each SNES attack index, 0 = none],
-    messages: {message index: [PR text lines]} for every "message" (F3) a script shows}."""
+    messages: {message index: [PR text lines]} for every "message" (F3) a script shows}.
+    battle_lines (battle_text.Messages, a mod that ships its battle text: BNW): every line a script shows
+    as the mod's own (story_mes keys BNW_BTL_...). The mod's engine: rules (SNES_AI_RULES), its attack ->
+    command table where it differs from vanilla's (C2/1DD8), and with BNW's rules the monsters HP loss
+    doesn't kill (boss_death: monster byte $12 bit 6, c2.asm BossDeath)."""
     import battle_text
     import idmap as M
     d = bnw.data
@@ -588,7 +609,13 @@ def snes_ai_data(van, bnw, ab, vmo, scripts, mp=None, resolver=None):
     # few short ones of our own; none from the ROM (the ROM-free generator ships no dialogue)
     out["message_keys"], out["unmapped_messages"] = {}, []
     for k in sorted(shown):
-        if k in battle_text.PR_KEYS:
+        if battle_lines is not None:
+            keys = battle_lines(k)
+            if keys:
+                out["message_keys"][k] = keys
+            else:
+                out["unmapped_messages"].append(k)
+        elif k in battle_text.PR_KEYS:
             out["message_keys"][k] = battle_text.PR_KEYS[k]
         elif k in battle_text.OWN_TEXT:
             out["messages"][k] = battle_text.OWN_TEXT[k]
@@ -605,4 +632,14 @@ def snes_ai_data(van, bnw, ab, vmo, scripts, mp=None, resolver=None):
                 out["formations"].setdefault(p, f)
     out["party_members"] = {}
     out["party_slots"] = party_slots(bnw, mp or P.Table("monster_party"), out["formations"], out["party_members"])
+    if SNES_AI_RULES != "vanilla":
+        out["rules"] = SNES_AI_RULES
+    table = list(d[CMD_TABLE:CMD_TABLE + 22])
+    if table != list(van.data[CMD_TABLE:CMD_TABLE + 22]):
+        out["command_table"] = table
+    if SNES_AI_RULES == "bnw":
+        out["boss_death"] = [e for e, x in enumerate(S.enemies(bnw)[:384]) if len(x.raw) > 0x12 and x.raw[0x12] & 0x40]
     return out
+
+
+CMD_TABLE = 0x021DD8   # GetCmdForAI's ranges: 11 first attacks, then their 11 commands

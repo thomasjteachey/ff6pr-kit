@@ -1,0 +1,6 @@
+# BNW's boss rule ("bosses die only through their AI": HP 0 doesn't kill them) on the PR:
+# how the PR's NonDead condition (662) keeps a unit alive at 0 HP, and where death is applied
+Last\.Battle\.BattleConditionController\$\$.*
+Serial\.FF6\.Management\.SerialBattleUtility\$\$(Add|Remove)NonDeadCondition
+Last\.Battle\.BattleActExection\$\$(ResetDeniedNonDead|IsOnlyAliveDeadFinalAttack)
+Serial\.FF6\.Battle\.BattleActExectionSerial\$\$IsOnlyAliveDeadFinalAttack
