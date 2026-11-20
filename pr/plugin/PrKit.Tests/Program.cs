@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using BepInEx.Configuration;
 using HarmonyLib;
 using PrKit;
@@ -19,6 +20,8 @@ static class Program
         Test("request file is taken once", RequestTakenOnce);
         Test("feature switches and isolation", FeatureSwitches);
         Test("snake_case table to master type name", Pascal);
+        Test("SNES encounter rules: vanilla", EncountersVanilla);
+        Test("SNES encounter rules: BNW's roll and tables", EncountersBnw);
         Console.WriteLine($"\n{passes} passed, {failures} failed");
         return failures;
     }
@@ -116,5 +119,50 @@ static class Program
         Eq("MonsterParty", LiveData.Pascal("monster_party"), "monster_party");
         Eq("Item", LiveData.Pascal("item"), "item");
         Eq("AbilityRandomGroup", LiveData.Pascal("ability_random_group"), "ability_random_group");
+    }
+
+    // PrKit/Ff6/SnesEncounterRules.cs: vanilla's numbers (WcTest's encounters check expects these means),
+    // a step's danger, the relics
+    static void EncountersVanilla()
+    {
+        var r = PrKit.Ff6.SnesEncounterRules.Vanilla;
+        Eq(23.35, Math.Round(r.MeanSteps(0xC0), 2), "world normal");
+        Eq(33.61, Math.Round(r.MeanSteps(0x60), 2), "world low");
+        Eq(31.1, Math.Round(r.MeanSteps(0x70), 2), "other maps normal");
+        Eq(13.86, Math.Round(r.MeanSteps(0x200), 2), "other maps very high");
+        Eq(0x60, r.Rate(true, 0, true, false), "the Charm Bangle halves");
+        Eq(0, r.Rate(false, 2, false, true), "the Moogle Charm stops");
+        Eq(0, r.Rate(true, 3, false, false), "world code 3: none");
+        Eq(0, r.Rate(false, PrKit.Ff6.SnesEncounterRules.NoBattles, false, false), "no battles");
+        Eq(200, r.Roll(200), "the roll is the random byte");
+        Eq(false, PrKit.Ff6.SnesEncounterRules.Advance(0xFE00, 0x200, 255, out int after), "roll 255 at $FF: never");
+        Eq(0xFF00, after, "the danger stops at $FF00");
+        Eq(true, PrKit.Ff6.SnesEncounterRules.Advance(0x100, 0x70, 0, out after), "roll 0 at $01");
+        Eq(-2, r.WorldCode(1, 0, 0), "no tables: the mod's own RateCode");
+    }
+
+    // BNW's (its ROM, tools/port_encounter_rates.py): the roll 4 + random x 233 / 256, so no battle until
+    // the danger's high byte passes 4; a zone byte's terrain groups; the data as bnw_data.json has it
+    static void EncountersBnw()
+    {
+        var r = PrKit.Ff6.SnesEncounterRules.Parse(System.Text.Json.JsonDocument.Parse(
+            "{\"name\":\"bnw\",\"roll\":{\"add\":4,\"range\":233},\"world_zones\":{\"1\":[" + string.Join(",", new int[64].Select((_, i) => i == 1 ? 0x23 : 0xFF)) + "]}," +
+            "\"foot_group\":{\"1\":{\"4\":0,\"9\":1,\"15\":2}},\"set_codes\":{\"144\":-1,\"219\":2}}").RootElement);
+        Eq("bnw", r.Name, "name");
+        Eq(4, r.Roll(0), "the lowest roll");
+        Eq(236, r.Roll(255), "the highest roll");
+        Eq(0.0, r.BattleChance(0x4FF), "no battle at $04FF");
+        Eq(true, r.BattleChance(0x500) > 0, "a chance at $0500");
+        Eq(37.76, Math.Round(r.MeanSteps(0x70), 2), "other maps normal");
+        Eq(26.97, Math.Round(r.MeanSteps(0xC0), 2), "world normal");
+        Eq(0, r.WorldCode(1, 1, 4), "zone 1 ($23) grass: normal");
+        Eq(2, r.WorldCode(1, 1, 9), "zone 1 forest: high");
+        Eq(0, r.WorldCode(1, 1, 15), "zone 1 desert: normal");
+        Eq(3, r.WorldCode(1, 0, 4), "zone 0 ($FF): none");
+        Eq(0, r.WorldCode(1, 1, 99), "an unknown ground: group 0");
+        Eq(-1, r.MapCode(144), "set 144: no battles");
+        Eq(2, r.MapCode(219), "set 219: high");
+        Eq(0, r.MapCode(5), "a set not listed: normal");
+        Eq(0x180, r.Rate(true, r.WorldCode(1, 1, 9), false, false), "the rate");
     }
 }

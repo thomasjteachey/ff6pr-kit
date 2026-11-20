@@ -229,6 +229,15 @@ install from the build and compares it file by file.
   `WcEnemyAi*.cs` run it in the PR's battles; WcAi.Tests checks it on WC's scripts. Brave New World's
   plugin compiles it too, for its own monsters next (BNW's AI changes are a few conditions: c2.asm FC 06/07,
   counters that can't trigger counters, the Lore range from $84, the vindictive-targeting fix).
+- **The SNES's random battles are the kit's** (2026-11-20): `PrKit/Ff6/SnesEncounters.cs` (the danger counter
+  on the PR's move counter, the roll before the game's own check, the party drawn against the set's weights)
+  with a per-mod `SnesEncounterMod`, and `SnesEncounterRules.cs` (game-free: the rate tables, the roll, mean
+  steps, the zone/terrain and set codes a mod's data may carry; PrKit.Tests checks it). `tools/
+  port_encounter_rates.py` reads a mod's rules from its ROM. WC keeps vanilla's (its own tables in
+  `WcEncounters.cs`); BNW reads its own from `bnw_data.json`. The harness has `encounters`.
+- **Config rows** (2026-11-20): `PrKit/ConfigRows.cs` adds a mod's On/Off rows to the game's Config menu
+  (a copy of one of the game's On/Off rows with a command type of the mod's own, after the battle rows and
+  other mods' rows there; Battle Options' way). BNW's Encounters row is the first.
 - **Worlds Collide's player setup** (2026-11-12, `WcGameData.cs`): the first thing in `Plugin.Load`,
   when `generator/vanilla/.complete` is missing or isn't `generator/gamedata.json`'s `"id"`, runs
   `wc_gamedata.py setup` with the bundled Python (42 s on the PC, in the console before the game

@@ -242,7 +242,7 @@ namespace PrKit
             }, "skipmsg on|off: scripts' message boxes complete at once");
             Add("newgame", _ => NewGame(), "newgame: New Game on the title screen");
             Add("slots", _ => Slots(), "slots: the save slots (read only)");
-            Add("load", Load, "load [slot]: the latest save or a slot");
+            Add("load", Load, "load [slot] [goto]: the latest save or a slot (goto: the in-game load, FF6 always)");
             Add("warp", Warp, "warp <map> [point]: to a map's entrance, as ChangeMap does");
             Add("script", RunScript, "script <name>: an event script of the current map");
             Add("battle", Battle, "battle <party>: a real battle with any monster party, as EncountBoss");
@@ -285,7 +285,9 @@ namespace PrKit
             var slot = a.Length > 0 && int.TryParse(a[0], out var sid) ? mgr?.GetTargetSaveSlotData(sid) : mgr?.GetLatestSaveSlotData(false, false);
             if (slot == null) return "error: no such save";
             var tw = Object.FindObjectOfType<Last.UI.KeyInput.TitleWindowController>();
-            if (tw == null)
+            // FF6: the in-game load from the title too, as BNW's probe loads (its proven way): the title
+            // path below read the save and then stalled at the title (2026-11-20, a BNW save in a sandbox)
+            if (tw == null || Game.Current == PrGame.FF6 || (a.Length > 1 && a[1] == "goto"))
             {
                 mgr.GotoLoadSaveData(slot);   // on the field: the in-game load
                 return $"loading save {slot.Id} ({slot.TimeStamp}) on the field";

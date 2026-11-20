@@ -163,11 +163,15 @@ class EncounterPorter:
     def port(self):
         self.stats = Counter()
         vloc, bloc = locations(self.van), locations(self.bnw)
+        # a place the mod gives a pack with an empty formation holds no battles (BNW's pack 0: its
+        # unused maps and its world terrains with no encounters, rate code 3): it has no say in which
+        # pack a PR set takes (BNW's pack 0 had outvoted the real one in 13 sets, which kept vanilla's)
+        empty = {p for p in set(bloc.values()) if any(not formation(self.bnw, f) for f in pack(self.bnw, p))}
         places = defaultdict(list)
         for place, p in vloc.items():
             places[p].append(place)
         for sid, p in self.set_to_pack().items():
-            bnw_packs = Counter(bloc[pl] for pl in places.get(p, []) if pl in bloc)
+            bnw_packs = Counter(bloc[pl] for pl in places.get(p, []) if pl in bloc and bloc[pl] not in empty)
             if not bnw_packs:
                 self.stats["set unused on SNES maps"] += 1
                 continue
@@ -188,5 +192,28 @@ class EncounterPorter:
                 srow[f"monster_set{k}"] = str(self.party_for(f, template))
             self.changed["monster_set"].add(sid)
             self.stats["sets refilled"] += 1
+        self.party_odds()
         self.log(f"encounters: {dict(self.stats)}")
         return self.changed
+
+    def party_odds(self):
+        """The mod's odds for a random battle's 4 parties (port_encounter_rates.party_odds: BNW 80/80/48/48 of
+        256, vanilla 80/80/80/16) as the weights of the PR sets random battles use (maps' and world areas'):
+        the kit's encounter hook draws 1-256 against them, the PR's own draw (1-1000) keeps its 25.6%."""
+        import port_encounter_rates as R
+        odds = R.party_odds(self.bnw)
+        world = {int(r[c]) for r in P.Table("encount_area") for c in r if c.endswith("_monster_set")}
+        maps = {int(r["monster_set_id"]) for r in P.Table("map")}
+        for kind, sets in (("world", world), ("map", maps)):
+            w = odds[kind]
+            if tuple(w) == R.VANILLA_ODDS:
+                continue
+            for sid in sorted(sets):
+                row = self.ms.rows.get(sid)
+                if row is None or tuple(int(row[f"monster_set{k}_rate"]) for k in range(1, 5)) != R.VANILLA_ODDS \
+                        or not all(int(row[f"monster_set{k}"]) for k in range(1, 5)):
+                    continue
+                for k in range(4):
+                    row[f"monster_set{k + 1}_rate"] = str(w[k])
+                self.changed["monster_set"].add(sid)
+                self.stats[f"{kind} sets at the mod's party odds"] += 1
