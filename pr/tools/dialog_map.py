@@ -78,14 +78,17 @@ def jp_dialogs(d):
             if c == 0x00:
                 break
             if c in (0x13, 0xD0):
-                if cur:
+                if cur and any(x != "nm" for x in cur):
                     turns.append(cur)
-                cur = []
+                    cur = []
+                # a name alone (a speaker's name before its mark) joins the next turn
             elif c in (0x01, 0x10, 0x12, 0x15, 0xFF):
                 pass
             elif c in (0x11, 0x14, 0x16):
                 k += 1; n += 1
-            elif 0x02 <= c <= 0x0F or 0x17 <= c <= 0x1B:
+            elif 0x02 <= c <= 0x0F:
+                cur.append("nm")   # a character's name: the PR's (TINA)-style tag on its side
+            elif 0x17 <= c <= 0x1B:
                 pass
             elif 0x1C <= c <= 0x1F:
                 cur.append(f"{c:02x}{d[k]:02x}"); k += 1; n += 1
@@ -108,16 +111,20 @@ def pr_lines(lang):
     return out
 
 
+NAME_TAG = re.compile(r"\((?:TINA|ROCK|KAIEN|SHADOW|EDGAR|MASH|CELES|STRAGUS|RELM|SETZER|MOG|GAU|GOGO|UMARO)\)")
+NAME = "＠"   # a character's name, in both scripts
+
+
 def clean_ja(s):
-    return TAG.sub("", s)
+    return TAG.sub("", NAME_TAG.sub(NAME, s))
 
 
 def learn_table(jp, prj, anchors, rounds=4):
     """Code -> text from dialogues the English aligner placed (anchors: {dialogue: [PR keys]})."""
     pairs = []
     for i, keys in anchors.items():
-        codes = [c for t in jp[i] for c in t]
-        pairs.append((codes, "".join(clean_ja(prj.get(k, "")) for k in keys)))
+        codes = [c for t in jp[i] for c in t if c != "nm"]   # names: not glyphs of the table
+        pairs.append((codes, "".join(clean_ja(prj.get(k, "")) for k in keys).replace(NAME, "")))
     votes = collections.defaultdict(collections.Counter)
     for c, t in pairs:
         if c and len(c) == len(t):
@@ -159,7 +166,7 @@ def learn_table(jp, prj, anchors, rounds=4):
 
 
 def decode(turn, table):
-    return "".join(table.get(x, "□") for x in turn)
+    return "".join(NAME if x == "nm" else table.get(x, "□") for x in turn)
 
 
 def grams(s):
@@ -297,6 +304,20 @@ def build(verbose=True):
         other = max((c for n, c in top[1:] if skel[n][0] != skel[n0][0]), default=0)
         if c0 / len(gs) >= 0.7 and c0 - other >= max(2, 0.25 * c0):
             match[k] = (skel[n0][0], c0 / len(gs), "skeleton")
+    # 3b2. still unplaced, with enough text: the one clearly best dialogue anywhere (raw bigrams or
+    # kana skeletons, whichever covers more), a lower bar than step 1's but a wide margin
+    by_dlg_grams = [(grams("".join(d)), grams(skeleton("".join(d)))) for d in dec]
+    for k in story:
+        if k in match:
+            continue
+        g, gs = grams(lines[k]), grams(skeleton(lines[k]))
+        if len(g) < 5:
+            continue
+        scores = sorted(((max(len(g & a) / len(g), len(gs & b) / len(gs) if len(gs) >= 4 else 0.0), i)
+                         for i, (a, b) in enumerate(by_dlg_grams) if i), reverse=True)
+        (s1, i1), (s2, i2) = scores[0], scores[1]
+        if s1 >= 0.55 and s1 - s2 >= 0.2:
+            match[k] = (i1, s1, "loose")
     # 3c. the English sequence aligner (dialog_align_seq: per scene, speakers checked), where it agrees
     # with the line's placed neighbours in its scene, or with no neighbours, shows some Japanese
     import dialog_align_seq as DS
@@ -324,6 +345,25 @@ def build(verbose=True):
     for k in story:
         if k not in match and k in en:
             match[k] = (en[k], 0.0, "en-only")
+    # 3d. short lines ("クポ……", "！？": too few bigrams to match anywhere): between placed neighbours
+    # of their scene (on one dialogue, or two next to each other), in the one turn that holds them
+    short = [k for k in lines if 0 < len(grams(lines[k])) < 3 and not k.startswith("SPEAKER") and k not in match]
+    placed_in = collections.defaultdict(list)
+    for k in match:
+        placed_in[scene(k)].append((D.keyorder(k), match[k][0]))
+    for k in short:
+        here = D.keyorder(k)
+        near = placed_in.get(scene(k), [])
+        lo = max((x for x in near if x[0] < here), default=None)
+        hi = min((x for x in near if x[0] > here), default=None)
+        if lo is None or hi is None or not (0 <= hi[1] - lo[1] <= 1):
+            continue
+        want = skeleton(lines[k]).strip("…。、！？!?.")
+        if not want:
+            continue
+        hits = [i for i in range(lo[1], hi[1] + 1) for t in dec[i] if want in skeleton(t)]
+        if len(set(hits)) == 1:
+            match[k] = (hits[0], 1.0, "short")
     # 4. turns: each placed line -> the run of its dialogue's turns it covers best
     out = {}
     for k, (d, cov, how) in match.items():
