@@ -1,0 +1,12 @@
+# Battle Options Enemy ATB: when an enemy's death (down/fizzle) animation starts
+UnableFightConditionFunction\$\$
+AnimStateController\$\$SetIsDown$
+AnimStateController\$\$UpdateEntity$
+AnimStateController\$\$IdleState$
+BattleEnemyAnimatorBase\$\$DownStart$
+BattleEnemyAnimatorBase\$\$UpdateDownStart$
+BattleEnemyAnimatorBase\$\$ExitDownStart$
+BattleEnemyAnimatorBase\$\$Down$
+BattleEnemyAnimatorBase\$\$NormalDownUpdate$
+BattleAnimatorBase\$\$ChangeState$
+BattleAnimatorBase\$\$GetState$
