@@ -57,13 +57,17 @@ namespace PrKit.Ff6
             public readonly Dictionary<int, int> SnesId = new Dictionary<int, int>();     // UniqueId -> SNES monster id
             public readonly byte[] Vars = new byte[0x24];
             public readonly double[] MonsterTime = new double[6];
-            public double BattleTime;
+            public double BattleTime;   // the scripts' battle timer (FC 16, FB 04 resets it)
+            // the host's own clock for its waits (holds, deferred entries, arrivals, bosses at 0 HP): never
+            // reset. They ran on BattleTime until 2026-11-20, so a monster's timed attack (if timer >= n,
+            // FB 04 reset, attack: ~110 of BNW's scripts, vanilla's pattern too) pushed them back each time
+            public double Clock;
             public int Formation = -1;
             public int[] CellSlots;   // the data's SNES slot of each party cell (null: by cell order)
             public int[][] Members;   // the data's member of each SNES slot: {SNES id, cell, shown at start, listed} (null: unknown)
             public readonly HashSet<int> Hidden = new HashSet<int>();   // SNES slots hidden (F5 hide/kill, or hidden from the start)
             public bool HoldEnd;   // F5 mode 4: the battle can't end until a monster is shown
-            public double HoldUntil;   // a hold's safety limit (battle time): nothing keeps a battle open for good
+            public double HoldUntil;   // a hold's safety limit (Clock): nothing keeps a battle open for good
             // a death's entries/exits, applied once the dying monster has left the field (the PR is still
             // running its death when FinalAttackAct asks): (the dying unit, its slot, its SNES id, the
             // entries, the battle time after which they apply anyway)
@@ -87,6 +91,10 @@ namespace PrKit.Ff6
             public readonly HashSet<int> Dying = new HashSet<int>();   // their script let them die
             public readonly HashSet<int> PendingKill = new HashSet<int>();   // FB 0B 07 this pass: dies next frame
             public readonly HashSet<int> EraseOnDeath = new HashSet<int>();   // its death's final attack: the erase-all
+            // "everyone dies like a boss": if the fight still has monsters standing at this Clock (the PR
+            // raised no final attack for the erase-all), each dies the game's own way (0: none due)
+            public double EraseAllAt;
+            public readonly HashSet<int> Erased = new HashSet<int>();   // killed by that: no death script of their own
             public readonly HashSet<int> ZeroCountered = new HashSet<int>(), ZeroForced = new HashSet<int>();   // at 0 HP: its death script ran / its counter pass was asked for
             public System.Random Rng = new System.Random();
         }
@@ -274,6 +282,7 @@ namespace PrKit.Ff6
             var f = Current;
             if (f == null) return;
             f.BattleTime += dt;
+            f.Clock += dt;
             var u = Units();
             for (int s = 0; s < 6; s++)
                 if (u[4 + s] != null && !IsDead(u[4 + s]) && !f.Hidden.Contains(s)) f.MonsterTime[s] += dt;

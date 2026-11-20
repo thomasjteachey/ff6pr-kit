@@ -559,6 +559,7 @@ namespace PrKit.Ff6
             var units = Units();
             int uid = me.UniqueId, slot = f.Slot.TryGetValue(uid, out int s) ? s : 0, snesId = f.SnesId.TryGetValue(uid, out int sid) ? sid : -1;
             if (!f.Monsters.TryGetValue(uid, out var m)) return false;
+            if (f.Erased.Contains(uid)) return false;   // "everyone dies like a boss" killed it: no death script
             // a BNW boss held at 0 HP: the PR raises its final-attack flag at 0 HP, but it isn't dying: its
             // counter script runs as it would alive at 0 HP ("if HP <= 0": an extra life, everyone dies like a
             // boss, FB 0B 07), whatever state it's in (found in game 2026-11-19: run as a dying monster, the
@@ -567,6 +568,7 @@ namespace PrKit.Ff6
             {
                 // its script ended in "everyone dies like a boss" at 0 HP: the PR's erase-all as its final attack
                 Finals++;
+                f.EraseAllAt = f.Clock + 12;   // the erase-all plays; anyone still standing after that dies
                 LastFinal = $"monster {snesId} slot {slot}: everyone dies like a boss (its script at 0 HP) => {EraseAll}";
                 if (Verbose) Log(" death: " + LastFinal);
                 var erase = new List<(int, Il2CppReferenceArray<BattleUnitData>)> { (EraseAll, null) };
@@ -590,7 +592,7 @@ namespace PrKit.Ff6
             }
             else if (entries.Count > 0)
             {
-                f.Deferred.Add((me, slot, snesId, entries, f.BattleTime + 2));   // after its death animation
+                f.Deferred.Add((me, slot, snesId, entries, f.Clock + 2));   // after its death animation
                 // a death that brings others in (Chaser's Trappers, a Flan's halves): the SNES keeps the
                 // battle from ending meanwhile (its own F5 mode 4, or the shown monsters counting at once)
                 if (entries.Any(e => e.B2 == 0 || e.B2 == 2 || e.B2 == 4)) Hold(f, BattlePlugManager.Instance(), 15);
@@ -627,7 +629,7 @@ namespace PrKit.Ff6
                 p.CurrentHP = 1;
                 if (!f.AtZero.ContainsKey(uid))
                 {
-                    f.AtZero[uid] = f.BattleTime;
+                    f.AtZero[uid] = f.Clock;
                     f.ZeroCountered.Remove(uid);
                     f.ZeroForced.Remove(uid);
                     if (Verbose) Log($": monster {id} (unique {uid}) at 0 HP: its script decides");
@@ -708,16 +710,35 @@ namespace PrKit.Ff6
 
         static void ZeroHpChecks(Fight f)
         {
-            if (f.AtZero.Count == 0 && f.PendingKill.Count == 0) return;
+            if (f.AtZero.Count == 0 && f.PendingKill.Count == 0 && f.EraseAllAt <= 0) return;
             var bm = BattlePlugManager.Instance();
             if (bm == null) return;
+            // "everyone dies like a boss" whose erase-all never came: the boss's own death may raise no final
+            // attack (the PR raised it at 0 HP already, while the boss was held: a party's killing hit), and
+            // then the rest stood there for good (the user's Deck, 2026-11-20: BNW's Whelk, the head dead,
+            // the shell idling). Each one left dies the game's own way.
+            if (f.EraseAllAt > 0 && f.Clock >= f.EraseAllAt)
+            {
+                f.EraseAllAt = 0;
+                foreach (var e in bm.GetEnemyUnits())
+                {
+                    var ed = e?.TryCast<BattleEnemyData>();
+                    var p = ed?.BattleUnitDataInfo?.Parameter;
+                    if (ed == null || p == null || p.CurrentHP <= 0 || f.Dying.Contains(ed.UniqueId)) continue;
+                    f.Erased.Add(ed.UniqueId);
+                    Log($": unique {ed.UniqueId} dies: everyone dies like a boss (no erase-all came)");
+                    Kill(f, ed, "everyone dies like a boss");
+                }
+            }
             foreach (var e in bm.GetEnemyUnits())
             {
                 var ed = e?.TryCast<BattleEnemyData>();
                 if (ed == null) continue;
                 if (f.PendingKill.Remove(ed.UniqueId))
                 {
-                    Kill(f, ed, f.EraseOnDeath.Contains(ed.UniqueId) ? "its script at 0 HP: everyone dies like a boss" : "its script: FB 0B 07");
+                    bool erase = f.EraseOnDeath.Contains(ed.UniqueId);
+                    Kill(f, ed, erase ? "its script at 0 HP: everyone dies like a boss" : "its script: FB 0B 07");
+                    if (erase) f.EraseAllAt = Math.Max(f.EraseAllAt, f.Clock + 2);   // the erase-all, as its final attack
                     continue;
                 }
                 if (!f.AtZero.TryGetValue(ed.UniqueId, out double since)) continue;
@@ -727,7 +748,7 @@ namespace PrKit.Ff6
                 // no counter or final-attack pass ran its death script (HP lost to poison or a counterattack, a
                 // sleeping boss, or the PR no longer raising those flags for it): BNW still runs it
                 // (c2.asm DeathCounterFix), so the host runs it here and queues its act as a counter
-                if (!f.ZeroCountered.Contains(ed.UniqueId) && !f.ZeroForced.Contains(ed.UniqueId) && f.BattleTime - since > 1.0)
+                if (!f.ZeroCountered.Contains(ed.UniqueId) && !f.ZeroForced.Contains(ed.UniqueId) && f.Clock - since > 1.0)
                 {
                     // first the game's own counter pass (the act it queues plays out right): its counter
                     // count reset (the PR stops a monster's counters at a maximum) and its ready flag raised
@@ -742,13 +763,13 @@ namespace PrKit.Ff6
                     }
                     catch (Exception ex) { Hooks.WarnOnce("enemy-ai-force-counter", ex); }
                 }
-                else if (!f.ZeroCountered.Contains(ed.UniqueId) && f.BattleTime - since > 3.0)
+                else if (!f.ZeroCountered.Contains(ed.UniqueId) && f.Clock - since > 3.0)
                 {
                     f.ZeroCountered.Add(ed.UniqueId);
                     try { DeathScript(f, ed); }
                     catch (Exception ex) { Hooks.WarnOnce("enemy-ai-death-script", ex); }
                 }
-                if (f.BattleTime - since > ZeroHpLimit) Kill(f, ed, "held at 0 HP for a minute");
+                if (f.Clock - since > ZeroHpLimit) Kill(f, ed, "held at 0 HP for a minute");
             }
         }
     }

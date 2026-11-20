@@ -88,14 +88,14 @@ namespace PrKit.Ff6
         {
             bm?.BattleEndJugment?.SetEnabled(false);
             f.HoldEnd = true;
-            f.HoldUntil = Math.Max(f.HoldUntil, f.BattleTime + seconds);
+            f.HoldUntil = Math.Max(f.HoldUntil, f.Clock + seconds);
         }
 
         static void RunDeferred(Fight f)
         {
             var bm = BattlePlugManager.Instance();
             if (bm == null) return;
-            if (f.HoldEnd && f.BattleTime > f.HoldUntil)
+            if (f.HoldEnd && f.Clock > f.HoldUntil)
             {
                 bm.BattleEndJugment?.SetEnabled(true);   // nothing came: the battle may end again
                 f.HoldEnd = false;
@@ -107,7 +107,7 @@ namespace PrKit.Ff6
                 bool gone = true;
                 foreach (var e in bm.GetEnemyUnits())
                     if (e != null && d.unit != null && e.Pointer == d.unit.Pointer) gone = false;
-                if (!gone && f.BattleTime < d.by) continue;
+                if (!gone && f.Clock < d.by) continue;
                 f.Deferred.RemoveAt(i);
                 try { ApplyEntries(f, d.slot, d.snesId, d.entries); }
                 catch (Exception e) { Hooks.WarnOnce("enemy-ai-deferred", e); }
@@ -213,7 +213,7 @@ namespace PrKit.Ff6
                     var ed = e?.TryCast<BattleEnemyData>();
                     if (ed != null && ed.UniqueId == f.InFlightCell && !IsDead(ed)) here = true;
                 }
-                if (!here && f.BattleTime - f.InFlightSince < 3) return;
+                if (!here && f.Clock - f.InFlightSince < 3) return;
                 f.InFlightCell = 0;
                 if (f.Creating.Count == 0 && f.HoldEnd) { bm.BattleEndJugment?.SetEnabled(true); f.HoldEnd = false; }
             }
@@ -223,7 +223,7 @@ namespace PrKit.Ff6
             catch (Exception e) { Hooks.WarnOnce("enemy-ai-remove", e); }
             ec.InBattleEnemy(prId, cell);
             f.InFlightCell = cell;
-            f.InFlightSince = f.BattleTime;
+            f.InFlightSince = f.Clock;
         }
 
         // the battle's opening: members the PR party lists but the SNES formation hides from the start

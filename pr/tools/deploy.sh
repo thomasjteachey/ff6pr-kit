@@ -13,9 +13,11 @@
 #
 # An installed mod is BepInEx/plugins/<Mod> + FINAL FANTASY VI_Data/StreamingAssets/Magicite/<Mod>,
 # with Magicite's import directory the standard %StreamingAssets%/Magicite. The other mod's
-# plugin folder moves to BepInEx/mod-shelf/<Mod> (BepInEx loads nothing there): Worlds Collide's
-# seeds stay with it and come back with --wc. The old shared layout (MagiciteWC, MagiciteVanilla,
-# the in-game Mods screen) is folded in on the first run.
+# plugin folder moves to BepInEx/mod-shelf/<Mod> and its Magicite folder to
+# BepInEx/mod-shelf/magicite/<Mod> (nothing loads either there), so both mods stay installed and
+# tools/modswitch (library tiles on the Deck, shortcuts on the PC) switches between them without
+# a deploy. The old shared layout (MagiciteWC, MagiciteVanilla, the in-game Mods screen) is
+# folded in on the first run.
 #
 # The Deck runs the same Windows build through Proton; BepInEx loads there only if Wine
 # prefers the game's winhttp.dll. deploy.sh sets that in FF6's Proton prefix
@@ -71,9 +73,10 @@ switch_script() {
 set -e
 mkdir -p '$SHELF' '$MAGICITE'
 if [ -d '$OTHER_PLUGIN' ]; then rm -rf '$SHELF/$other'; mv '$OTHER_PLUGIN' '$SHELF/$other'; echo "[deploy]   $other set aside ($SHELF/$other)"; fi
-rm -rf '$MAGICITE/$other'
+if [ -d '$MAGICITE/$other' ]; then mkdir -p '$SHELF/magicite'; rm -rf '$SHELF/magicite/$other'; mv '$MAGICITE/$other' '$SHELF/magicite/$other'; fi
 rm -rf 'FINAL FANTASY VI_Data/StreamingAssets/MagiciteWC' 'FINAL FANTASY VI_Data/StreamingAssets/MagiciteVanilla'
 if [ ! -d '$PLUGIN' ] && [ -d '$SHELF/$mod' ]; then mv '$SHELF/$mod' '$PLUGIN'; echo "[deploy]   $mod back from the shelf"; fi
+if [ ! -d '$MAGICITE/$mod' ] && [ -d '$SHELF/magicite/$mod' ]; then mv '$SHELF/magicite/$mod' '$MAGICITE/$mod'; fi
 cfg='$MAGICITE_CFG'
 if [ -f "\$cfg" ]; then
   if grep -q '^Import Directory' "\$cfg"; then sed -i 's|^Import Directory = .*|Import Directory = %StreamingAssets%/Magicite|' "\$cfg"
