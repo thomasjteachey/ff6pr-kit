@@ -1,0 +1,6 @@
+# dual wield: when the PR strikes twice (BNW 2026-11-20: Locke with two Dirks hit once)
+Serial\.FF6\.Management\.SerialBattleUtility\$\$IsSecondlyAttack
+Serial\.FF6\.Management\.SerialBattleUtility\$\$CreateContiniousActData
+Serial\.FF6\.Management\.SerialBattleUtility\$\$IsContinuousAct
+Serial\.FF6\.Management\.SerialBattleUtility\$\$GetContinuousAbilityAndCommand
+Serial\.FF6\.Management\.SerialBattleUtility\$\$GetWeaponId
