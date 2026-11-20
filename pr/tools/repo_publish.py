@@ -38,7 +38,7 @@ SKIP_FILES = {"Games.props"}  # this PC's game folders (tools/kit.py games write
 # tools/*.py that belong to one mod; everything else in tools/ is the kit's
 WC_TOOLS = ["wc_*.py", "snes_doma_siege.py", "port_trace.py", "kitpath.py", "wc_basedata_regions.json"]
 BNW_TOOLS = ["port_bnw.py", "bnw_plugin_data.py", "profile_bnw.py", "probe_check.py", "probe_headless.ps1",
-             "bnw_publish.py", "kitpath.py"]
+             "bnw_publish.py", "bnw_dialog.py", "kitpath.py"]
 OTHER_TOOLS = ["battle_options_test.py", "bo_publish.py",   # Battle Options: its own repository
                "run_tests.ps1"]                              # every mod's tests at once: the project's only
 
