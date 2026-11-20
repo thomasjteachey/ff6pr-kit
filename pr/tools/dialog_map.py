@@ -57,13 +57,21 @@ def jp_rom_path():
     raise SystemExit(f"no Japanese ROM ({JP_ROM_NAME}): set FF6_JP_ROM")
 
 
+# the SNES's battle dialogues (multi-line battle messages, 256): in the JP ROM the pointers are at
+# D0/FC00 (bank D0), in the US ROM at D0/D000; numbered like the US ROM's (and BNW's
+# btlBigCaption_script.txt) but for the first two. In the map they are dialogues BATTLE + n.
+BATTLE, BATTLE_COUNT, JP_BATTLE_PTRS, JP_BATTLE_BANK = 3084, 256, 0x10FC00, 0x100000
+
+
 def jp_dialogs(d):
     """Each dialogue as turns, each turn a list of glyph codes ("8b", "1c76"...); a turn starts at
-    a speaker marker (D0) or a new page (13)."""
+    a speaker marker (D0) or a new page (13). The field's 3084, then the battle's 256."""
     w = lambda a: d[a] | d[a + 1] << 8
-    split, out = w(0x0CE600), []
-    for i in range(COUNT):
-        k = (0x0D0000 if i < split else 0x0E0000) + w(0x0CE602 + 2 * i)
+    split = w(0x0CE600)
+    starts = [(0x0D0000 if i < split else 0x0E0000) + w(0x0CE602 + 2 * i) for i in range(COUNT)]
+    starts += [JP_BATTLE_BANK + w(JP_BATTLE_PTRS + 2 * i) for i in range(BATTLE_COUNT)]
+    out = []
+    for k in starts:
         turns, cur, n = [], [], 0
         while n < 3000:
             c = d[k]; k += 1; n += 1
@@ -212,7 +220,7 @@ def build(verbose=True):
             if lo is None and hi is None:
                 continue
             lo = lo if lo is not None else max(0, hi - 3)
-            hi = hi if hi is not None else min(COUNT - 1, lo + 3)
+            hi = hi if hi is not None else min(BATTLE + BATTLE_COUNT - 1, lo + 3)
             if hi < lo:
                 continue
             g = grams(lines[k])
@@ -235,7 +243,10 @@ def build(verbose=True):
         e = event(k)
         if e in span:
             lo, hi = span[e]
-            return max(0, lo - 4), min(COUNT - 1, hi + 4)
+            if (lo < BATTLE) != (hi < BATTLE) or hi - lo > 80:
+                return None   # an event with field and battle lines, or spread far: no safe window
+            top = COUNT - 1 if hi < BATTLE else BATTLE + BATTLE_COUNT - 1
+            return max(BATTLE if lo >= BATTLE else 0, lo - 4), min(top, hi + 4)
         kind = [x for x in evs if x[0] == e[0]]
         num = int(re.sub(r"\D", "", e) or 0)
         before = [x for x in kind if int(re.sub(r"\D", "", x) or 0) < num]
@@ -286,6 +297,30 @@ def build(verbose=True):
         other = max((c for n, c in top[1:] if skel[n][0] != skel[n0][0]), default=0)
         if c0 / len(gs) >= 0.7 and c0 - other >= max(2, 0.25 * c0):
             match[k] = (skel[n0][0], c0 / len(gs), "skeleton")
+    # 3c. the English sequence aligner (dialog_align_seq: per scene, speakers checked), where it agrees
+    # with the line's placed neighbours in its scene, or with no neighbours, shows some Japanese
+    import dialog_align_seq as DS
+    seq = DS.run(S.Rom(P.VANILLA_ROM))[0]
+    placed_in = collections.defaultdict(list)
+    for k in story:
+        if k in match:
+            placed_in[scene(k)].append((D.keyorder(k), match[k][0]))
+    for k in story:
+        if k in match or k not in seq:
+            continue
+        i = seq[k][0]
+        here = D.keyorder(k)
+        near = placed_in.get(scene(k), [])
+        lo = max((d for o, d in near if o < here), default=None)
+        hi = min((d for o, d in near if o > here), default=None)
+        g = grams(lines[k])
+        cov = len(g & dg[i]) / len(g)
+        if lo is None and hi is None:
+            ok = cov >= 0.2
+        else:
+            ok = (lo is None or lo - 1 <= i) and (hi is None or i <= hi + 1)
+        if ok:
+            match[k] = (i, cov, "en-seq")
     for k in story:
         if k not in match and k in en:
             match[k] = (en[k], 0.0, "en-only")
