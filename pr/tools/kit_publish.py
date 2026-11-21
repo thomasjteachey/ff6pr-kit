@@ -28,13 +28,16 @@ PARTS = [
     # which pushes this PC's setup to the user's Deck over ssh (its game path and host are the user's)
     ("pr/tools/modswitch", ["ff6-mod-switch.sh", "Switch-Ff6Mod.ps1", "install_pc.ps1", "make_art.py"]),
     ("pr/tests", ["test_prkit.py", "test_magicite_merge.py", "test_snes_disasm.py", "test_snes_events.py",
-                  "test_port_lock.py", "test_snes_rules.py", "test_magicite_check.py",
-                  # test_snes_maps.py: back in the publish after the WC release, with snes_maps.py's kitpath guard
-                  # (it can't import in a bare kit clone until then; the coordinator, 2026-11-20)
-                  "test_porter_items.py", "test_pr_scene_cut.py", "test_pr_art.py"]),
+                  "test_port_lock.py", "test_snes_rules.py", "test_magicite_check.py", "test_snes_maps.py",
+                  "test_porter_items.py", "test_pr_scene_cut.py", "test_pr_art.py", "test_pr_atlas.py",
+                  # the rooms cache: the tileset registry off/cold/warm (lands with wt/rooms-registry)
+                  "test_snes_rooms.py"]),
     ("pr", ["MODDING.md", "PORTING.md"]),
+    # PORTING.md's shared chapters (2026-11-20 split); the mods' own (wc.md, bnw.md, bc.md, tedition.md ...) go in
+    # their repositories
+    ("pr/docs", ["porter.md", "engine.md", "testing.md"]),
 ]
-NOT_PUBLISHED = set()
+NOT_PUBLISHED = {"pr/tools/ghidra/dream_curlax.txt"}   # BNW's dream fight's routine (a mod's query without a bnw_ prefix)
 # a mod's own Ghidra queries (tools/ghidra/bnw_ui.txt, bc_music.txt ...) stay out of the kit
 MOD_PREFIXES = ("bnw_", "bc_", "ted_", "wc_")
 

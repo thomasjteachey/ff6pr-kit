@@ -151,6 +151,28 @@ class Translation(unittest.TestCase):
         self.assertEqual([(o["mnemonic"], o["operands"]["iValues"][:3], o["operands"]["sValues"][0]) for o in t.cond(ins)],
                          [("Branch", [0, 0, "@L_000010"], "MapLocalVariable")])
 
+    def test_party_ops(self):
+        # 3C (the party is c1-c4) -> OrganizePartySlot [1, ids, 0] as vanilla's pairs (CC/9F6D: 3C 00 0E 0F FF =
+        # [1, 1, 31, 32, -2, 0]); 99 with bit 7 of its count (vanilla's 99 81) -> the party menu; walk-in bits decided
+        T = self.T
+        p = prog("us")
+        t = T.Translator(p.rom, "sc_x", prog=p)
+        ins = E.Instr.__new__(E.Instr)
+        ins.op, ins.off, ins.name, ins.cls, ins.size = 0x3C, 0, "party_set", "party", 5
+        ins.mode = ins.next_mode = "field"
+        ins.flow, ins.targets, ins.raw = "next", [], b"\x3C\x00\x0E\x0F\xFF"
+        ins.args = {"c1": 0, "c2": 0x0E, "c3": 0x0F, "c4": 0xFF}
+        ops, ok = t.instr(ins, False, None)
+        self.assertEqual([(o["mnemonic"], o["operands"]["iValues"][:6]) for o in ops], [("OrganizePartySlot", [1, 1, 31, 32, -2, 0])])
+        ins.op, ins.name, ins.cls, ins.args = 0x99, "party_menu", "menu", {"parties": 0x81, "fixed": 0}
+        ops, ok = t.instr(ins, False, None)
+        self.assertEqual([(o["mnemonic"], o["operands"]["sValues"][0]) for o in ops], [("SysCall", T.PARTY_MENU.format("１"))])
+        ins.op, ins.args = 0xC0, {"bits": [(0x1CC, True)], "event": 0x10}          # if 1CC set: never on a walk-in
+        self.assertEqual(t.cond(ins), [])
+        ins.op = 0xC8                                                                # any of (1CC clear): always
+        ins.args = {"bits": [(0x1CC, False), (0x123, True)], "event": 0x10}
+        self.assertEqual([o["mnemonic"] for o in t.cond(ins)], ["Jump"])
+
     def test_graft(self):
         # a PR script grafted into a translation (a mod's event that ends in vanilla's routine): its
         # code comes along with every jump target a label again, and the result is well formed

@@ -30,16 +30,18 @@ def monsters(rom, f):
     return sorted(e for e, _, _ in E.formation(rom, f))
 
 
-def veldt_formations(rom):
-    """The formations a ROM's Veldt can offer (in ID order)."""
-    return [f for f in range(512) if not (rom.data[FLAGS + 4 * f + 3] & 0x02) and monsters(rom, f)]
+def veldt_formations(rom, all_formations=False):
+    """The formations a ROM's Veldt can offer (in ID order). all_formations: the "not on the Veldt" flag is ignored
+    (a mod whose victory code records every won formation up to $1FF, as T-Edition's C2/49D4 does)."""
+    return [f for f in range(512) if (all_formations or not (rom.data[FLAGS + 4 * f + 3] & 0x02)) and monsters(rom, f)]
 
 
-def port(van, mod, tables, encounters, out_dir, log):
-    """Write the mod's Veldt table; returns {"monster_party": parties made here}."""
+def port(van, mod, tables, encounters, out_dir, log, all_formations=False):
+    """Write the mod's Veldt table; returns {"monster_party": parties made here}. all_formations: the profile's
+    veldt_all_formations (the mod's Veldt ignores the formation flag)."""
     if "WC_FLAGS" in os.environ:
         return {}
-    vf, mf = veldt_formations(van), veldt_formations(mod)
+    vf, mf = veldt_formations(van), veldt_formations(mod, all_formations)
     if vf == mf and all(monsters(van, f) == monsters(mod, f) for f in mf):
         log("veldt: the mod's Veldt is vanilla's")
         return {}

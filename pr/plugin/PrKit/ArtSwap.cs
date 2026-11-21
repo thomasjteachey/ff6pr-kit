@@ -16,7 +16,12 @@ namespace PrKit
     // its start, and keeps the sprites of the atlases it builds for good.
     //
     //   ArtSwap.Install(harmony);            once, in the plugin's Load
-    //   ArtSwap.Load(dir);                   dir/art.json (null: none) is now the served art
+    //   ArtSwap.Load(dir);                   dir/art.json (null: none) is now the served art (the base layer)
+    //   ArtSwap.SetLayer("costume:terra", dir)   one more set on top (null: off again); later layers win where
+    //                                        they serve the same address or atlas frame (a costume per character
+    //                                        over a seed's art, each switched on its own). Safe mid-scene:
+    //                                        a named layer's old textures stay loaded (what's on screen keeps
+    //                                        drawing; reused if it comes back); only a base Load frees them
     //
     // art.json: {"sprites": {address: {"png": file, "rect": [x, y, w, h], "pivot": [px, py], "ppu": 1, "border": [l, b, r, t]}},
     //            "atlases": {atlas name: {sprite name: {png, rect, pivot}}}}
@@ -38,6 +43,7 @@ namespace PrKit
 
         sealed class Entry
         {
+            public string Folder;      // the layer's folder (Png is relative to it)
             public string Png;
             public Rect Rect;          // Unity's (bottom-up)
             public Vector2 Pivot;
@@ -54,7 +60,15 @@ namespace PrKit
         static readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, Il2CppSystem.Object> originals = new Dictionary<string, Il2CppSystem.Object>(StringComparer.OrdinalIgnoreCase);
         static readonly HashSet<IntPtr> ours = new HashSet<IntPtr>();
-        static string dir;
+        // every sprite made here (served or shadowed by a later layer): never mistaken for the game's original
+        static readonly HashSet<IntPtr> made = new HashSet<IntPtr>();
+        sealed class Layer
+        {
+            public string Name, Folder;
+            public Dictionary<string, Entry> Sprites;
+            public Dictionary<string, Dictionary<string, Entry>> Atlases;
+        }
+        static readonly List<Layer> layers = new List<Layer>();
         static bool installed;
         public static int Served, AtlasServed;
         public static string Last = "none";
@@ -70,53 +84,90 @@ namespace PrKit
             Hooks.Patch(h, AccessTools.PropertyGetter(typeof(SpriteAtlas), "spriteCount"), typeof(ArtSwap), postfix: nameof(SpriteCountPost));
         }
 
-        // Serve folder/art.json from now on (null or no file: nothing). Returns a line for the log.
-        public static string Load(string folder)
+        // Serve folder/art.json as the base layer from now on (null or no file: none). Returns a line for the log.
+        public static string Load(string folder) => SetLayer("", folder);
+
+        // A named set of art over the base and the layers set before it (null or no art.json: that layer off).
+        public static string SetLayer(string name, string folder)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            var newSprites = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
-            var newAtlases = new Dictionary<string, Dictionary<string, Entry>>(StringComparer.OrdinalIgnoreCase);
+            var layer = new Layer
+            {
+                Name = name ?? "", Folder = folder,
+                Sprites = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase),
+                Atlases = new Dictionary<string, Dictionary<string, Entry>>(StringComparer.OrdinalIgnoreCase),
+            };
             var path = folder == null ? null : Path.Combine(folder, "art.json");
-            if (path != null && File.Exists(path))
+            bool on = path != null && File.Exists(path);
+            if (on)
             {
                 try
                 {
                     using var doc = JsonDocument.Parse(File.ReadAllText(path));
                     var root = doc.RootElement;
                     if (root.TryGetProperty("sprites", out var s))
-                        foreach (var p in s.EnumerateObject()) newSprites[p.Name] = Read(p.Value);
+                        foreach (var p in s.EnumerateObject()) layer.Sprites[p.Name] = Read(p.Value, folder);
                     if (root.TryGetProperty("keys", out var k))
                         foreach (var g in k.EnumerateObject())
                             foreach (var p in g.Value.EnumerateObject())
                             {
                                 var addr = p.Value.GetString();
                                 AddKey(g.Name, p.Name, addr);
-                                if (newSprites.TryGetValue(addr, out var en)) en.New = true;
+                                if (layer.Sprites.TryGetValue(addr, out var en)) en.New = true;
                             }
                     if (root.TryGetProperty("atlases", out var a))
                         foreach (var at in a.EnumerateObject())
                         {
                             var m = new Dictionary<string, Entry>(StringComparer.Ordinal);
-                            foreach (var p in at.Value.EnumerateObject()) m[p.Name] = Read(p.Value);
-                            newAtlases[at.Name] = m;
+                            foreach (var p in at.Value.EnumerateObject()) m[p.Name] = Read(p.Value, folder);
+                            layer.Atlases[at.Name] = m;
                         }
                 }
                 catch (Exception e)
                 {
                     Kit.Warn($"{Tag} {path}: {e.Message}");
-                    newSprites.Clear();
-                    newAtlases.Clear();
+                    on = false;
                 }
             }
             lock (gate)
             {
-                foreach (var t in textures.Values) if (t != null) UnityEngine.Object.Destroy(t);
-                textures.Clear();
-                ours.Clear();
+                int index = layers.FindIndex(l => l.Name == layer.Name);
+                if (index >= 0) layers.RemoveAt(index);
+                if (on) layers.Insert(index >= 0 ? index : layers.Count, layer);
+                // what all layers serve now, later layers over earlier ones
                 var old = sprites;
-                sprites = newSprites;
-                atlases = newAtlases;
-                dir = folder;
+                var mergedSprites = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+                var mergedAtlases = new Dictionary<string, Dictionary<string, Entry>>(StringComparer.OrdinalIgnoreCase);
+                foreach (var l in layers)
+                {
+                    foreach (var kv in l.Sprites) mergedSprites[kv.Key] = kv.Value;
+                    foreach (var kv in l.Atlases)
+                    {
+                        if (!mergedAtlases.TryGetValue(kv.Key, out var m))
+                            mergedAtlases[kv.Key] = m = new Dictionary<string, Entry>(StringComparer.Ordinal);
+                        foreach (var f in kv.Value) m[f.Key] = f.Value;
+                    }
+                }
+                sprites = mergedSprites;
+                atlases = mergedAtlases;
+                // textures no served entry uses any more go only when the base changes (a seed applied: no scene
+                // showing them); a named layer switched mid-scene (a costume) keeps them, since what's on screen may
+                // still draw the old sprite, and they're reused if that layer comes back.
+                // ours: the sprites made so far that are still served
+                if (layer.Name == "")
+                {
+                    var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    foreach (var e in AllEntries()) used.Add(Path.Combine(e.Folder ?? "", e.Png));
+                    foreach (var key in new List<string>(textures.Keys))
+                        if (!used.Contains(key))
+                        {
+                            if (textures[key] != null) UnityEngine.Object.Destroy(textures[key]);
+                            textures.Remove(key);
+                        }
+                }
+                ours.Clear();
+                foreach (var e in AllEntries())
+                    if (e.Sprite != null && !e.Sprite.WasCollected && e.Sprite) ours.Add(e.Sprite.Pointer);
                 Served = AtlasServed = 0;
                 int replaced = 0, restored = 0;
                 var dic = ResourceManager.Instance?.completeAssetDic;
@@ -144,15 +195,26 @@ namespace PrKit
                         if (!dic.ContainsKey(kv.Key)) continue;
                         var spr = Make(kv.Key, kv.Value);
                         if (spr == null) continue;
-                        if (!originals.ContainsKey(kv.Key)) originals[kv.Key] = dic[kv.Key];
+                        var cur = dic[kv.Key];
+                        if (cur != null && cur.Pointer == spr.Pointer) continue;              // already this one
+                        bool curOurs = cur != null && (ours.Contains(cur.Pointer) || made.Contains(cur.Pointer));
+                        if (!originals.ContainsKey(kv.Key) && !curOurs) originals[kv.Key] = cur;
                         dic[kv.Key] = spr;
                         replaced++;
                     }
                 }
-                Last = $"{(folder == null ? "none" : folder)}: {sprites.Count} sprites, {atlases.Count} atlases; {replaced} loaded assets replaced, {restored} restored; {clock.ElapsedMilliseconds} ms";
+                var names = string.Join(", ", layers.ConvertAll(l => l.Name == "" ? "base" : l.Name));
+                Last = $"{(layer.Name == "" ? "base" : layer.Name)}: {(on ? folder : "off")}; layers [{names}]: {sprites.Count} sprites, " +
+                       $"{atlases.Count} atlases; {replaced} loaded assets replaced, {restored} restored; {clock.ElapsedMilliseconds} ms";
             }
             Kit.Info($"{Tag} {Last}");
             return Last;
+        }
+
+        static IEnumerable<Entry> AllEntries()
+        {
+            foreach (var e in sprites.Values) yield return e;
+            foreach (var m in atlases.Values) foreach (var e in m.Values) yield return e;
         }
 
         // a key the game's AssetBundlePathMatch doesn't have (group + key -> address), as Magicite adds its own
@@ -182,12 +244,12 @@ namespace PrKit
         public static bool Serves(string address) { lock (gate) return sprites.ContainsKey(address); }
         public static int Count { get { lock (gate) return sprites.Count + atlases.Count; } }
 
-        static Entry Read(JsonElement e)
+        static Entry Read(JsonElement e, string folder)
         {
             var r = e.GetProperty("rect");
             float x = r[0].GetSingle(), y = r[1].GetSingle(), w = r[2].GetSingle(), h = r[3].GetSingle();
             var pv = e.TryGetProperty("pivot", out var p) ? new Vector2(p[0].GetSingle(), p[1].GetSingle()) : new Vector2(0.5f, 0f);
-            var en = new Entry { Png = e.GetProperty("png").GetString(), Rect = new Rect(x, y, w, h), Pivot = pv };
+            var en = new Entry { Folder = folder, Png = e.GetProperty("png").GetString(), Rect = new Rect(x, y, w, h), Pivot = pv };
             if (e.TryGetProperty("ppu", out var u)) en.Ppu = u.GetSingle();
             if (e.TryGetProperty("preload", out var pl) && pl.ValueKind == JsonValueKind.True) en.Preload = true;
             if (e.TryGetProperty("border", out var b)) en.Border = new Vector4(b[0].GetSingle(), b[1].GetSingle(), b[2].GetSingle(), b[3].GetSingle());
@@ -200,14 +262,15 @@ namespace PrKit
             if (e.Sprite != null && !e.Sprite.WasCollected && e.Sprite) return e.Sprite;   // (Unity's alive check: the game may destroy assets it unloads)
             try
             {
-                if (!textures.TryGetValue(e.Png, out var tex) || tex == null)
+                var file = Path.Combine(e.Folder ?? "", e.Png);
+                if (!textures.TryGetValue(file, out var tex) || tex == null)
                 {
-                    var bytes = File.ReadAllBytes(Path.Combine(dir, e.Png));
+                    var bytes = File.ReadAllBytes(file);
                     tex = new Texture2D(2, 2, TextureFormat.RGBA32, false) { filterMode = FilterMode.Point, wrapMode = TextureWrapMode.Clamp, name = e.Png };
                     if (!ImageConversion.LoadImage(tex, bytes)) throw new InvalidDataException("not a PNG");
                     tex.filterMode = FilterMode.Point;
                     tex.hideFlags = HideFlags.HideAndDontSave;
-                    textures[e.Png] = tex;
+                    textures[file] = tex;
                 }
                 // top-down rect in the file -> Unity's bottom-up
                 var r = new Rect(e.Rect.x, tex.height - e.Rect.y - e.Rect.height, e.Rect.width, e.Rect.height);
@@ -216,6 +279,7 @@ namespace PrKit
                 spr.hideFlags = HideFlags.HideAndDontSave;
                 e.Sprite = spr;
                 ours.Add(spr.Pointer);
+                made.Add(spr.Pointer);
                 return spr;
             }
             catch (Exception ex)

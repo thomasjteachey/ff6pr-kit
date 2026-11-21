@@ -131,6 +131,12 @@ def _ref(gid, tsets):
 
 
 _tileset_entries = {}
+# which PR maps a learning step read, in order (samples() -> _cells), so a learned Tiles read from disk can register
+# the same tileset entries an uncached run would have: 77 of FF6's 173 atlases have entries that differ between maps
+# (tile animations, a few images), so the first map that registers an atlas decides what room_tilesets writes
+_tilesets_of = {}     # PR map -> its tilemap's "tilesets" (pr_cells)
+_reach = {}           # samples() key -> the PR map it read (_cells), or absent
+_reach_log = None     # a list while a learning step records
 
 
 class Look:
@@ -247,6 +253,7 @@ def pr_cells(pr_map):
         tm = json.load(f)
     for ts in tm["tilesets"]:
         _tileset_entries.setdefault(ts["name"], ts)
+    _tilesets_of.setdefault(pr_map, tm["tilesets"])
     H, W = tm["height"], tm["width"]
     ts = _tsets(tm)
     z = [[0] * W for _ in range(H)]
@@ -389,6 +396,8 @@ def samples(rom, m, pr, dx, dy, t=None):
     """A vanilla pair's learning cells: Tiles over the PR room's shown cells (cached)."""
     key = (id(rom), m, pr, dx, dy)
     if key in _samples:
+        if _reach_log is not None and key in _reach:
+            _reach_log.append(_reach[key])
         return _samples[key]
     tiles = Tiles()
     _samples[key] = tiles
@@ -398,6 +407,9 @@ def samples(rom, m, pr, dx, dy, t=None):
     if bg1 is None:
         return tiles
     tp = tile_props(rom, m, t.props if t else SM.PROPS)
+    _reach[key] = pr
+    if _reach_log is not None:
+        _reach_log.append(pr)
     cells, _ = _cells(pr)
     group = group_of(pr)
     wk = SM.pr_walkable(pr)
@@ -472,7 +484,7 @@ class Vanilla:
     def _fingerprint(self):
         import hashlib
         import vcache
-        h = hashlib.sha1(b"snes_rooms tiles 1;")
+        h = hashlib.sha1(b"snes_rooms tiles 2;")   # 2: with the tileset registrations
         h.update(hashlib.sha1(bytes(self.us)).digest())
         h.update(vcache.stamp().encode())
         srcs = [os.path.join(HERE, n) for n in ("snes_rooms.py", "snes_maps.py", "ff6snes.py", "prdata.py")]
@@ -529,17 +541,47 @@ class Vanilla:
 
     # each learned Tiles is kept as its pickle, taken as it's learned (nothing done with it later reaches the file),
     # and read back only when a process asks for that key
+    def _recorded(self, learn_it):
+        """learn_it() with the PR maps it reads recorded: (its result, the pickled [(PR map, its tilesets)])."""
+        import pickle
+        global _reach_log
+        outer, _reach_log = _reach_log, []
+        try:
+            t = learn_it()
+            prs = list(dict.fromkeys(_reach_log))
+        finally:
+            log, _reach_log = _reach_log, outer
+            if outer is not None:
+                outer.extend(log)
+        reg = [(pr, _tilesets_of.get(pr) or []) for pr in prs]
+        return t, pickle.dumps(reg, protocol=pickle.HIGHEST_PROTOCOL)
+
+    @staticmethod
+    def _replay(reg_bytes):
+        """Register the tileset entries a learning step's PR maps registered, in its order (setdefault: an atlas an
+        earlier map registered keeps that map's entry, as in an uncached run)."""
+        import pickle
+        for pr, tss in pickle.loads(reg_bytes) if reg_bytes else []:
+            _tilesets_of.setdefault(pr, tss)
+            for ts in tss:
+                _tileset_entries.setdefault(ts["name"], ts)
+
     def tiles(self, key):
         if key not in self._tiles:
             import pickle
             self._load()
             b = self._disk["tiles"].get(key)
-            if b is not None:
+            regs = self._disk.setdefault("regs", {})
+            if b is not None and key in regs:
                 t = pickle.loads(b)
+                self._replay(regs[key])
             else:
-                t = Tiles()
-                for m in self.by_key.get(key, []):
-                    learn(self.us, self.pairs[m], into=t)
+                def learn_it():
+                    t = Tiles()
+                    for m in self.by_key.get(key, []):
+                        learn(self.us, self.pairs[m], into=t)
+                    return t
+                t, regs[key] = self._recorded(learn_it)
                 self._disk["tiles"][key] = pickle.dumps(t, protocol=pickle.HIGHEST_PROTOCOL)
                 self._changed()
             self._tiles[key] = t
@@ -558,12 +600,16 @@ class Vanilla:
             import pickle
             self._load()
             b = self._disk.get("every")
-            if b is not None:
+            if b is not None and self._disk.get("every_reg") is not None:
                 t = pickle.loads(b)
+                self._replay(self._disk["every_reg"])
             else:
-                t = Tiles()
-                for m in self.pairs:
-                    learn(self.us, self.pairs[m], into=t)
+                def learn_it():
+                    t = Tiles()
+                    for m in self.pairs:
+                        learn(self.us, self.pairs[m], into=t)
+                    return t
+                t, self._disk["every_reg"] = self._recorded(learn_it)
                 self._disk["every"] = pickle.dumps(t, protocol=pickle.HIGHEST_PROTOCOL)
                 self._changed()
             self._all = t
@@ -1315,6 +1361,114 @@ def render(cells, path, coll=None, scale=1, tint=False, box=None):
     with open(path, "wb") as f:
         f.write(pr_images.png(out.shape[1], out.shape[0], out.tobytes()))
     return path
+
+
+# --- an event's tile change on a PR map --------------------------------------------------------------
+def stack_gids(tilesets, stack):
+    """A stack (atlas refs per layer) -> gids (Bottom, Ground, Upper, Ceil; 0 = none) in a tilemap whose "tilesets"
+    are `tilesets`, or None when one of the atlases isn't among them."""
+    first = {ts["name"]: ts["firstgid"] for ts in tilesets or ()}
+    out = []
+    for r in stack:
+        if not r:
+            out.append(0)
+        elif r[0] in first:
+            out.append((first[r[0]] + (r[1] & ~FLIPS)) | (r[1] & FLIPS))
+        else:
+            return None
+    return tuple(out)
+
+
+def tile_plan(cells, offset, bg1, bg2, props, x, y, w, h, tiles, drawn=None, model=None, tilesets=None, writes=None):
+    """An SNES tile change (event commands 73/74: x, y | layer << 6, w, h, w*h tiles) drawn on a PR map, as cells
+    to copy: {"tag": "passability" | "cosmetic" | "none" | why not, "cells": [(px, py, source, attr)], "why": Counter}.
+
+    cells: the PR map as it loads (pr_cells rows); offset: (dx, dy) SNES tile -> PR tile; bg1, bg2: the SNES layouts
+    as the map loads; props: tile_props; drawn: (BG1, BG2) the PR drew, when that may differ from bg1/bg2 (a mod's
+    vanilla map: vanilla's layouts), else None; model: a callable giving the map's Model (asked only when needed);
+    tilesets: the PR tilemap's "tilesets" (for gids); writes: {(layer, x, y): True if some write there changes the
+    BG1 tile's SNES properties} for the cells other tile changes write (put back when this one restores them).
+
+    A changed cell's source: a cell (sx, sy) of the same PR map that shows the new look as the map loads (cells of
+    the SNES layout with the same new (BG1, BG2), with the same 4 neighbours if any, where `drawn` agrees; else a cell
+    with the stack the model draws for it); else that stack as gids (("gids", (b, g, u, c))); else None. A cell the
+    PR map already shows that way is left out unless `writes` has it (then its own cell: put back). Passability: a
+    BG1 change between tiles with different SNES properties (walls, z-level, bridges, stairs, exits: the field code
+    walks on BG1's only); attr = the model's PR collision for the new tile (a put-back cell: the map's own)."""
+    layer, y = y >> 6, y & 0x3F
+    why = collections.Counter()
+    if layer > 1:
+        return {"tag": "bg3", "cells": [], "why": why}
+    if bg1 is None or (layer == 1 and bg2 is None):
+        return {"tag": "no layout", "cells": [], "why": why}
+    a1, a2 = [r[:] for r in bg1], [r[:] for r in bg2] if bg2 else None
+    L = a1 if layer == 0 else a2
+    for j in range(h):
+        for i in range(w):
+            if j * w + i < len(tiles):
+                L[(y + j) % len(L)][(x + i) % len(L[0])] = tiles[j * w + i]
+    at = lambda R_, i, j: R_[j][i] if R_ and 0 <= j < len(R_) and 0 <= i < len(R_[0]) else None
+    dx, dy = offset
+    H, W = len(cells), len(cells[0])
+    writes = writes or {}
+    out, passab, mdl = [], False, None
+    for j in range(h):
+        for i in range(w):
+            cx, cy = (x + i) % len(L[0]), (y + j) % len(L)
+            old, new = (at(bg1, cx, cy), at(bg2, cx, cy)), (at(a1, cx, cy), at(a2, cx, cy))
+            px, py = cx + dx, cy + dy
+            if new[0] is None or not (0 <= px < W and 0 <= py < H):
+                why["off the PR map"] += 1
+                continue
+            back = writes.get((layer, cx, cy))
+            if old == new:
+                if back is None:
+                    why["unchanged"] += 1
+                else:
+                    why["put back"] += 1
+                    out.append((px, py, (px, py), cells[py][px][1] if back else None))
+                    passab |= bool(back)
+                continue
+            around = _around(a1, cx, cy)
+            src, how = None, None
+            for rule in ("ctx", "pair"):
+                cand, pos = collections.Counter(), collections.defaultdict(list)
+                for sy in range(len(bg1)):
+                    for sx in range(len(bg1[0])):
+                        if (bg1[sy][sx], at(bg2, sx, sy)) != new or (rule == "ctx" and _around(bg1, sx, sy) != around):
+                            continue
+                        if drawn is not None and drawn[0] is not None and (at(drawn[0], sx, sy), at(drawn[1], sx, sy)) != new:
+                            continue
+                        qx, qy = sx + dx, sy + dy
+                        if 0 <= qx < W and 0 <= qy < H and any(cells[qy][qx][0]):
+                            cand[cells[qy][qx][0]] += 1
+                            pos[cells[qy][qx][0]].append((qx, qy))
+                if cand:
+                    st = cand.most_common(1)[0][0]
+                    src, how = min(pos[st], key=lambda q: abs(q[0] - px) + abs(q[1] - py)), rule
+                    break
+            if src is None and model is not None:
+                mdl = mdl or model()
+                st, _ = mdl.stack(new[0], new[1], around, _shape(a1, props, cx, cy))
+                st = tuple(st) if st else None
+                hits = [(qx, qy) for qy in range(H) for qx in range(W) if st and cells[qy][qx][0] == st]
+                if hits:
+                    src, how = min(hits, key=lambda q: abs(q[0] - px) + abs(q[1] - py)), "model"
+                elif st and stack_gids(tilesets, st):
+                    src, how = ("gids", stack_gids(tilesets, st)), "gids"
+            if src is not None and src[0] != "gids" and cells[src[1]][src[0]][0] == cells[py][px][0] and back is None:
+                why["PR already shows it"] += 1
+                continue
+            attr = None
+            if layer == 0 and props[old[0]] != props[new[0]]:
+                passab = True
+                if model is not None:
+                    mdl = mdl or model()
+                    attr = mdl.collision(new[0], new[1], props[new[0]])
+            why[how or "no source"] += 1
+            out.append((px, py, src, attr))
+    tag = "none" if not out else "passability" if passab else "cosmetic"
+    return {"tag": tag, "cells": out, "why": why}
 
 
 if __name__ == "__main__":

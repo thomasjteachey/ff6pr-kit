@@ -10,7 +10,10 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
+try:
+    import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
+except ImportError:   # the kit repository alone has none (its tools are already on the path)
+    pass
 import prdata as P  # noqa: E402
 import ff6snes as S  # noqa: E402
 

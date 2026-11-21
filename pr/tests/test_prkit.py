@@ -387,5 +387,23 @@ class ScaffoldBuilds(unittest.TestCase):
             self.assertTrue(os.path.exists(os.path.join(tmp, "plugin", "BuildCheckPlugin", "bin", "Release", "net6.0", "BuildCheck.PR.dll")))
 
 
+class PublishPrivacy(unittest.TestCase):
+    """repo_publish.user_paths: what a public repository must never carry from this PC's setup."""
+
+    def test_found(self):
+        import repo_publish as R
+        # put together here: written out whole, they'd stop this file's own publish (as they should)
+        users, lan, steam = "C:" + "\\Users\\" + "someone", "192." + "168.4.20", "7656119" + "7900000001"
+        bad = {"a.py": f"open(r'{users}\\x.txt')", "b.md": f"ssh tester@{lan} 'ls'",
+               "c.sh": "HOST=" + "10." + "1.2.3", "d.ps1": "$ip = '" + "172." + "20.0.9'", "e.json": f'{{"dir": "Steam/{steam}/"}}'}
+        self.assertEqual(sorted(n for n, _ in R.user_paths([], bad)), sorted(bad))
+
+    def test_not_found(self):
+        import repo_publish as R
+        ok = {"a.py": r"C:\Users\Public\Documents", "b.md": "Windows 10.0.19045; BepInEx 6.0.0-be.697; 172.32.0.1",
+              "c.cs": "127.0.0.1:47812, 8.8.8.8, 1.10.100.1000", "d.json": '{"id": 7656119}'}
+        self.assertEqual(R.user_paths([], ok), [])
+
+
 if __name__ == "__main__":
     unittest.main()

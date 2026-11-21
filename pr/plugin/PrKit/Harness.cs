@@ -246,6 +246,22 @@ namespace PrKit
                 c.Args = c.Line.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 c.Since = Time.realtimeSinceStartup;
                 var name = c.Args[0].ToLowerInvariant();
+                if (name == "press" && BattleOpening())
+                {
+                    // a press in a battle's opening reaches the field too (BNW's dream-fight door runs pressed action while
+                    // the battle opened and stalled; runs that only waited played): held until Play like other commands
+                    c.Handler = (args, tick) =>
+                    {
+                        if (BattleOpening() && Time.realtimeSinceStartup - c.Since < 60f) return null;
+                        string err = StartPress(c.Args, Time.frameCount);
+                        if (err != null) return err;
+                        c.Handler = null;   // from here the press runs as any other (Pump's press branch answers it)
+                        return null;
+                    };
+                    pending = c;
+                    Step(c, f);
+                    continue;
+                }
                 if (name == "press" || name == "wait")
                 {
                     string err = name == "press" ? StartPress(c.Args, f) : StartWait(c.Args, f);
@@ -258,10 +274,45 @@ namespace PrKit
                     Answer(c, $"error: unknown command '{c.Args[0]}' (help lists them)");
                     continue;
                 }
-                c.Handler = cmd.Run;
+                c.Handler = SafeInOpening.Contains(name) ? cmd.Run : AfterOpening(c, cmd.Run);
                 pending = c;
                 Step(c, f);
             }
+        }
+
+        // A battle's opening (set-up phases and the Preemptive!/Back attack! messages) isn't a place for commands: in
+        // two tests (2026-11-21, T-Edition's battle 72 and BNW's dream fight) commands run in it (shot, damage and steal
+        // simulations, enemy HP) and by the preemptive message the field's map script held the script slot in place of
+        // the battle's own, so the battle never left its opening. Runs that waited for Play went through. So a command
+        // sent then waits for the battle's Play phase (60 s at most), except the read-only ones below.
+        static readonly HashSet<string> SafeInOpening = new HashSet<string> { "ping", "help", "state", "log", "aistat", "quit" };
+
+        static Handler AfterOpening(Call c, Handler run)
+        {
+            int startedAt = -1;
+            return (args, tick) =>
+            {
+                if (startedAt < 0)
+                {
+                    if (BattleOpening() && Time.realtimeSinceStartup - c.Since < 60f) return null;
+                    startedAt = tick;
+                }
+                return run(args, tick - startedAt);
+            };
+        }
+
+        // a battle in its set-up phases or opening messages (the phases tools/test_batch.py waits out too)
+        static bool BattleOpening()
+        {
+            if (!InBattle) return false;
+            try
+            {
+                var phase = Object.FindObjectOfType<BattleController>()?.stateMachine?.Current.ToString() ?? "";
+                return phase == "None" || phase == "CreateObj" || phase.StartsWith("Init", StringComparison.Ordinal) ||
+                       phase.StartsWith("Load", StringComparison.Ordinal) || phase.StartsWith("Start", StringComparison.Ordinal) ||
+                       phase.EndsWith("Mes", StringComparison.Ordinal);
+            }
+            catch (Exception) { return false; }
         }
 
         static void Step(Call c, int frame)
@@ -338,7 +389,7 @@ namespace PrKit
             }, "idle <minutes>: quit after that many minutes with no client and no command, or when Wow.exe starts then (0: off)");
             Add("slots", _ => Slots(), "slots: the save slots (read only)");
             Add("load", Load, "load [slot|party] [goto]: the latest save, a slot, or the newest with 3+ in its party (at the title the title's load; goto: the in-game load)");
-            Add("warp", Warp, "warp <map> [point]: to a map's entrance, as ChangeMap does");
+            Add("warp", Warp, "warp <map> [point] [nofade]: to a map's entrance, as ChangeMap does (nofade: EventGotoMap's skipFade)");
             Add("script", RunScript, "script <name>: an event script of the current map");
             Add("speed", a =>
             {
@@ -346,7 +397,8 @@ namespace PrKit
                     Time.timeScale = x;
                 return $"time scale {Time.timeScale}";
             }, "speed [x]: the game's time scale (Unity's Time.timeScale, 1 = normal; a long scene or the opening goes faster)");
-            Add("battle", Battle, "battle <party>: a real battle with any monster party, as EncountBoss");
+            AddTick("battle", BattleTick, "battle <party>: a real battle with any monster party, as EncountBoss; answers once the " +
+                "battle's own script (sc_b_...) runs, or an error if none does (the game would call that battle won at once)");
             Add("encount", Encount, "encount <party>: a random-encounter style battle");
             Add("log", _ => TakeLog(), "log: battle actions since the last log");
             Add("enemyhp", EnemyHp, "enemyhp <hp> [unique]: set the battle's enemies' HP (one by its unique id), so a real hit finishes them");
@@ -505,12 +557,15 @@ namespace PrKit
         {
             int map = a.Length > 0 && int.TryParse(a[0], out var mv) ? mv : -1;
             int point = a.Length > 1 && int.TryParse(a[1], out var pv) ? pv : 1;
+            // nofade: no fade out/in. A warp from the harness has no event around it to finish a fade; in a graphics run
+            // (BNW's dream test, PC 2026-11-21) the field stayed without player control after one, and scripts were refused
+            bool skipFade = a.Any(x => x.Equals("nofade", StringComparison.OrdinalIgnoreCase));
             var ep = Object.FindObjectOfType<MainGame>()?.eventProcedure;
             if (ep == null || map < 0) return "error: no event procedure or map";
             var ld = new LoadData();
             ld.NextMapData(map, point, (ViewType)0);
-            ep.EventGotoMap(ld, false, false);
-            return $"warping to map {map} point {point}";
+            ep.EventGotoMap(ld, skipFade, false);
+            return $"warping to map {map} point {point}{(skipFade ? " (no fade)" : "")}";
         }
 
         static string RunScript(string[] a)
@@ -538,6 +593,41 @@ namespace PrKit
             mc.currentInstruction = mn;
             Last.Interpreter.Instructions.External.Misc.EncountBoss(mc);
             return $"battle {pid} started";
+        }
+
+        // battle, polled: started as above, then the reply waits for the battle's own script. A battle whose script never
+        // ran is judged won at once by the game (BattleEndJugment: a win whenever no battle script runs), with nothing
+        // defeated. Seen 2026-11-20/21 (BNW boss 446 at speed 3; BC's battle 25 after a single warp; T-Edition's battle 72
+        // stuck in its opening): `state` right after showed no "script sc_b_..." where good runs showed sc_b_none. Players'
+        // battles start from the field's own encounters and events; this is the harness's way in, so it says so loudly
+        // (an error a runner can retry from a settled field) instead of a fake win.
+        static int btPid;
+        static float btStart, btInBattle;
+
+        static string BattleTick(string[] a, int tick)
+        {
+            float now = Time.realtimeSinceStartup;
+            if (tick == 0)
+            {
+                var r = Battle(a);
+                if (r.StartsWith("error")) return r;
+                btPid = int.Parse(a[0]);
+                btStart = now;
+                btInBattle = -1f;
+                return null;
+            }
+            var bm = BattlePlugManager.Instance();
+            if (bm == null || !bm.IsBattle())
+                return now - btStart > 30f ? $"error: battle {btPid} didn't start in 30 s" : null;
+            if (btInBattle < 0f) btInBattle = now;
+            var integ = Last.Interpreter.Integrator.Instance;
+            string script = integ != null && integ.IsMainCoreAlive() ? integ.scriptName ?? "" : "";
+            if (script.StartsWith("sc_b_", StringComparison.Ordinal))
+                return $"battle {btPid} started (script {script})";
+            if (now - btInBattle > 5f)
+                return $"error: battle {btPid} started without its battle script (none like sc_b_ ran in 5 s; running: " +
+                       $"{(script.Length > 0 ? script : "none")}): the game calls such a battle won at once; start it again from a settled field";
+            return null;
         }
 
         static string Encount(string[] a)

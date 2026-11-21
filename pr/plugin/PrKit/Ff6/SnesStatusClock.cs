@@ -32,6 +32,8 @@ namespace PrKit.Ff6
     // (vanilla ROM in the windowless harness, tools/snes_status_ticks.py, 2026-11-12): steps every
     // 128-131 frames, Regen and Sap 515-516, Poison 1031 (the engine's few lag frames); a jumping
     // character's ticks land in the air on time; a Stop of 18 steps holds every tick.
+    // A mod's own per-fighter rules hook in per clock (none in vanilla, WC, T-Edition; set each visit by
+    // SnesStatusTicks.Configure): AddFilter, StepKind below. The offline tests: PrKit.Tests, Wc.Tests.
     public sealed class SnesStatusClock
     {
         public const double FramesPerSecond = 60.0988;
@@ -53,6 +55,20 @@ namespace PrKit.Ff6
         public SnesStatus Expired;       // timers that ran out on this visit (the game takes the status off)
         public int DoomLevel = -1;       // the level of the last attacker that tried Condemned on this fighter
         public bool DoomSynced;          // the game's countdown has been set to DoomLeft
+
+        // A mod's per-fighter rules (Beyond Chaos's junctions; null by default, and then nothing changes):
+        //  * AddFilter: this visit's add (64 / Haste 84 / Slow 32, or the mod's) -> the add used, kept to 0-255
+        //    (the SNES's byte $3ADD): Time Font x1.25 / Time Sink x0.75 per net junction;
+        //  * StepKind: at each status step that reaches the step table (not a stopped fighter's), after the
+        //    tick is sent and the timers count, where the SNES reads the table (C2/5AD6: LDA $3AF0,X / AND #7):
+        //    gets the clock and the table's kind for this step ('R' Regen/Sap, 'P' Poison, '-' none; the step
+        //    index itself moves on as usual) and returns the kind to use, in place of the table's: 'P' (Miasma),
+        //    'R' (Regenerator), so that tick goes out at the next step's send; or the mod does its own thing
+        //    there and returns the kind unchanged (Juggernaut/Burst's battle level). Statuses is what this
+        //    visit found.
+        public Func<int, int> AddFilter;
+        public Func<SnesStatusClock, char, char> StepKind;
+        public SnesStatus Statuses => had;
         SnesStatus had;
         bool seen;
 
@@ -90,7 +106,9 @@ namespace PrKit.Ff6
             if (DueRegen && !Has(SnesStatus.Regen)) DueRegen = false;
             if (DueSap && !Has(SnesStatus.Sap)) DueSap = false;
 
-            Counter += Has(SnesStatus.Slow) ? AddSlow : Has(SnesStatus.Haste) ? AddHaste : AddNormal;
+            int add = Has(SnesStatus.Slow) ? AddSlow : Has(SnesStatus.Haste) ? AddHaste : AddNormal;
+            if (AddFilter != null) add = Math.Clamp(AddFilter(add), 0, 255);
+            Counter += add;
             if (Counter < 256) return false;
             Counter -= 256;
             if (StopLeft > 0)
@@ -119,6 +137,7 @@ namespace PrKit.Ff6
             CountTimers();
             Step = (Step + 1) & 0xFF;
             char k = StepTable[Step & 7];
+            if (StepKind != null) k = StepKind(this, k);
             if (k == 'R') RegenFlag = true;
             else if (k == 'P') PoisonFlag = true;
             return true;

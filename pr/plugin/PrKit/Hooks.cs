@@ -50,8 +50,10 @@ namespace PrKit
             return Patch(h, original, hooks, prefix, postfix);
         }
 
-        // The same for a method found some other way (an overload picked by its parameters).
-        public static bool Patch(Harmony h, MethodBase original, Type hooks, string prefix = null, string postfix = null)
+        // The same for a method found some other way (an overload picked by its parameters). priority: Harmony's
+        // (Priority.First .. Priority.Last), for hooks whose order against other mods' on the same method matters.
+        public static bool Patch(Harmony h, MethodBase original, Type hooks, string prefix = null, string postfix = null,
+            int priority = -1)
         {
             var where = $"{original?.DeclaringType?.Name}.{original?.Name}";
             try
@@ -63,9 +65,22 @@ namespace PrKit
                     Kit.Warn($"[patch] {where} not patched: its native code is {tiny}, which other methods share");
                     return false;
                 }
+                var shortCode = ShortNativeCode(original);
+                if (shortCode != null)
+                {
+                    // a postfix-only hook runs the game's code on every call: it would crash on the first one
+                    if (prefix == null)
+                    {
+                        Kit.Warn($"[patch] {where} not patched: {shortCode}, which a detour breaks (the game's own code " +
+                                 "would run into the padding: BNW 2026-11-21, GetBattleModeByConfigValue)");
+                        return false;
+                    }
+                    Kit.Warn($"[patch] {where}: {shortCode}, which a detour breaks: patched, but the game's own code " +
+                             "must never run (a prefix that always skips it)");
+                }
                 h.Patch(original,
-                    prefix: prefix == null ? null : new HarmonyMethod(hooks, prefix),
-                    postfix: postfix == null ? null : new HarmonyMethod(hooks, postfix));
+                    prefix: prefix == null ? null : new HarmonyMethod(hooks, prefix) { priority = priority },
+                    postfix: postfix == null ? null : new HarmonyMethod(hooks, postfix) { priority = priority });
                 return true;
             }
             catch (Exception e)
@@ -121,6 +136,39 @@ namespace PrKit
                 Kit.Warn($"[patch] can't inspect {method.Name}: {e.Message}");
                 return null;
             }
+        }
+
+        // A short method (its ret, then int3 padding, within 24 bytes) with a short jump that lands inside it: the detour
+        // copies the method's first instructions elsewhere, and that jump, moved with them, lands in the padding. Seen
+        // 2026-11-21 (BNW's battles closed as they started): BattleUtility.GetBattleModeByConfigValue(int) is
+        // xor eax,eax / test ecx,ecx / je +0A / mov edx,1 / cmp ecx,edx / cmove eax,edx / ret (17 bytes): an int3 at
+        // +0x14. A short method without such a jump is fine (ColosseumInfomationData.IsRewardNameUnknown: cmp, sete, ret).
+        // Byte patterns, not a disassembler: a false alarm costs a hook, a miss costs a crash.
+        public static unsafe string ShortNativeCode(MethodBase method)
+        {
+            try
+            {
+                var field = Il2CppInterop.Common.Il2CppInteropUtils.GetIl2CppMethodInfoPointerFieldForGeneratedMethod(method);
+                var info = field == null ? IntPtr.Zero : (IntPtr)field.GetValue(null);
+                if (info == IntPtr.Zero) return null;
+                var code = *(byte**)info;
+                if (code == null) return null;
+                int end = -1;
+                for (int i = 1; i < 24; i++)
+                    if (code[i] == 0xC3 && code[i + 1] == 0xCC) { end = i; break; }
+                if (end < 0) return null;
+                for (int i = 0; i + 1 < end; i++)
+                {
+                    byte op = code[i];
+                    if ((op >= 0x70 && op <= 0x7F) || op == 0xEB)   // jcc rel8, jmp rel8
+                    {
+                        int to = i + 2 + (sbyte)code[i + 1];
+                        if (to > 0 && to <= end) return $"its native code is {end + 1} bytes with a short jump at byte {i} to byte {to}";
+                    }
+                }
+                return null;
+            }
+            catch (Exception) { return null; }
         }
 
         // Is o really a T (or derived)? Every hook asks before touching its object (rule 2 above).

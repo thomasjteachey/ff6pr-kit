@@ -17,6 +17,74 @@
     "note": "World of Ruin: as the World of Balance"
    }
   ],
+  "7": [
+   {
+    "pr": "Map_20171_2",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; the Blackjack's cabins (WoB; 14 of 17 event spots walk, walk agreement 1.0)"
+   }
+  ],
+  "12": [
+   {
+    "pr": "Map_20391_2",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 room pass: a sibling room of the map's pairs at their offset; places 2 of the 2 SNES entities no pair placed; PR-side tiles 0.88, coverage 1.0, walk 1.0 over 25 cells"
+   }
+  ],
+  "55": [
+   {
+    "pr": "Map_20050",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; tiles 1.0/0.32, coverage 1.0"
+   },
+   {
+    "pr": "Map_20370",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; its other-world twin"
+   }
+  ],
+  "78": [
+   {
+    "pr": "Map_20361_4",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; South Figaro pub, WoR (ted-ex: owner CA/7D09 at 38,40)"
+   }
+  ],
+  "86": [
+   {
+    "pr": "Map_20361_23",
+    "dx": 0,
+    "dy": 3,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; South Figaro old man's house, WoR (ted-events); WoB twin Map_20071_23 at -22,3, same 103 walkable cells"
+   }
+  ],
+  "92": [
+   {
+    "pr": "Map_20321_3",
+    "dx": 0,
+    "dy": 3,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): tiles 0.95/0.84, coverage 0.92, walk 0.96 over 276 cells"
+   },
+   {
+    "pr": "Map_20181_3",
+    "dx": 0,
+    "dy": 3,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): its other-world twin (walk 0.96, 285 cells)"
+   }
+  ],
+  "119": [
+   {
+    "pr": "Map_30410",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; 4 of 4 spots, tiles 0.83/0.58, coverage 1.0"
+   }
+  ],
   "126": [
    {
     "pr": "Map_20451_2",
@@ -25,12 +93,262 @@
     "note": "Doma Castle (WoR) east wing: BNW's merchant room, the Remedy chest SNES (55, 5) = PR (55, 8) (profile_bnw.py)"
    }
   ],
+  "136": [
+   {
+    "pr": "Map_30040",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): tiles 0.91/0.70, coverage 1.0, walk 0.99 over 319 cells"
+   }
+  ],
+  "146": [
+   {
+    "pr": "Map_30441_14",
+    "dx": 1,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; tiles 0.82/0.66, coverage 0.94"
+   }
+  ],
+  "151": [
+   {
+    "pr": "Map_30441_11",
+    "dx": 3,
+    "dy": 2,
+    "note": "ted-maps 2026-11-21: the 11-20 table's tiles pair, which the door-pass rebuild dropped because 321 owns the room by exits (321 has other layouts, the same graphics). 151 is an event-only scene map (no exits); at (3,2): tiles 0.87/0.75, coverage 0.81, walk 0.98 over 108 cells, 6 of 12 SNES entities on PR objects (ted-events' merchant CB/AD3A, NPC 3)"
+   }
+  ],
+  "153": [
+   {
+    "pr": "Map_30441_9",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; tiles 0.86/0.80, coverage 0.93"
+   },
+   {
+    "pr": "Map_30441_14",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 room pass: a sibling room of the map's pairs at their offset; places 5 of the 8 SNES entities no pair placed; PR-side tiles 0.73, coverage 1.0, walk 1.0 over 26 cells"
+   }
+  ],
+  "217": [
+   {
+    "pr": "Map_20230",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (maps T-Edition gives songs; lead): Esper Village: 3 SNES doors into it land on PR doors to this map; tiles 0.91/0.46, coverage 1.0, walk 1.0 over 643 cells"
+   }
+  ],
+  "240": [
+   {
+    "pr": "Map_20210",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; 3 of 3 spots, tiles 0.96/0.40, coverage 1.0"
+   },
+   {
+    "pr": "Map_20220",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; its other-world twin"
+   }
+  ],
+  "242": [
+   {
+    "pr": "Map_20210",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; as 240"
+   },
+   {
+    "pr": "Map_20220",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; as 240"
+   }
+  ],
+  "254": [
+   {
+    "pr": "Map_30871_23",
+    "dx": 0,
+    "dy": 3,
+    "note": "ted-maps 2026-11-21 room pass: a sibling room of the map's pairs at their offset; places 1 of the 9 SNES entities no pair placed; PR-side tiles 0.68, coverage 0.96, walk 0.97 over 135 cells"
+   }
+  ],
+  "297": [
+   {
+    "pr": "Map_30650",
+    "dx": 6,
+    "dy": 1,
+    "note": "ted-maps 2026-11-21 (maps T-Edition gives songs; lead): 2 SNES doors land on PR doors to this map's arrival points; tiles 0.93/0.39, walk 0.96 over 96 cells (a part of the PR map)"
+   }
+  ],
+  "299": [
+   {
+    "pr": "Map_30651_9",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 room pass: a sibling room of the map's pairs at their offset; places 5 of the 8 SNES entities no pair placed; PR-side tiles 0.88, coverage 1.0, walk 0.95 over 80 cells"
+   }
+  ],
+  "300": [
+   {
+    "pr": "Map_30651_11",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; tiles 0.95/0.89, coverage 1.0"
+   },
+   {
+    "pr": "Map_30651_10",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 room pass: a sibling room of the map's pairs at their offset; places 6 of the 21 SNES entities no pair placed; PR-side tiles 0.62, coverage 0.98, walk 0.93 over 70 cells"
+   }
+  ],
+  "303": [
+   {
+    "pr": "Map_30871_17",
+    "dx": 2,
+    "dy": 1,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): all 6 SNES entities on PR objects, PR-side tiles 0.62, coverage 0.95, walk 0.99 over 118 cells"
+   }
+  ],
+  "320": [
+   {
+    "pr": "Map_30841_1",
+    "dx": 4,
+    "dy": 2,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): tiles 0.87/0.79, coverage 1.0, walk 1.0 over 113 cells"
+   }
+  ],
+  "340": [
+   {
+    "pr": "Map_20270",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): 6 of its SNES exits arrive where this PR map's doors arrive; tiles 0.83/0.37, coverage 1.0, walk 0.99 over 1177 cells"
+   },
+   {
+    "pr": "Map_20460",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): its other-world twin (as 344)"
+   }
+  ],
+  "344": [
+   {
+    "pr": "Map_20460",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (maps T-Edition gives songs; lead): Thamasa: a SNES door lands on a PR door to it; tiles 0.83/0.37, coverage 1.0, walk 0.99 over 1173 cells, 19 of 36 entities on PR objects"
+   }
+  ],
+  "354": [
+   {
+    "pr": "Map_30871_8",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): 2 SNES doors land on PR doors into it; walk 1.0 over 58 cells, PR-side tiles 0.45, coverage 1.0"
+   },
+   {
+    "pr": "Map_30871_26",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): a SNES door lands on a PR door into it; walk 1.0 over 44 cells"
+   }
+  ],
+  "355": [
+   {
+    "pr": "Map_30871_25",
+    "dx": 0,
+    "dy": 3,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; a room of Map_30871_18's map: tiles PR side 0.63, coverage 0.96"
+   }
+  ],
+  "381": [
+   {
+    "pr": "Map_30040",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): 136's layout: tiles 0.91/0.70, walk 0.99"
+   }
+  ],
   "391": [
    {
     "pr": "Map_30871_29",
     "dx": 8,
     "dy": 15,
     "note": "Kefka's Tower's outer stair (16x32, reached from 384): the PR room's 9-wide platform and its one-tile stair lie exactly on the SNES map's walkable platform and stair at this offset (walk 0.96 over 48 cells, tiles share 1.0 / 0.75); confirmed 2026-11-20 by overlaying the two (ted-maps). T-Edition's map 435 copies this layout."
+   }
+  ],
+  "404": [
+   {
+    "pr": "Map_30861_3",
+    "dx": 4,
+    "dy": 4,
+    "note": "ted-maps 2026-11-21 (maps T-Edition gives songs; lead): all 14 SNES entities on PR objects at this offset; tiles 0.84/0.66 (the PR redrew its floor: walk 0.68)"
+   }
+  ],
+  "406": [
+   {
+    "pr": "Map_30811_5",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): a room of the map: SNES doors land on PR doors into it; walk 1.0 over 297 cells"
+   },
+   {
+    "pr": "Map_30811_3",
+    "dx": 1,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): a room of the map: a SNES door lands on a PR door into it; walk 1.0 over 155 cells"
+   },
+   {
+    "pr": "Map_30811_1",
+    "dx": 0,
+    "dy": 2,
+    "note": "ted-maps 2026-11-21 (ted-ex's blocked maps): a room of the map: a SNES door lands on a PR door into it; walk 0.98 over 42 cells"
+   }
+  ],
+  "408": [
+   {
+    "pr": "Map_30811_5",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: 406's room in another story state (same layouts 268/269, graphics and tilesets): 406's sibling room, at 406's offset"
+   },
+   {
+    "pr": "Map_30811_3",
+    "dx": 1,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: 406's room in another story state (same layouts 268/269, graphics and tilesets): 406's sibling room, at 406's offset"
+   },
+   {
+    "pr": "Map_30811_1",
+    "dx": 0,
+    "dy": 2,
+    "note": "ted-maps 2026-11-21: 406's room in another story state (same layouts 268/269, graphics and tilesets): 406's sibling room, at 406's offset"
+   }
+  ],
+  "411": [
+   {
+    "pr": "Map_30871_28",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21: T-Edition events' spots no pair placed; tiles PR side 0.71, coverage 1.0"
+   }
+  ],
+  "412": [
+   {
+    "pr": "Map_20461_5",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): tiles 0.94/0.93, coverage 1.0, walk 0.86 over 79 cells"
+   },
+   {
+    "pr": "Map_20271_5",
+    "dx": 0,
+    "dy": 0,
+    "note": "ted-maps 2026-11-21 coverage pass (build's edge peaks over every PR map, no size limit): its other-world twin"
    }
   ]
  }

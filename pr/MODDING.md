@@ -197,10 +197,18 @@ layers - their destinations and arrival points), `tiles` (the layouts agree: mut
 SNES tile and the PR tile stack per cell), `layout` (an event copy: another placed map's layouts), `manual`
 (`data/snes_pr_maps_overrides.json`; the world maps 0 and 1 are seeded there). Every pair carries `walk`: the
 share of the PR map's walkable cells on SNES tiles that the SNES tile properties don't make walls (right
-pairs 0.9+); pairs that don't walk where the SNES walks are dropped. 319 of 416 SNES maps are placed
-(2026-11-20); the rest are unused slots, scene maps the PR redid as events, and a few with no confirmed
-match. `python tools/snes_maps.py build [--reuse]` (needs numpy) rebuilds `data/snes_pr_maps.json`;
-`show <map>` and `pr <PR map>` print pairs.
+pairs 0.9+); pairs that don't walk where the SNES walks are dropped. `door` / `door-in`: rooms reached by
+vanilla's doors from a pair (its doors on the SNES map's exits; `grow_doors`, from Beyond Chaos's entrance
+index). Each pair also carries `world` (WoB / WoR / both / null: each side's nearest world map by its doors,
+a hint) and `cross` (the SNES map is one world's, the PR map the other's), and `lookalike`: a tiles/layout
+pair whose PR room belongs to another place (FF6 reuses interior layouts: Mobliz's inn and Thamasa's rooms).
+Lookups list a map's own pairs first (chests / exits / manual, then doors, then tiles), so `to_pr` and
+`pr_maps(m)[0]` aren't misled; **a tool that reads every pair should skip `lookalike` rows** (and `cross`
+rows when it follows exits). 357 of 416 SNES maps are placed (2026-11-21); the rest are unused slots, scene
+maps the PR redid as events, and a few with no confirmed match. `python tools/snes_maps.py build [--reuse]`
+(needs numpy) rebuilds `data/snes_pr_maps.json`; `show <map>` and `pr <PR map>` print pairs.
+`pr_links(dir, detail=True)` gives a PR map's doors and arrival points with object ids, files and layers
+(for editing doors in place); `PrDoors()` holds them for every map.
 
 A mod with its own table addresses gives a `snes_maps.Tables` (T-Edition: `ted_maps.TED`, 511 maps, tables
 in the ExHiROM expansion found from the field code's long loads); every reader takes it (`t=`). A mod on the
@@ -331,6 +339,11 @@ its (at most 16) colors, in bundles `mn_ff6_NNN` (key `MN_FF6_NNN_C00`; bestiary
   windowless SNES captures). New images get monster_asset rows 2000+monster, key `{GROUP}_B{monster}`.
   `tools/pr_images.py` reads the game's textures with the standard library; `tools/sprite_sheet.py`
   draws a before/after contact sheet.
+- A recolor's table in the recipe: `"map": ["RRGGBB:RRGGBB"]` (PR color -> new) or, keeping the PR's
+  colors out of the mod's data, `"colors": n, "map_slots": ["k:RRGGBB"]`: the k-th of the source image's
+  n distinct opaque colors (sorted as 0xRRGGBB) -> new, resolved on the player's machine against their
+  own image, which must match `from_sha1` (`MonsterImages.ResolveSlots`). T-Edition writes this form
+  (`tools/ted_art.py slot_table`).
 - Plugin: `MonsterImageRecipe.FromJson(json, "<property>")` then `MonsterImages.Ensure(gameRoot,
   MagiciteDir.FolderPath("<Mod>"), recipe, warn)` in the plugin's `Load`, before Magicite scans its
   folder: game-free, reads the game's bundles itself (~0.5 s once; a marker skips it after), writes
@@ -388,6 +401,11 @@ address, or at Load for ones it already holds; the game's own put back when no l
 already on the map change when it reloads) and `keys` {group: {key: address}} the game lacks (added to
 AssetBundlePathMatch, as Magicite adds its own). Its CheckCompleteAsset postfix runs after Magicite's.
 Magicite can't swap live (it maps only files present at its start and keeps its atlases' sprites).
+**Layers**: `ArtSwap.SetLayer(name, folder)` puts a named set over the base (`Load` is the layer "") and
+the layers set before it; later layers win where they serve the same address or atlas frame; `folder`
+null turns that layer off and what it covered comes back (the base's, else the game's). One per thing
+switched on its own: T-Edition's costumes (`"costume:<Name>"`), battle-only looks set at a battle's start
+and cleared at its end. Both return a line for the log.
 Static monster art loaded once at startup can instead go through `PrKit/MonsterImages.cs` (Magicite files,
 "Monster images" above). Keep the folder with the mod's data (`BepInEx/<Mod>/...`), never under plugins.
 
@@ -398,8 +416,17 @@ art is read from the player's game when needed.
 **Checks offline**: `tests/test_bc_sprites.py` (the pose map against the PR's Terra, all 677 of Beyond
 Chaos' sheets, lossless recolour, the data holds no colors, pivots, packing, an `art.json`'s rects;
 `BC_SPRITES_SEED=DIR` for a seed folder); contact sheets (`snes_charsprites.py sheet`); against the SNES:
-render the same sheet from the ROM with `group_frames` and compare. In game: Beyond Chaos's harness
-`bcart [load GROUP KEY | atlas GROUP ATLAS FRAME]` says whether a loaded sprite is the mod's or the game's.
+render the same sheet from the ROM with `group_frames` and compare. In game: `PrKit/ArtHarness.cs`,
+registered under a mod's own name (`ArtHarness.Register("bcart", "the seed's")`): `bcart [load GROUP KEY |
+atlas GROUP ATLAS FRAME]` says whether a loaded sprite is the mod's or the game's.
+
+**NPCs and other atlas groups** (`tools/pr_atlas.py`, standard library): the field NPC groups
+(`mo_ff6_nNNN_cMM`, which map objects use) are one packed texture with a Sprite per frame; `frames(bundle)`
+cuts them out ({name: (w, h, rgba)}), `sprites(bundle)` gives each frame's rect and pivot, for drawing
+replacements under the same frame names (`ArtWriter` `atlases`). NPC frames are 32x32 like the cast's, but
+their sheets are the SNES's 0x28 standard tiles plus a few extra per sprite (BC's opera: `bc_sprites.opera`);
+which PR map objects stand for an SNES NPC sprite: `event_translate.sprite_assets`, or the PR map's entities.
+Tests: `tests/test_pr_atlas.py`.
 Beyond Chaos uses all of it per seed: `tools/bc_sprites.py` (makeover, `s`, `c`), `bc_monsters.py`
 (remonsterate, `c`+`m` monster colours), `bc_palettes.py` (`n` windows), `BcPlugin/BcSprites.cs`.
 
@@ -421,14 +448,14 @@ under Proton). Any mod, any PR (the hooks are the shared engine's). Beyond Chaos
    numbers; `"lookahead_patch"`: BC's mfvitools ROM patch, false for an unpatched FF6 driver;
    `"echo_delay"`: 5 = FF6's). `check DIR` lists songs that use the driver's resident waveforms, game
    sound effects or run off their end. Slots are any numbers: a mod with a second driver table (T-Edition's
-   bank 43 copy) numbers those songs apart (e.g. $100 + n) in the same pack: `tools/snes_songs_at.py read ROM
+   bank 43 copy) numbers those songs apart (e.g. $100 + n) in the same pack: `tools/snes_songs.py read ROM
    --tables song=..,inst=..,brr=..,loop=..,pitch=..,adsr=..,count=N --slot-offset 0x100 --sample-offset 0x100
    --out DIR --merge` reads tables at any address (6 MB ExHiROM banks too; `--pointers` for pointer slots
-   elsewhere; until the WC 0.6.9 kit freeze ends it lives beside snes_songs.py). Packs are data: ship a mod's
+   elsewhere). Packs are data: ship a mod's
    own converted songs and samples, never a ROM's (FF6's 63 instrument samples are byte-identical in
    Beyond Chaos's MIT repo, `music/samples/legacy/01..3F`, johnnydmad's `brr_legacy` table; Beyond Chaos
    builds its pack on the player's machine per seed). FF6's driver keeps 8 built-in waveforms of its own
-   (programs $00-$07: wind, rain, train and other layers some songs use); `tools/snes_songs_at.py resident
+   (programs $00-$07: wind, rain, train and other layers some songs use); `tools/snes_songs.py resident
    ROM --pack DIR` adds them to a pack (`"resident"` rows), `--file F` writes them to a small JSON file a
    mod's bundle carries and `add_resident(DIR, F)` adds that file to a pack made later. FF6's sound driver
    and built-in instrument samples may ship with a mod; nothing else from a ROM does.
@@ -514,7 +541,13 @@ every PR):
 
 - `Hooks.Patch` refuses methods whose machine code is tiny (empty, a jump, a ret within 6 bytes):
   the linker folds identical functions, so hooking one hooks many, and reading the wrong object's
-  fields closes the game. Hook the method that does the work.
+  fields closes the game. Hook the method that does the work. It also refuses a postfix-only hook (and warns about
+  one with a prefix) on a short method with a short jump inside it (`[patch] X not patched: its native code is N
+  bytes with a short jump ...`): the detour moves the method's first instructions, the moved jump lands in the
+  padding, and the game's own call closes the game (an int3; BNW 2026-11-21: `BattleUtility.GetBattleModeByConfigValue`
+  = xor / test / je / mov / cmp / cmove / ret, 17 bytes). A short method without a jump is fine
+  (`ColosseumInfomationData.IsRewardNameUnknown`: cmp / sete / ret). Don't hook such a method; set the value it
+  feeds instead. To look: `dump.cs`'s Offset for the method, then its bytes in GameAssembly.dll.
 - Check the instance before touching it: `if (!Hooks.IsA<T>(__instance)) return;`.
 - Harmony can't patch `MasterManager`'s generic methods. Read data with `Master.Get<T>(id)` /
   `Master.All<T>()`, text with `GameText.Get/Set`.
@@ -541,6 +574,29 @@ every PR):
   `tools/kit_cs_check.py MyFile.cs` compiles it with the live kit (every part on) in a throwaway project;
   `--replace plugin/PrKit/Ff6/X.cs:C:/scratch/X.cs` checks an edited copy in the kit file's place. Then move
   it in and build the FF6 plugins (`dotnet build -c Debug`).
+- The kit alone: `cd plugin/PrKit.Build && dotnet build -c Debug --no-restore -nologo -v q` compiles every
+  kit file with every part on (FF6, Seeds, Snes) and no mod code, in ~15 s; its errors can only name kit
+  files. First after any kit edit, before the plugins.
+- A mod's in-game checks (`plugin/PrKit/SelfTests.cs`): each is one static method in any file of the plugin,
+  found by name at load, so a new check never edits a shared test file:
+
+  ```csharp
+  [SelfTest("jobs.limit", Needs = "field", Timeout = 120)]
+  static IEnumerable<TestStep> JobLimit(TestContext t)
+  {
+      yield return t.Until(() => Master.Ready, 30, "the master data");   // polled each frame
+      t.Check(JobLimits.Count == 4, $"{JobLimits.Count} jobs");          // a PASS/FAIL line
+      yield return t.Wait(1.5);                                          // game seconds
+  }
+  ```
+
+  The plugin starts them from its test request (`selftest=jobs.limit,jobs.*` or `*`):
+  `SelfTests.Start(typeof(Plugin).Assembly, spec, line => Log.LogInfo(line))`, then
+  `SelfTests.Update(gameTime)` each frame until `SelfTests.Done`. `Needs` names a fixture the mod
+  registers (`SelfTests.Fixtures["field"] = t => <steps that reach the field>`), run before the test.
+  A step or test that times out, throws or lacks its fixture fails and the next one starts. Lines:
+  `[selftest] PASS|FAIL <test>: <what>`, then `[selftest] <test> pass|fail (<n> checks, <f> failed)`.
+  The runner itself is game-free (PrKit.Tests runs it on a fake clock).
 - In the game, headless, **only with the user's OK and never while they play**:
   `kit.py run ff5 --harness` starts the game with no window and no sound, and a kit plugin of that
   game takes the request: every save is blocked for the run (if the save hooks can't be installed,
@@ -637,6 +693,10 @@ by its graphics pointer, not its pixels) for an input with no graphics.
   callbacks), `SeedScreen` (the options screen; subclass it), `TitleMenuEntry`, `PadInput`, `ModDataDir`,
   `ChestBattles`. Python: `seed_live.py` (managed tables/files, the baseline) and `seed_info.py`. Worlds
   Collide's classes are facades over these; Beyond Chaos (`plugin/BcPlugin`) is built on them.
+  `LiveData` sets every `*_en.txt` in a seed's message folder as texts, except `story_cha_<lang>.txt`
+  (2026-11-21): the game's own speaker format (story line key -> its name box, e.g. `(GAU)` or `Impresario`),
+  set in `MessageManager.speakerDictionary`. A mod that writes one keeps the vanilla lines of the keys it
+  changes in its baseline, as for story text (Beyond Chaos: `bc_events.speaker_keys()`).
 
 - **Brave New World is on the kit** (2026-11-11, plugin v0.22.1): `BnwPlugin.csproj` imports `PrKit.props`,
   its 236 hook calls use `Hooks.*` (the same code `EsperHooks` held), `GameHarness` is the kit's `Harness`
@@ -682,6 +742,23 @@ by its graphics pointer, not its pixels) for an input with no graphics.
   monsters and 13 unnamed slots; `tests/test_snes_rules.py` checks it against the US ROM) and `Misses()`. A mod that
   changes the bit lists its own from its ROM: `[idmap.monster(e.id) for e in ff6snes.enemies(rom) if e.raw[19] & 4]`.
   WC uses vanilla's list (WC never changes the bit); Beyond Chaos doesn't need it (its suplexwrecks clears the bit).
+- **A mod's own ATB: Speed Balance, Quickfill, time held for actions, locked battle settings** (2026-11-21, for
+  Brave New World; all off unless a mod turns them on; vanilla's numbers stay the defaults):
+  `SnesAtbRules` takes a mod's multipliers and biases (`NormalK/HasteK/SlowK`, `CharBias`, `MonsterBias`,
+  `MonsterBattleSpeed`, `MonsterHalfMore`: BNW's C2/09D2 is characters k 75/90/60 with Speed + 51, monsters
+  k + k/2 with Speed + 20 and no battle-speed term), and `SnesAtb.Patch(h, chants: false)` hooks the fill rates only
+  (a mod with its own command waits). `SnesQuickfill` (BNW's EF/FBC8): x2 battle time while no character waits for
+  a command (`battleATBOrderUiStack` empty): gauges x2, chants, status timers and running away's charge
+  (`UpdateEscape`) run twice that frame. `SnesBattleClock.Dt()` is that clock for what runs outside the ATB update
+  (the AI scripts' timers: `SnesAiMod.BattleClockDt`).
+  `SnesActionFreeze` (BNW's nATB, C2/1124): no gauge, chant, status timer or running-away charge moves while an action plays
+  (`BattleActExection.GetStatingAct()`; `nowState` is never written by the game), Battle Options' Pause hooks,
+  the held frame on the "pr.battle.timeHeldFrame" channel, a 20 s give-up (`TimeHold`, game-free).
+  `BattleSettingsLock`: battles in Wait without writing the player's saved config (the battle speed isn't pinned:
+  both BattleUtility readers are too short to detour safely; waits that read the same value come out right),
+  and the Active/Wait and Battle Speed rows hidden (`ConfigRows.Hide(h, type, when)`). Hook order on
+  `ATBCalc`: the mod's rate, then Quickfill's x2 (`Priority.Low`), then the freeze's 0 (`Priority.Last`):
+  `Hooks.Patch` takes a Harmony priority. PrKit.Tests: "BNW's Speed Balance, Quickfill, time held for actions".
 - **Skills given on the party's behalf** (2026-11-20, bc-events): `PrKit/Ff6/StartSkills.cs`. The SNES's SwdTechs,
   Blitzes, Lores, Dances and Rages are the party's; the PR's are each character's abilities (skill level 100 =
   known). `StartSkills.Teach(command, abilities)` teaches them to every owned character holding the command

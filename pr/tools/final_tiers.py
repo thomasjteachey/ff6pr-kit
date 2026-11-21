@@ -169,7 +169,51 @@ def _find(cap, sp, tol, flip, anchored=True):
 
 def layers(van_rom, mod_rom, composite_rgba, log=print, diff_tol=24, pieces=None):
     """(background layer, [(SNES monster, its layer)], notes): RGBA bytes W x H each, clear where the PR's
-    picture stays; the background layer is BNW's changed background pixels, each part's its sprite."""
+    picture stays; the background layer is BNW's changed background pixels, each part's its sprite.
+    Cached under CACHE by every input (both ROMs, the PR's picture, the options, this code and the code it runs):
+    finding the sprites took ~30 s of every BNW port (architecture roadmap item 6, 2026-11-20); a hit logs the
+    same notes. FINAL_TIERS_NOCACHE=1 skips the cache."""
+    import pickle
+    h = hashlib.sha1(b"final_tiers layers 1;")
+    for rom in (van_rom, mod_rom):
+        with open(rom, "rb") as f:
+            h.update(hashlib.sha1(f.read()).digest())
+    h.update(hashlib.sha1(bytes(composite_rgba)).digest())
+    h.update(json.dumps([diff_tol, pieces], sort_keys=True, default=str).encode())
+    for src in ("final_tiers.py", "snes_sprites.py", "ff6snes.py", "snes_harness.py"):
+        try:
+            with open(os.path.join(HERE, src), "rb") as f:
+                h.update(f.read())
+        except OSError:
+            h.update(b"-")
+    path = os.path.join(CACHE, f"layers_{h.hexdigest()[:20]}.pickle")
+    use = not os.environ.get("FINAL_TIERS_NOCACHE")
+    if use:
+        try:
+            with open(path, "rb") as f:
+                bg, parts, notes = pickle.load(f)
+            for n in notes:
+                log("final tiers: " + n)
+            return bg, parts, notes
+        except Exception:   # none yet, or half-written: make it
+            pass
+    bg, parts, notes = _layers(van_rom, mod_rom, composite_rgba, log, diff_tol, pieces)
+    if use:
+        tmp = f"{path}.{os.getpid()}.tmp"
+        try:
+            os.makedirs(CACHE, exist_ok=True)
+            with open(tmp, "wb") as f:
+                pickle.dump((bg, parts, notes), f, protocol=pickle.HIGHEST_PROTOCOL)
+            os.replace(tmp, path)
+        except OSError:
+            try:
+                os.remove(tmp)
+            except OSError:
+                pass
+    return bg, parts, notes
+
+
+def _layers(van_rom, mod_rom, composite_rgba, log=print, diff_tol=24, pieces=None):
     from snes_sprites import Sprites
     import ff6snes as S
     from PIL import Image

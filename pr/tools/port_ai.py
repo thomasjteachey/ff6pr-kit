@@ -794,6 +794,10 @@ def new_fights(van, bnw, tables, log):
     plan = profile_setting("snes_ai_new_fights", {})
     if not plan:
         return set()
+    # formations whose template is the same fight (its monsters in its slots): they keep the template's
+    # battle routine and escape type (BNW's Stooges, 346 on 461: sc_b_2028's "dream brothers" system call
+    # puts them on stage; without it they stood at 0 HP and the battle never left its opening)
+    keep = set(profile_setting("snes_ai_new_fights_keep_routine", ()) or ())
     mp = tables.setdefault("monster_party", P.Table("monster_party"))
     porter = E.EncounterPorter(van, bnw, tables, log)
     made = set()
@@ -802,11 +806,12 @@ def new_fights(van, bnw, tables, log):
         if pid in P.Table("monster_party").rows:
             raise ValueError(f"new fight party {pid} would overwrite one of the game's")
         row = porter.party_row(f, mp[template], pid)
-        row["script_name"] = "0"   # the look only: none of the template fight's battle routine
-        row["not_escape"] = "2" if any(bnw.data[0x0F0000 + 32 * e + 19] & 0x08 for e, _, _ in E.formation(bnw, f)) else row["not_escape"]
+        if f not in keep:
+            row["script_name"] = "0"   # the look only: none of the template fight's battle routine
+            row["not_escape"] = "2" if any(bnw.data[0x0F0000 + 32 * e + 19] & 0x08 for e, _, _ in E.formation(bnw, f)) else row["not_escape"]
         mp.rows[pid] = row
         made.add(pid)
-        log(f"  new fight: formation {f:#x} as party {pid} (look of party {template})")
+        log(f"  new fight: formation {f:#x} as party {pid} ({'party ' + str(template) + ', its routine kept' if f in keep else 'look of party ' + str(template)})")
     return made
 
 

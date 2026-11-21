@@ -37,7 +37,10 @@ from collections import namedtuple
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import kitpath  # noqa: E402,F401
+try:
+    import kitpath  # noqa: E402,F401  (the modding kit's tools, when it's this repository's kit/ submodule)
+except ImportError:   # the kit repository alone has none (its tools are already on the path)
+    pass
 import prdata as P  # noqa: E402
 
 MAPS = 416
@@ -48,7 +51,8 @@ DATA_FILE = os.path.join(HERE, "..", "data", "snes_pr_maps.json")
 OVERRIDES_FILE = os.path.join(HERE, "..", "data", "snes_pr_maps_overrides.json")
 SIZES = (16, 32, 64, 128)
 
-Match = namedtuple("Match", "pr pr_id dx dy how share share_pr coverage bits entities size walk", defaults=(None,))
+Match = namedtuple("Match", "pr pr_id dx dy how share share_pr coverage bits entities size walk world cross lookalike",
+                   defaults=(None, None, False, False))
 
 
 # --- SNES map data ------------------------------------------------------------------------------
@@ -149,7 +153,7 @@ class Tables:
                  exit_ptrs=EXITS, exit_data=EXITS, long_exit_ptrs=LONG_EXITS, long_exit_data=LONG_EXITS,
                  npc_ptrs=NPCS, npc_data=NPCS, event_ptrs=EVENTS, event_data=EVENTS,
                  chest_ptrs=CHESTS[0], chest_data=CHESTS[1], palettes=0x2DC480, gfx_ptrs=0x1FDA00,
-                 offsets=None):
+                 offsets=None, chest_item_bank=None):
         self.name, self.maps, self.props = name, maps, props
         # how many offsets each list has (default maps + 1); the US chest list has 416 (maps 0-414)
         self.offsets = offsets or {}
@@ -159,6 +163,8 @@ class Tables:
         self.npc_ptrs, self.npc_data = npc_ptrs, npc_data
         self.event_ptrs, self.event_data = event_ptrs, event_data
         self.chest_ptrs, self.chest_data = chest_ptrs, chest_data
+        # a mod's chest flag for items past 255: (type bit, first item); T-Edition's 0x10 = item 256 + contents
+        self.chest_item_bank = chest_item_bank
         self.palettes, self.gfx_ptrs = palettes, gfx_ptrs
         self._ranges = {}
 
@@ -265,8 +271,11 @@ def chests(rom, m, t=US):
     for i, r in enumerate(_records(rom, m, t.chest_ptrs, t.chest_data, 5, t)):
         kind = next((n for b, n in ((CHEST_ITEM, "item"), (CHEST_GIL, "gil"), (CHEST_MONSTER, "monster"),
                                     (CHEST_EMPTY, "empty")) if r[3] & b), "empty")
+        contents, bank = r[4], getattr(t, "chest_item_bank", None)
+        if bank and r[3] & bank[0] and not r[3] & (CHEST_GIL | CHEST_MONSTER):
+            kind, contents = "item", bank[1] + r[4]
         out.append({"index": i, "x": r[0], "y": r[1], "bit": r[2] | (r[3] & 1) << 8, "type": kind,
-                    "contents": r[4], "raw": r.hex()})
+                    "contents": contents, "raw": r.hex()})
     return out
 
 
@@ -311,12 +320,18 @@ def tile_props(rom, m, props=PROPS, ptrs=TILE_PROPS_PTRS, data=TILE_PROPS_DATA):
 
 
 # --- PR maps --------------------------------------------------------------------------------------
-def pr_links(map_dir):
+def pr_links(map_dir, detail=False):
     """A PR map's exits and arrival points: ([(x, y, dest PR map id, dest point id)], {point id: (x, y)}),
     from its default entities and its story-state layers (ev_*.json: doors a scene opens, the world
     map's moving Figaro Castle). An exit is any object with a map_id (the PR names many after the
-    place: the world map's town entrances, "...からのGotoMap"), an arrival point a PointIn."""
+    place: the world map's town entrances, "...からのGotoMap"), an arrival point a PointIn.
+    `detail`: ([door dicts], {point id: point dict}) instead, each with what a tool needs to edit it in
+    place: x, y, map_id, point_id (doors) / direction (points), the object's "id" and "name", its "layer"
+    (the object group's name) and "file" (relative to the PR extract, P.VANILLA), objects in nested
+    groups included; a door on several layers (the default and a story layer's copy) is listed per copy."""
     import glob
+    if detail:
+        return _pr_links_detail(map_dir)
     gotos, points = [], {}
     files = [os.path.join(map_dir, "entity_default.json")] + sorted(glob.glob(os.path.join(map_dir, "ev_*.json")))
     for path in files:
@@ -335,6 +350,278 @@ def pr_links(map_dir):
                 elif o.get("name") == "PointIn":
                     points.setdefault(p.get("object_id"), (x, y))
     return gotos, points
+
+
+def _pr_objects_nested(doc):
+    """[(object group name, object)] of an entity file, groups inside groups included."""
+    out = []
+
+    def walk(ls):
+        for lay in ls:
+            for o in lay.get("objects") or []:
+                out.append((lay.get("name"), o))
+            walk(lay.get("layers", []))
+    walk(doc.get("layers", []))
+    return out
+
+
+def _pr_links_detail(map_dir):
+    import glob
+    doors, points = [], {}
+    files = [os.path.join(map_dir, "entity_default.json")] + sorted(glob.glob(os.path.join(map_dir, "ev_*.json")))
+    for path in files:
+        if not os.path.exists(path):
+            continue
+        rel = os.path.relpath(path, P.VANILLA).replace(os.sep, "/")
+        with open(path, encoding="utf-8") as f:
+            doc = json.load(f)
+        for lay, o in _pr_objects_nested(doc):
+            p = {x["name"]: x["value"] for x in o.get("properties", [])}
+            x, y = int(o["x"] // 16), int(o["y"] // 16) - (1 if "gid" in o else 0)
+            if p.get("map_id"):
+                doors.append({"x": x, "y": y, "map_id": p["map_id"], "point_id": p.get("point_id", 0),
+                              "id": o.get("id"), "name": o.get("name", ""), "layer": lay, "file": rel})
+            elif o.get("name") == "PointIn" and p.get("object_id") is not None:
+                points.setdefault(p["object_id"], {"x": x, "y": y, "direction": p.get("direction"), "id": o.get("id"),
+                                                   "layer": lay, "file": rel})
+    return doors, points
+
+
+# --- rooms found by following doors (lifted from Beyond Chaos's entrance index, tools/bc_entrances.py) -----
+DOOR_WALK_MIN = 0.8              # a room found by its doors: share of its walkable cells on SNES floor,
+DOORS_MIN, DOORS_EXACT = 3, 0.3  # and its door tiles on the SNES map's exit tiles: 3+ and 30%+,
+DOORS_SHARE = 0.6                # or 60%+ on or a tile from them (at least one on)
+WORLD_SOURCES = {0: "WoB", 1: "WoR"}                        # the SNES world maps
+PR_WORLD_SOURCES = {"Map_10010": "WoB", "Map_10020": "WoR"}  # the PR's
+# SNES maps whose doors mislead the nearest-world-map rule: Figaro Castle's basement (0x3D-0x42) is reached
+# from the castle in both worlds, but its only door path to a world map runs through the cave, which reads
+# as World of Ruin; both worlds use it (BC lead, 2026-11-21)
+SNES_WORLD_OVERRIDES = {m: {"WoB", "WoR"} for m in range(0x3D, 0x43)}
+STRUCTURAL = ("manual", "chests", "exits", "door", "door-in")   # pairs found by more than tiles (lookalikes are judged against them)
+
+
+class PrDoors:
+    """Every vanilla PR map's doors and arrival points (pr_links(detail=True)) by map name: `doors`,
+    `points`, `spots` (door tiles), `into` (doors leading to a map), `target(door)`, `graph()`."""
+
+    def __init__(self):
+        import collections
+        self.ids = {r["map_name"]: int(r["id"]) for r in P.Table("map")}
+        self.names = {v: k for k, v in self.ids.items()}
+        self.dirs = pr_map_dirs()
+        self.doors, self.points = {}, {}
+        for name, d in sorted(self.dirs.items()):
+            ds, ps = pr_links(d, detail=True)
+            self.doors[name] = [dict(door, pr=name) for door in ds]
+            self.points[name] = ps
+        self.spots = {n: {(d["x"], d["y"]) for d in ds} for n, ds in self.doors.items()}
+        self.into = collections.defaultdict(list)
+        for ds in self.doors.values():
+            for d in ds:
+                if d["map_id"] in self.names:
+                    self.into[self.names[d["map_id"]]].append(d)
+
+    def target(self, door):
+        """(PR map name, its PointIn dict or None) a door leads to."""
+        name = self.names.get(door["map_id"])
+        return name, (self.points.get(name, {}).get(door["point_id"]) if name else None)
+
+    def graph(self):
+        """{PR map: {PR maps its doors lead to or come from}}."""
+        import collections
+        g = collections.defaultdict(set)
+        for name, ds in self.doors.items():
+            for d in ds:
+                t = self.names.get(d["map_id"])
+                if t:
+                    g[name].add(t)
+                    g[t].add(name)
+        return g
+
+
+def grow_doors(rom, pairs, doors=None, rounds=6, log=None, unblock=()):
+    """Rooms the other passes missed, found by following vanilla's doors both ways from known pairs
+    (`pairs`: {SNES map: {PR map: (dx, dy)}}, left as it is): "door" = a door of a known room of map m on an
+    SNES exit's tile leads into a PR map the exit's destination lacks (offset: its PointIn against the
+    SNES landing spot, or a tile around it); "door-in" = a door into a known room's landing spot comes
+    from a PR map the exit's own map lacks (offset: the door against the SNES exit tile). A found room
+    must walk where the SNES walks (walk_agreement >= DOOR_WALK_MIN) and have its door tiles on the SNES
+    map's exit tiles (DOORS_MIN and DOORS_EXACT of them, or DOORS_SHARE on or beside them). Returns
+    [{snes, pr, dx, dy, how, walk, cells, doors_on_exits}]. Beyond Chaos's tools/bc_entrances.py Rooms.
+    `unblock`: {(SNES map, PR map)} pairs that seed the search but may be found again by doors (lookalike
+    rows: a door-found room replaces them)."""
+    import collections
+    doors = doors or PrDoors()
+    of = collections.defaultdict(dict)
+    for m, prs in pairs.items():
+        for name, (dx, dy) in prs.items():
+            if name in doors.dirs:
+                of[m].setdefault(name, (dx, dy))
+    exits_of = {m: [{"tiles": list(t), "dest": d, "dest_x": x, "dest_y": y} for t, d, x, y in snes_exits(rom, m)]
+                for m in range(MAPS)}
+    lay, tiles_of, found = {}, {}, []
+    refound = set()
+
+    def free(m, name):
+        """PR map `name` not yet a room of SNES map m, or only as an unblocked (lookalike) row not yet re-found."""
+        return name not in of[m] or ((m, name) in unblock and (m, name) not in refound)
+
+    def walk(m, name, dx, dy):
+        if m not in lay:
+            rows = layout(rom, m)
+            lay[m] = (rows, tile_props(rom, m) if rows else None)
+        rows, props = lay[m]
+        return walk_agreement(rom, m, name, dx, dy, rows, props) if rows else (None, 0)
+
+    def evidence(m, name, dx, dy):
+        if m not in tiles_of:
+            on = {tuple(t) for e in exits_of.get(m, []) for t in e["tiles"]}
+            tiles_of[m] = on, {(x + a, y + b) for x, y in on for a in (-1, 0, 1) for b in (-1, 0, 1)}
+        on, near = tiles_of[m]
+        spots = [(x - dx, y - dy) for x, y in doors.spots.get(name, ())]
+        return sum(1 for t in spots if t in on), sum(1 for t in spots if t in near), len(spots)
+
+    def enough(on, near, n):
+        return bool(n) and ((on >= DOORS_MIN and on >= DOORS_EXACT * n) or (on and near >= DOORS_SHARE * n))
+
+    def add(m, name, dx, dy, how, around=False):
+        if m < 3 or m >= MAPS or name.startswith("Map_1") or name not in doors.dirs:
+            return
+        if not free(m, name):
+            return
+        best = None
+        for ox, oy in ([(dx + a, dy + b) for a in (-1, 0, 1) for b in (-1, 0, 1)] if around else [(dx, dy)]):
+            on, near, n = evidence(m, name, ox, oy)
+            if not enough(on, near, n):
+                continue
+            share, cells = walk(m, name, ox, oy)
+            if share is None or share < DOOR_WALK_MIN:
+                continue
+            key = (on / n, near / n, (ox, oy) == (dx, dy), share)
+            if best is None or key > best[0]:
+                best = (key, ox, oy, share, cells, f"{on}/{near}/{n}")
+        if best:
+            _, ox, oy, share, cells, ev = best
+            of[m][name] = (ox, oy)
+            refound.add((m, name))
+            found.append({"snes": m, "pr": name, "dx": ox, "dy": oy, "how": how, "walk": round(share, 3),
+                          "cells": cells, "doors_on_exits": ev})
+
+    for _ in range(rounds):
+        n0 = len(found)
+        for m in range(MAPS):
+            for e in exits_of.get(m, []):
+                b, bx, by = e["dest"], e["dest_x"], e["dest_y"]
+                if b >= MAPS or b < 2:
+                    continue
+                tiles = {tuple(t) for t in e["tiles"]}
+                for name, (dx, dy) in list(of[m].items()):
+                    for door in doors.doors.get(name, []):
+                        if (door["x"] - dx, door["y"] - dy) not in tiles:
+                            continue
+                        t, pt = doors.target(door)
+                        if t and pt and free(b, t):
+                            add(b, t, pt["x"] - bx, pt["y"] - by, "door", around=True)
+                if len(e["tiles"]) != 1:
+                    continue
+                x, y = e["tiles"][0]
+                for t, (dx, dy) in list(of[b].items()):
+                    for door in doors.into.get(t, []):
+                        _, pt = doors.target(door)
+                        if pt and max(abs(pt["x"] - bx - dx), abs(pt["y"] - by - dy)) <= 1 and free(m, door["pr"]):
+                            add(m, door["pr"], door["x"] - x, door["y"] - y, "door-in")
+        if log:
+            log(f"door pass, round: {len(found) - n0} rooms")
+        if len(found) == n0:
+            break
+    return found
+
+
+def world_labels(graph, sources):
+    """{node: {labels}}: the source(s) nearest each node by doors (`sources`: {world map: label}): a
+    town's World of Balance version is nearest the World of Balance map, an interior both versions enter
+    is as near both. Doors the game makes by event (the airship) aren't edges: a label is a hint."""
+    dists = {}
+    for src, lab in sources.items():
+        dist, frontier = {src: 0}, [src]
+        while frontier:
+            nxt = []
+            for n in frontier:
+                for t in graph.get(n, ()):
+                    if t not in dist:
+                        dist[t] = dist[n] + 1
+                        nxt.append(t)
+            frontier = nxt
+        dists[lab] = dist
+    out = {}
+    for n in set(graph) | set(sources):
+        got = {lab: d[n] for lab, d in dists.items() if n in d}
+        if got:
+            low = min(got.values())
+            out[n] = {lab for lab, v in got.items() if v == low}
+    return out
+
+
+def pair_worlds(rom, doors=None):
+    """(SNES map -> world labels, PR map -> world labels): each side's nearest world map by its own doors
+    (SNES exits both ways, parent exits left out; the PR's GotoMaps both ways)."""
+    import collections
+    g = collections.defaultdict(set)
+    for m in range(MAPS):
+        for _, dest, _, _ in snes_exits(rom, m):
+            if dest < MAPS and dest != m:
+                g[m].add(dest)
+                g[dest].add(m)
+    doors = doors or PrDoors()
+    snes = world_labels(g, WORLD_SOURCES)
+    snes.update({m: set(v) for m, v in SNES_WORLD_OVERRIDES.items()})
+    return snes, world_labels(doors.graph(), PR_WORLD_SOURCES)
+
+
+def lookalikes(rom, maps):
+    """{(SNES map, PR map)} of tile/layout pairs that are another place's room: the PR room is structurally
+    paired (STRUCTURAL: chests, exits, doors, by hand) to another SNES map of another place: its graphics or
+    name differ, or its exits lead to none of the maps this map's exits lead to (FF6's interiors share
+    graphics and an empty name across towns: Mobliz's inn 0xA0 and Thamasa's rooms). Same-place story-state
+    copies (same look, exits into the same place) aren't lookalikes. `maps`: {str(SNES map): [(how, scores,
+    pr, dx, dy)]}."""
+    import collections
+    owners = collections.defaultdict(set)
+    for m, rows in maps.items():
+        for how, _, pr, _, _ in rows:
+            if how in STRUCTURAL:
+                owners[pr].add(int(m))
+    look, dests = {}, {}
+
+    def place(m):
+        if m not in look:
+            q = properties(rom, m)
+            look[m] = (tuple(q["graphic_sets"]), q["tilesets"], q["name"])
+            dests[m] = {d for _, d, _, _ in snes_exits(rom, m) if 2 <= d < MAPS and d != m}
+        return look[m]
+
+    def other_place(a, b):
+        if place(a) != place(b):
+            return True
+        return bool(dests[a] and dests[b] and not (dests[a] & dests[b]) and a not in dests[b] and b not in dests[a])
+    out = set()
+    for m, rows in maps.items():
+        for how, _, pr, _, _ in rows:
+            if how in ("tiles", "layout"):
+                others = owners.get(pr, set()) - {int(m)}
+                if any(other_place(o, int(m)) for o in others):
+                    out.add((int(m), pr))
+    return out
+
+
+def world_tag(snes_lab, pr_lab):
+    """(world, cross) of a pair: world = "WoB" / "WoR" / "both" / None from the two sides' labels; cross =
+    the SNES map is one world's alone and the PR map the other's alone (157 <-> Map_20340: a World of Ruin
+    scene on a World of Balance room)."""
+    labs = set(snes_lab or ()) | set(pr_lab or ())
+    world = None if not labs else ("both" if len(labs) > 1 else next(iter(labs)))
+    cross = bool(snes_lab and pr_lab and len(snes_lab) == 1 and len(pr_lab) == 1 and set(snes_lab) != set(pr_lab))
+    return world, cross
 
 
 TILESET_PTRS, TILESET_BASE = 0x1FBA00, 0xDE0000   # DF/BA00: 3-byte offsets from DE/0000 (C0/27EF), LZSS
@@ -820,6 +1107,20 @@ def build(rom_path=None, processes=None):
             copies[str(m)] = rows
     maps.update(copies)
     print(f"event copies (a placed map's layouts): {len(copies)} SNES maps", flush=True)
+    # 4b. rooms by doors (Beyond Chaos's entrance index, tools/bc_entrances.py): vanilla's doors followed both
+    #     ways from every pair so far; a room counts when it walks where the SNES walks and its doors sit on the
+    #     SNES map's exits (grow_doors)
+    #     lookalike rows (another place's room by tiles alone) seed it but don't block it: a room found by doors
+    #     replaces the lookalike row of the same PR map
+    doors = PrDoors()
+    la0 = lookalikes(rom, maps)
+    pairs = {int(m): {pr: (dx, dy) for how, s, pr, dx, dy in rows} for m, rows in maps.items()}
+    grown = grow_doors(rom, pairs, doors, unblock=la0)
+    for g in grown:
+        s = measure(g["snes"], g["pr"], g["dx"], g["dy"]) or (0, 0, 0, 0, 0, 0)
+        rows = [r for r in maps.get(str(g["snes"]), []) if r[2] != g["pr"]]
+        maps[str(g["snes"])] = rows + [(g["how"], s, g["pr"], g["dx"], g["dy"])]
+    print(f"door pass: {len(grown)} rooms on {len({g['snes'] for g in grown})} SNES maps", flush=True)
     # 5. every pair against the SNES passability: the PR's walkable cells on SNES walls means a
     #    wrong pair (a generic room or scene backdrop matched by tiles, a wrong offset)
     walks, dropped = {}, collections.Counter()
@@ -840,13 +1141,21 @@ def build(rom_path=None, processes=None):
         else:
             del maps[m]
     print(f"dropped by SNES passability: {dict(dropped)}", flush=True)
+    snes_w, pr_w = pair_worlds(rom, doors)
+    la = lookalikes(rom, maps)
+    print(f"lookalike pairs (another place's room by tiles alone): {len(la)}", flush=True)
     doc_maps = {}
     for m in sorted(maps, key=int):
-        rows = sorted(maps[m], key=lambda t: (t[0] in ("tiles", "layout"), -t[1][0]))
+        # pairs found by chests / exits / by hand first, then rooms by doors, then tiles / layout alone (each
+        # by how much the tiles explain): to_pr and pr_maps()[0] take the first that fits
+        rows = sorted(maps[m], key=lambda t: ({"door": 1, "door-in": 1, "tiles": 2, "layout": 2}.get(t[0], 0), -t[1][0]))
         doc_maps[m] = [{"pr": pr, "pr_id": ids.get(pr), "dx": dx, "dy": dy, "how": how, "share": round(s[1], 3),
                         "share_pr": round(s[2], 3), "coverage": round(s[3], 3), "bits": round(s[0]),
                         "entities": [s[4], s[5]], "size": list(sizes.get(pr, (0, 0))),
-                        "walk": list(walks.get((m, pr), (None, 0)))}
+                        "walk": list(walks.get((m, pr), (None, 0))),
+                        "world": world_tag(snes_w.get(int(m)), pr_w.get(pr))[0],
+                        "cross": world_tag(snes_w.get(int(m)), pr_w.get(pr))[1],
+                        "lookalike": (int(m), pr) in la}
                        for how, s, pr, dx, dy in rows]
     missing = [m for m in range(MAPS) if str(m) not in doc_maps]
     print(f"no PR map for SNES maps: {missing}")
@@ -857,7 +1166,12 @@ def build(rom_path=None, processes=None):
                       "at (0, 0), so world-map towns are reached through the PR's entrance objects); 'tiles' = "
                       "only the layouts agree (mutual information between the SNES tile and the PR's tile stack "
                       "per cell; near-certain, or looser when the PR walks where the SNES walks: walk >= 0.9); 'layout' = an event copy: the SNES map has another placed map's BG1 and BG2 "
-                      "layouts and takes its PR maps. One SNES map is often several PR "
+                      "layouts and takes its PR maps; 'door' / 'door-in' = a room reached by vanilla's doors from a pair (its doors on the "
+                      "SNES map's exits, walk >= 0.8: grow_doors). world: the pair's world by each side's nearest world map "
+                      "(WoB / WoR / both / null); cross: the SNES map is one world's and the PR map the other's (a porter "
+                      "following exits should skip it); lookalike: a tiles/layout pair whose PR room is another "
+                      "place's (structurally paired to an SNES map of other graphics or name): tools reading every "
+                      "pair should skip it (lookups list it after the map's own pairs). One SNES map is often several PR "
                       "maps (its rooms, each its own offset) and one layout several SNES maps (World of Balance "
                       "/ Ruin). share / share_pr: the part of each side's tile information the other explains; "
                       "coverage: the part of the PR map's drawn cells on the SNES layout; entities: SNES exits/"

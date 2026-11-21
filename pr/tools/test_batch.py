@@ -105,9 +105,12 @@ def _saves_dir():
 
 SAVES = _saves_dir()
 PY = os.path.join(PR, ".venv", "Scripts", "python.exe")
+if not os.path.exists(PY) and os.environ.get("TEST_BATCH_PY"):
+    PY = os.environ["TEST_BATCH_PY"]     # a worktree batch's runner without a .venv in the worktree: the main folder's
 # (TEST_BATCH_LOGS: logs, summary and runner state elsewhere: an experiment that mustn't touch the real ones)
 LOGS = os.environ.get("TEST_BATCH_LOGS") or os.path.join(PR, "build", "test_logs")
-RUNS_MD = os.path.join(LOGS, "test_runs.md") if os.environ.get("TEST_BATCH_LOGS") else os.path.join(PR, "build", "test_runs.md")
+RUNS_MD = os.environ.get("TEST_BATCH_RUNS_MD") or (
+    os.path.join(LOGS, "test_runs.md") if os.environ.get("TEST_BATCH_LOGS") else os.path.join(PR, "build", "test_runs.md"))
 BASH = r"C:\Program Files\Git\bin\bash.exe"
 PORT = 47811
 PLUGINS = {"bnw": ("plugin/BnwPlugin", "BraveNewWorld.PR.dll", "BraveNewWorld"),
@@ -362,7 +365,16 @@ def build(mod, deploy=False):
     game's plugin folder). -> (ok, [error lines], seconds)."""
     rel = PLUGINS[mod][0]
     t = time.time()
-    args = ["dotnet", "build", "-c", "Release", "-nologo", "-v", "q"] + (["-p:Deploy=true"] if deploy else [])
+    quiet = os.path.join(PR, "build", "batches", "quiet.flag")
+    said = False
+    while os.path.exists(quiet) and time.time() - t < 3600:   # a timing-sensitive batch runs: no CPU load meanwhile
+        if not said:
+            say("[batch] waiting: build/batches/quiet.flag (no builds during timing checks)")
+            said = True
+        time.sleep(5)
+    restored = os.path.exists(os.path.join(PR, rel, "obj", "project.assets.json"))
+    args = ["dotnet", "build", "-c", "Release", "-nologo", "-v", "q"] + (["--no-restore"] if restored else []) + \
+        (["-p:Deploy=true"] if deploy else [])
     p = subprocess.run(args, cwd=os.path.join(PR, rel),
                        capture_output=True, text=True, encoding="utf-8", errors="replace", stdin=subprocess.DEVNULL)
     errs = []
@@ -373,6 +385,16 @@ def build(mod, deploy=False):
             e = f"{f.replace(os.sep, '/')}:{m['line']}: {m['code']} {m['msg']}"
             if e not in errs:
                 errs.append(e)
+    if restored and p.returncode != 0 and ("NETSDK1004" in p.stdout + p.stderr or "project.assets.json" in p.stdout + p.stderr):
+        return build(mod, deploy) if os.path.exists(os.path.join(PR, rel, "obj", "project.assets.json")) and \
+            os.remove(os.path.join(PR, rel, "obj", "project.assets.json")) is None else (False, ["restore needed"], time.time() - t)
+    if errs:   # each broken file's owner (pr/OWNERS via tools/owners.py): the report says whom to tell
+        try:
+            import owners as OW
+            rules, sessions = OW.load()
+            errs = [f"{e}  [owner: {OW.describe(OW.owner_of(e.split(':', 1)[0], rules)[1], sessions)}]" for e in errs]
+        except Exception:
+            pass
     ok = p.returncode == 0 and not errs
     if not ok and not errs:
         errs = [l for l in (p.stdout + p.stderr).splitlines() if "error" in l.lower()][:10] or ["build failed (no error lines)"]
@@ -391,6 +413,12 @@ def bc_installed():
 
 
 def run_cmd(args, cwd=PR, timeout=900, env=None):
+    if args and isinstance(args, list) and isinstance(args[0], str) and not os.path.isabs(args[0]) and ("/" in args[0] or "\\" in args[0]):
+        exe = os.path.join(cwd or PR, args[0])
+        for cand in (exe, exe + ".exe"):
+            if os.path.isfile(cand):
+                args = [cand] + list(args[1:])
+                break
     p = subprocess.run(args, cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout,
                        env=dict(os.environ, **env) if env else None,
                        stdin=subprocess.DEVNULL)
@@ -593,6 +621,9 @@ def install(mod, built=True):
         # --dev: the baselines and the Magicite folder only (seconds), all bc_testinstall uses; a bare bc_bundle.py builds
         # the whole player bundle (Python + Pillow, 2-3 min), which a launch that needs it builds in its own setup
         rc1, o1 = run_cmd([PY, "tools/bc_bundle.py", "--dev"])
+        # (QA, 11-21 03:3x) a BC batch after a BC batch (--defer-restore keeps the test install) found its own
+        # install refused ("already installed for a test: restore first"), so bc-7's 0.1.0 gate never ran
+        o1 += bc_restore_if_installed()
         rc2, o2 = run_cmd([PY, "tools/bc_testinstall.py", "install"])
         return rc1 == 0 and rc2 == 0, out + o1 + o2
     return True, out
@@ -670,6 +701,10 @@ def warm_mismatch(w, run, fp=None):
         return f"another game ({run.get('game')})"
     if run.get("graphics") and not w.get("graphics"):
         return "the run needs graphics"
+    if run.get("graphics") is False and w.get("graphics"):
+        return 'the run says "graphics": false (a game that renders nothing)'
+    if run.get("fresh"):
+        return 'the run asks for a fresh launch ("fresh": true)'
     if (run.get("extra") or "") != (w.get("extra") or "") or (run.get("set") or {}) != (w.get("set") or {}):
         return "other launch settings"
     if run.get("setup") or run.get("undo"):
@@ -743,13 +778,31 @@ class Harness:
                 time.sleep(1)
         self.s.settimeout(timeout)
         self.f = self.s.makefile("r", encoding="utf-8", newline="\n")
+        self.other_since, self.other_key = None, None
 
     def ask(self, line):
         self.s.sendall((line + "\n").encode("utf-8"))
         r = self.f.readline()
         if not r:
             raise ConnectionError("the game closed the connection")
-        return r.rstrip("\n")
+        r = r.rstrip("\n")
+        if line == "state":
+            self.watch_stuck(r)
+        return r
+
+    def watch_stuck(self, r):
+        m = re.search(r"scene (\w+); map (\d+);", r)
+        if not m or m.group(1) != "other" or "MainGame" not in r or "title window" in r:
+            self.other_since = self.other_key = None
+            return
+        now = time.time()
+        if m.group(2) != self.other_key:
+            self.other_since, self.other_key = now, m.group(2)
+            return
+        limit = STUCK_OTHER_MAP0 if m.group(2) == "0" else STUCK_OTHER
+        if now - self.other_since > limit:
+            self.other_since = now
+            raise GameStuck(f"the game has been between scenes (scene other, map {m.group(2)}) for {limit} s: stuck")
 
     def close(self):
         try:
@@ -784,6 +837,22 @@ BOOT = ["totitle", "newgamego", "skipmsg on", "newfield", "warpfree", "freefield
 BOOT_SAVE = ["totitle", "titlesettle", "skipmsg on", "load party",
              r"until scene field; map [1-9]\d*;(?!.*title window) 60", "freefield"]
 FRAME = re.compile(r"^frame \d+; ")
+
+
+STUCK_OTHER = 30        # s of "scene other" on one map in a running game (a map change, a battle's start: <= 6 s)
+STUCK_OTHER_MAP0 = 90   # map 0: a New Game or a load on its way (bc-selftest 11-20: 61 s once)
+
+
+def settle(h, transcript, limit=120):
+    """a running game between scenes: wait until it lands (field, battle, title); Harness.watch_stuck gives it up
+    when it doesn't"""
+    end = time.time() + limit
+    while time.time() < end:
+        r = h.ask("state")
+        if "scene field" in r or "scene battle" in r or "title window" in r or "MainGame" not in r:
+            return r
+        time.sleep(POLL)
+    raise GameStuck(f"the game didn't land on a field, battle or title in {limit} s")
 
 
 class GameStuck(Exception):
@@ -828,18 +897,32 @@ def to_field(h, transcript, boot=None):
     boot = boot or BOOT
     r = h.ask("state")
     transcript.append(f"  ~ tofield from: {r}")
+    if "scene other" in r and "MainGame" in r and "title window" not in r:
+        # between scenes in a running game (a New Game or load just asked, a map change): it lands first
+        starting = "scene other; map 0;" in r
+        r = settle(h, transcript)
+        transcript.append(f"  ~ landed: {r[:200]}")
+        if starting and "scene field" in r:
+            # a New Game / load on its way: the boot's steps after the one that starts it, not a new boot
+            k = next((j for j, x in enumerate(boot) if x in ("newgamego", "load party", "loadfield")), None)
+            if k is not None:
+                return boot[k + 1:]
     if "title window" in r or r.startswith("error") or "scene field" not in r and "scene battle" not in r:
         return boot
     if "map 609;" in r and "script sc_e_0001" in r:
         # the title's idle demo (or the opening): back to the title (a press ends the demo), then the boot
         return ["until title window 60 repeat press action"] + boot[1:]
     if "scene battle" in r:
+        lost = re.search(r"battle phase Lose\w*", r)
         # once: a battle that doesn't end here won't end for the next request either (bnw-2, 2026-11-20: every later
         # request spent 3 minutes pressing at the same boss)
         for st in ("killall", "until scene field 90 repeat press action"):
             ok, fail = run_step(h, st, transcript)
             if not ok:
                 raise GameStuck(f"the battle doesn't end ({fail})")
+        if lost:
+            transcript.append("  ~ the party lost (game over): its field is broken, a new boot")
+            return boot
         return ["warpfree"]
     return ["skipmsg on", "freefield"]
 
@@ -851,8 +934,14 @@ def to_title(h, transcript):
     if "title window" in r:
         return True, None
     if "scene field" not in r and "scene battle" not in r:
-        # still starting (or between scenes): the title comes by itself
-        return run_step(h, "until title window 240", transcript)
+        if "MainGame" not in r:
+            # still starting: the title comes by itself
+            return run_step(h, "until title window 240", transcript)
+        # a running game between scenes: it lands first (a title asked mid-load wedged bc-events-all, 11-21)
+        r = settle(h, transcript)
+        transcript.append(f"  ~ landed: {r[:200]}")
+        if "title window" in r:
+            return True, None
     if "scene battle" in r:
         for st in ("killall", "until scene field 90 repeat press action"):
             ok, fail = run_step(h, st, transcript)
@@ -1038,19 +1127,30 @@ def run_steps(h, steps, transcript, keep_going=False, skip_to=None, ctx=None):
     """-> (ok, failure); keep_going: a failed step is noted and the rest still run; skip_to (a step
     prefix, e.g. "battle "): after a failed step, go on from the next step starting with it (via tofield)"""
     failures = []
-    expanded = []
+    expanded, from_boot = [], []   # from_boot: the step is part of the way to a free field (boot, tofield)
     boot = (ctx or {}).get("boot") or BOOT
     for st in steps:
         if st.strip() != "quit":   # the runner ends the run itself
-            expanded += boot if st.strip() == "boot" else [st]
+            add = boot if st.strip() == "boot" else [st]
+            expanded += add
+            from_boot += [st.strip() == "boot"] * len(add)
     i = 0
     while i < len(expanded):
         st = expanded[i].strip()
+        boot_step = from_boot[i]
         i += 1
         if not st:
             continue
+        deadline = (ctx or {}).get("deadline")
+        if deadline and time.time() > deadline:
+            fail = f"the run's time budget is used up ({(ctx or {}).get('budget_min')} min): '{st}' and the rest not run"
+            transcript.append(f"  STEP FAILED: {fail}")
+            failures.append(fail)
+            break
         if st == "tofield":
-            expanded[i:i] = to_field(h, transcript, boot)
+            ins = to_field(h, transcript, boot)
+            expanded[i:i] = ins
+            from_boot[i:i] = [True] * len(ins)
             continue
         if ctx is not None:
             ctx["steps_done"] = ctx.get("steps_done", 0) + 1
@@ -1063,12 +1163,16 @@ def run_steps(h, steps, transcript, keep_going=False, skip_to=None, ctx=None):
         if not ok:
             failures.append(fail)
             transcript.append(f"  STEP FAILED: {fail}")
+            if boot_step:
+                # the way to a free field failed: whatever comes next would wait out its timeouts on a broken game
+                raise GameStuck(f"the way to a free field failed at '{st}': {fail}")
             if skip_to:
                 nxt = next((j for j in range(i, len(expanded)) if expanded[j].strip().startswith(skip_to)), None)
                 if nxt is None:
                     break
                 transcript.append(f"  skipping to step {nxt + 1}: {expanded[nxt]}")
                 expanded[nxt:nxt] = ["tofield"]
+                from_boot[nxt:nxt] = [False]
                 i = nxt
                 continue
             if not keep_going:
@@ -1133,21 +1237,30 @@ def run_step(h, st, transcript, ctx=None):
     if st == "killall":
         # not while the battle is still being set up (live, 2026-11-20: an endfight in phase CreateObj killed the
         # monster, the setup brought it back at 1 HP "Dying", and the battle never ended)
-        end = time.time() + 20
+        end = time.time() + 30
+        opening = None
         while time.time() < end:
             r = h.ask("state")
-            if "scene battle" not in r or not re.search(r"battle phase (CreateObj|Init\w*|Load\w*|None|Start\w*)\b", r):
+            # set-up phases and the opening messages (PreeMptiveMes, BackAttackMes, ...: any phase ending in "Mes")
+            opening = re.search(r"battle phase (CreateObj|Init\w*|Load\w*|None|Start\w*|\w*Mes)\b", r) if "scene battle" in r else None
+            if not opening:
                 break
             time.sleep(POLL)
+        if opening:
+            return False, f"'killall': the battle is stuck in its opening (phase {opening.group(1)} for 30 s)"
         # every enemy down: BNW's "endfight" (the game's own death check), else the kit's "enemyhp 1" (a hit is
         # still needed then: the presses that follow)
         # BNW's aikeep first (Active, auto): the game judges a battle's end after an act, and with the party
         # stopped or waiting on menus none comes (2026-11-20: endfight, then 3 minutes of presses, still Play)
-        transcript.append(f"> aikeep on\n{h.ask('aikeep on')}")
+        # (BNW's commands: a kit game (BC, T-Edition) answers "unknown command": noted as a poll line ("  ~"), not a
+        #  reply, so a request's fail regex "error:" doesn't count it; QA, bc-art-1 01:5x)
+        r = h.ask("aikeep on")
+        transcript.append(f"  ~ aikeep on: {r}" if r.startswith("error") else f"> aikeep on\n{r}")
         r = h.ask("endfight")
-        transcript.append(f"> endfight\n{r}")
         if r.startswith("error"):
+            transcript.append(f"  ~ endfight: {r} (the kit's enemyhp 1 instead)")
             return run_step(h, "enemyhp 1", transcript)
+        transcript.append(f"> endfight\n{r}")
         return True, None
     if st == "warpfree":
         return warp_free(h, transcript, ctx)
@@ -1206,6 +1319,31 @@ def run_step(h, st, transcript, ctx=None):
         time.sleep(2)
         free_field(h, transcript, timeout=30, hold=1.0)
         r = h.ask(st)
+        if r.startswith("error") and "NullReferenceException" in r and not (ctx or {}).get("reboot_tried"):
+            # still: the field itself is broken (after a game over, laptop ai-2a 01:35: every later battle failed)
+            transcript.append(f"  ~ {st}: {r[:160]} (the field is broken: a new boot, then once more)")
+            if ctx is not None:
+                ctx["reboot_tried"] = True
+            ok, fail = run_steps(h, ["boot"], transcript, ctx=ctx)
+            if ctx is not None:
+                ctx["reboot_tried"] = False
+            if not ok:
+                return False, f"'{st}': the field was broken and a new boot failed ({fail})"
+            r = h.ask(st)
+    if st.split()[0] in ("battle", "encount") and r.startswith("error") and "without its battle script" in r \
+            and not (ctx or {}).get("battle_retry"):
+        transcript.append(f"  ~ {st}: {r[:200]} (retry: tofield, then the same battle)")
+        if ctx is not None:
+            ctx["battle_retry"] = True
+        try:
+            ok, fail = run_steps(h, ["tofield"], transcript, ctx=ctx)
+        finally:
+            if ctx is not None:
+                ctx["battle_retry"] = False
+        if not ok:
+            return False, f"'{st}': started without its battle script, and back to a field failed ({fail})"
+        r = h.ask(st)
+        transcript.append(f"  ~ {st}: retried")
     transcript.append(f"> {st}\n{r}")
     if r.startswith("error"):
         return False, f"'{st}': {r}"
@@ -1524,7 +1662,7 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
                     cool(f"no way back to the title ({fail})", w)
                     w, relaunches = None, relaunches + 1
                     continue
-        except (OSError, ConnectionError) as e:
+        except (OSError, ConnectionError, GameStuck) as e:
             transcript.append(f"harness: {e}")
             h.close()
             if relaunches < 2:
@@ -1535,8 +1673,15 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
                 step_results[r.get("id")] = f"connection: {e}"
             break
         crashed = False
+        budget_min = int(run.get("minutes", 15))
         while i < len(reqs):
             req = reqs[i]
+            if time.time() - t > budget_min * 60 + 60:
+                for r in reqs[i:]:
+                    step_results[r.get("id")] = f"not run: the run's time budget ({budget_min} min, its \"minutes\") is used up"
+                transcript.append(f"  time budget used up ({budget_min} min): {len(reqs) - i} requests not run")
+                i = len(reqs)
+                break
             i += 1
             rt = time.time()
             seg_start = len(transcript)
@@ -1545,7 +1690,8 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
             ctx = {"fast_sleep": bool(req.get("fast_sleep")), "log_pos": log_size(), "speed": float(req.get("speed", 1) or 1),
                    "fast": run_fast,
                    "pending": [re.compile(x) for x in req.get("pass", []) if regex_error(x) is None],
-                   "boot": BOOT_SAVE if run.get("boot") == "save" else BOOT}
+                   "boot": BOOT_SAVE if run.get("boot") == "save" else BOOT,
+                   "deadline": t + budget_min * 60 + 60, "budget_min": budget_min}
             steps = req.get("steps", [])
             if req.get("needs") == "title":
                 # "needs": "title": its steps at the title screen (no New Game, load or warp)
@@ -1606,8 +1752,8 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
         if keep:
             try:
                 end_state = h.ask("state")
-            except (OSError, ConnectionError):
-                end_state = "scene battle (no answer)"
+            except (OSError, ConnectionError, GameStuck):
+                end_state = "scene battle (no answer, or stuck)"
             if "scene battle" in end_state or "; script " in end_state:
                 why_not = "in a battle" if "scene battle" in end_state else "with a script running"
                 transcript.append(f"  ~ not kept warm: the run ended {why_not} ({end_state[:200]})")
@@ -1747,7 +1893,7 @@ def print_results(runs):
 # fails today doesn't hold every batch. Then tools/magicite_check.py on the Magicite folders about to be installed
 # or copied in by a run's setup. A request's "offline": [commands] (bash, in pr/) replaces its mod's suites; every
 # command must pass ([] runs none).
-PREFLIGHT_STATE = os.path.join(LOGS, "preflight_state.json")
+PREFLIGHT_STATE = os.environ.get("TEST_BATCH_PREFLIGHT") or os.path.join(LOGS, "preflight_state.json")
 SUITES = {
     "bnw": ["dotnet Rules.Tests", "py BraveNewWorld test_mod"],
     "wc": ["dotnet Wc.Tests", "dotnet WcAi.Tests"],
@@ -2179,6 +2325,8 @@ def take_batch_lock(max_wait=4 * 3600):
     """One batch (or --restore) at a time on this PC: two queue runners started bnw-11 twice at 18:06 (both died in
     pre-flight). A second one waits; a lock whose holder is gone (or whose pid is another process's) is taken over.
     -> None or why not"""
+    if os.environ.get("TEST_BATCH_LOCK_HELD"):
+        return None     # a worktree batch's runner: its parent (run_for_worktree) holds the lock
     t0, said = time.time(), False
     while time.time() - t0 < max_wait:
         try:
@@ -2208,6 +2356,8 @@ def take_batch_lock(max_wait=4 * 3600):
 
 
 def release_batch_lock():
+    if os.environ.get("TEST_BATCH_LOCK_HELD"):
+        return
     try:
         with open(BATCH_LOCK, encoding="utf-8", errors="replace") as f:
             mine = re.search(r"^pid (\d+)", f.read(), re.M)
@@ -2221,6 +2371,46 @@ def order_runs(runs, opts):
     """the batch's own order: its author puts launches that may stall last on purpose (bnw-11: ai-3-triggers, then
     tower; bc-5: bc-events-6, then bc-player)"""
     return list(runs)
+
+
+def worktree_of(batch_path):
+    """A batch's "worktree": a session worktree's folder, or its name under <repo>/.claude/worktrees (architecture
+    roadmap item 2). None: a main-folder batch. "": named but not a worktree of this project."""
+    if not batch_path:
+        return None
+    try:
+        with open(batch_path, encoding="utf-8") as f:
+            wt = json.load(f).get("worktree")
+    except (OSError, ValueError, AttributeError):
+        return None
+    if not wt:
+        return None
+    if not os.path.isabs(wt):
+        wt = os.path.join(os.path.dirname(PR), ".claude", "worktrees", wt)
+    wt = os.path.normpath(wt)
+    return wt if os.path.isfile(os.path.join(wt, "pr", "tools", "test_batch.py")) else ""
+
+
+def run_for_worktree(wt):
+    """A worktree's batch: this runner again with the worktree's pr/ as the project (its build and port output built,
+    pre-flighted, installed, tested), under this lock, into these logs and test_runs.md; its own pre-flight baseline
+    (a worktree's fix mustn't shrink the main folder's known failures)."""
+    why = take_batch_lock()
+    if why:
+        say(f"[batch] not running: {why}")
+        return 3
+    try:
+        head = subprocess.run(["git", "-C", wt, "log", "-1", "--format=%h %s"], capture_output=True, text=True,
+                              encoding="utf-8", errors="replace").stdout.strip()
+        name = os.path.basename(wt)
+        say(f"[batch] worktree {name} ({head or '?'}): its build and port output ({os.path.join(wt, 'pr')}) are tested")
+        env = dict(os.environ, TEST_BATCH_PR=os.path.join(wt, "pr"), TEST_BATCH_LOGS=LOGS, TEST_BATCH_RUNS_MD=RUNS_MD,
+                   TEST_BATCH_PREFLIGHT=os.path.join(LOGS, f"preflight_state.{name}.json"), TEST_BATCH_LOCK_HELD="1",
+                   TEST_BATCH_PY=PY)
+        sys.stdout.flush()
+        return subprocess.run([sys.executable, os.path.abspath(__file__)] + sys.argv[1:], env=env).returncode
+    finally:
+        release_batch_lock()
 
 
 def main():
@@ -2276,6 +2466,14 @@ def main():
         return 0 if ok else 4
     if a.next:
         return queue_next(a.next)
+    # a batch for a session's worktree ("worktree" in its JSON): its own build, port output and pre-flight
+    if not os.environ.get("TEST_BATCH_LOCK_HELD") and not (a.estimate or a.build):
+        wt = worktree_of(a.preflight or a.batch)
+        if wt == "":
+            say("[batch] not running: its \"worktree\" isn't a worktree of this project (<repo>/.claude/worktrees/<name>)")
+            return 7
+        if wt:
+            return run_for_worktree(wt)
     if a.preflight:
         # under the batch lock too: a lone --preflight beside a batch's ran the same suites on the same temp folders
         why = take_batch_lock()

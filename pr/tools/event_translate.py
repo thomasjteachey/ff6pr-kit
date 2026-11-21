@@ -74,11 +74,19 @@ PR_NAMES = ["ティナ", "ロック", "カイエン", "シャドウ",
 FLAG_CATS = ("ScenarioFlag1", "ScenarioFlag2", "ScenarioFlag3", "ScenarioFlag4",
              "TreasureFlag1", "TreasureFlag2", "TreasureFlag3", "TreasureFlag4")
 PARTY_SLOT = -1001          # PR entity of party slot 1 (-1001..-1004)
+# SNES character -> the PR's id in party ops (OrganizePartySlot): the 14 playable ones SNES + 1, the guests Banon (0E)
+# and Leo (0F) 31 and 32 (vanilla's paired scenes: CC/9F6D 3C 00 0E 0F FF = [1, 1, 31, 32, -2, 0])
+PARTY_IDS = {**{c: c + 1 for c in range(14)}, 0x0E: 31, 0x0F: 32}
 # SNES event bits that aren't story flags: the case word (1A0-1AF: party checks, word compares,
 # loaded by DE-E4/EB), bits the field code keeps (1B0-1CF: character availability, menus), and the
 # scratch bits 1F0-1FF, cleared on every map load (C0/BFB2): those are the PR's map-local variables
 SCRATCH = range(0x1F0, 0x200)
 ENGINE_BITS = range(0x1A0, 0x1D0)
+# engine bits whose value is known when the party walks into a map, so Translator.cond decides tests of them:
+#   1B6 clear: set by the field code when an event loads the map (vanilla's 54 entrance events skip their NPCs' walking
+#       on it; no event sets or clears it);
+#   1CC clear: an event's song carries over the map load (set and cleared by the scene that plays it)
+STATIC_ENGINE_BITS = {0x1B6: False, 0x1CC: False}
 GIL_SHORT = 0x1BE                 # set by 85 (take gil) when the party has too little: the PR's RemoveGil
                                   # leaves 1 (paid) or 0 in MapLocalVariable 0, and its scripts branch on that
 CHAR_BITS = range(0x2E0, 0x300)   # 2E0 + c: c recruited (shops, items), 2F0 + c: c available (party menus)
@@ -794,8 +802,9 @@ class Translator:
             label = f"S_{t:06X}"
             self.subs[t] = label
             block = self.body(t, mode, sub=True)
-            block[0] = lab(label)
-            self.blocks.append((label, block + [op("Return")]))
+            # the block keeps its entry's L_ label after the S_ one: code that jumps (not calls) to the routine's
+            # start, such as a menu looping back to itself, lands there too (it was a missing target, ending the script)
+            self.blocks.append((label, [lab(label)] + block + [op("Return")]))
         return f"@{self.subs[t]}"
 
     # --- one instruction -------------------------------------------------------------------------
@@ -939,8 +948,17 @@ class Translator:
             return ok([op("ColorFade", r=[0.35])], "approx")
         if n == "name_menu" and a["char"] < len(PR_NAMES):
             return ok([op("SysCall", s=[NAMING + PR_NAMES[a["char"]]])])
-        if n == "party_menu" and 1 <= a["parties"] <= 3:
-            return ok([op("SysCall", s=[PARTY_MENU.format("１２３"[a["parties"] - 1])])])
+        if n == "party_set" and all(a[k] in PARTY_IDS or a[k] == 0xFF for k in ("c1", "c2", "c3", "c4")):
+            # 3C c1-c4: the party is these characters (FF none) -> the PR's OrganizePartySlot [party 1, four members
+            # (PARTY_IDS, -2 none), 0], its form in vanilla's paired scenes (CA/9FBF 3C 01 09 FF FF = [1, 2, 10, -2, -2, 0])
+            ids = [PARTY_IDS[a[k]] if a[k] != 0xFF else -2 for k in ("c1", "c2", "c3", "c4")]
+            return ok([op("OrganizePartySlot", i=[1] + ids + [0],
+                          comment="SNES 3C %s" % " ".join("%02X" % a[k] for k in ("c1", "c2", "c3", "c4")))])
+        if n == "party_menu" and 1 <= a["parties"] & 0x7F <= 3:
+            # bit 7 of the count is a mode bit (vanilla's own 99 81/82/83: the WoR party change CA/CB95, the final
+            # dungeon's split): the PR's party menu for that many parties either way
+            return ok([op("SysCall", s=[PARTY_MENU.format("１２３"[(a["parties"] & 0x7F) - 1])],
+                          comment="SNES 99 %02X" % a["parties"] if a["parties"] > 0x80 else "")])
         if n == "shop":
             ops = self.shop_ops(a["shop"])
             if ops is None:
@@ -1058,6 +1076,27 @@ class Translator:
         a = ins.args
         t = f"@L_{a['event']:06X}"
         bits = a["bits"]
+        static = [(b, w) for b, w in bits if b in STATIC_ENGINE_BITS]
+        if static:
+            # engine bits with a known value when the party walks in (STATIC_ENGINE_BITS): the condition is decided,
+            # or loses those terms
+            self.report[("flow", "engine bit (as on a walk-in)")] += 1
+            met = [STATIC_ENGINE_BITS[b] == w for b, w in static]
+            rest = [(b, w) for b, w in bits if b not in STATIC_ENGINE_BITS]
+            jump = [op("Jump", i=[t], comment="SNES bits %s as on a walk-in" % " ".join("%03X" % b for b, _ in static))]
+            if ins.op >= 0xC8:                     # any
+                if any(met):
+                    return jump
+                if not rest:
+                    return []
+            else:                                  # all
+                if not all(met):
+                    return []
+                if not rest:
+                    return jump
+            ins2 = copy.copy(ins)
+            ins2.args = dict(a, bits=rest)
+            return self.cond(ins2)
         out = []
         tests = []
         for b, want in bits:

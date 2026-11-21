@@ -43,6 +43,10 @@ namespace PrKit.Ff6
         public static string Tag = "[kit]";
         public static Func<long> PerfNow = () => 0;                 // per-frame timing (WC's WcPerf)
         public static Action<int, string, long> PerfLap = (slot, name, since) => { };
+        // a mod's per-fighter clock rules (Beyond Chaos's junctions): called at each visit, before the clock
+        // moves, to set that fighter's SnesStatusClock.AddFilter / OnStep (or clear them). Null: none (vanilla,
+        // WC, T-Edition).
+        public static Action<BattleUnitData, SnesStatusClock> Configure;
 
         const float Fire = 1e9f;
         public const int SleepType = 7, StopType = 17, ReflectType = 413, FreezeType = 603, DoomType = 404, JumpType = 420;
@@ -175,6 +179,8 @@ namespace PrKit.Ff6
             bool due = c.Waiting;
             int doomBefore = c.DoomLeft;
             var s = Read(u);
+            if (Configure != null)
+                try { Configure(u, c); } catch (Exception e) { Hooks.WarnOnce("ticks.configure", e); }
             if (c.Visit(s, rng)) Steps++;
             if (!due && c.Waiting) Note(slot, c.DuePoison ? "poison-due" : c.DueSap ? "sap-due" : "regen-due");
             if (doomBefore < 0 && c.DoomLeft >= 0) Note(slot, $"doom-set {c.DoomLeft}");

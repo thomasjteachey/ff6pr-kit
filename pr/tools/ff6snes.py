@@ -60,8 +60,13 @@ EXTENDED = {}
 
 
 def extended(rom, name, default=None):
-    """A grown table of rom's image ((offset, record size, count)) or a profile's data, else default."""
-    return EXTENDED.get(id(getattr(rom, "data", rom)), {}).get(name, default)
+    """A grown table of rom's image ((offset, record size, count)) or a profile's data, else default. An entry holds
+    its image ("_image"): an id Python reused for another object after the image was freed finds nothing."""
+    data = getattr(rom, "data", rom)
+    entry = EXTENDED.get(id(data))
+    if entry is None or entry.get("_image") is not data:
+        return default
+    return entry.get(name, default)
 
 
 OUT_MAGIC = b"FF6WCO1\0"   # a ROM-free WC run's output (tools/wc_romfree.py): zlib'd bytes
@@ -168,8 +173,17 @@ class Item:
 
 
 def items(rom):
+    """Every item of a ROM: the US table's 256, and past them a mod image's grown table when its profile registered
+    one (extended "items", 30-byte records, and "item_names", 13-byte menu names: T-Edition's 280)."""
     names = rom.table(*ITEM_NAMES)
-    return [Item(i, decode_name(names[i]), d) for i, d in enumerate(rom.table(*ITEMS))]
+    out = [Item(i, decode_name(names[i]), d) for i, d in enumerate(rom.table(*ITEMS))]
+    ext, ext_names = extended(rom, "items"), extended(rom, "item_names")
+    if ext:
+        at, size, count = ext
+        for i in range(len(out), count):
+            nm = rom.data[ext_names[0] + ext_names[1] * i:ext_names[0] + ext_names[1] * (i + 1)] if ext_names else b""
+            out.append(Item(i, decode_name(nm), rom.data[at + size * i:at + size * (i + 1)]))
+    return out
 
 
 # --- spells -----------------------------------------------------------------

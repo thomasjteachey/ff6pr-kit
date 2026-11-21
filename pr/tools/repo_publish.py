@@ -47,7 +47,8 @@ OTHER_TOOLS = ["battle_options_test.py", "bo_publish.py",   # Battle Options: it
                "ff6_deploy_mcp.py",                          # the tracker's Deck button (this PC's desktop app): the project's only
                "owners.py",                                  # who owns a path (pr/OWNERS: this project's sessions): the project's only
                "deck_push.sh", "session_budget.py",          # the user's own test setup (pr/OWNERS): the project's only
-               "remote_batch.py"]                            # the user's test machines (their host and address): the project's only
+               "remote_batch.py",                            # the user's test machines (their host and address): the project's only
+               "idle_check.py"]                              # the coordinator's idle check (this PC's session index): the project's only
 BC_TOOLS = ["bc_*.py", "kitpath.py"]                         # Beyond Chaos: its own repository (to come)
 TED_TOOLS = ["ted_*.py", "profile_tedition.py", "kitpath.py"]               # T-Edition: ff6pr-t-edition
 
@@ -94,27 +95,35 @@ def head(repo):
 # a local user's folder in a published text (C:\Users\<name>\..., /c/Users/<name>): it names the user and only works on
 # this PC (the BNW lead, 2026-11-20: cheap insurance). Code reads the user's folder from the environment instead.
 USER_PATH = re.compile(r"(?:\b[A-Za-z]:|/[a-z])[\\/]+Users[\\/]+(?!Public\b)[A-Za-z0-9][\w.-]*", re.I)
+# a home network's address (a test machine's ssh target) or a Steam account id (a save folder's path): this PC's
+# setup, never a public repository's (2026-11-20: a test-machine runner carried both a login and an address)
+PRIVATE_ID = re.compile(r"\b(?:192\.168\.\d{1,3}\.\d{1,3}|10\.\d{1,3}\.\d{1,3}\.\d{1,3}"
+                        r"|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3}|7656119\d{10})\b")
 TEXT_EXT = (".py", ".cs", ".md", ".json", ".sh", ".ps1", ".txt", ".props", ".csproj", ".java", ".tbl", ".yml", ".yaml",
             ".xml", ".cfg", ".ini", ".bat", ".cmd", ".tsv", ".csv")
 
 
 def user_paths(entries, texts=None):
-    """[(published name, the path found)] for every published text naming a local user's folder."""
+    """[(published name, what was found)] for every published text naming a local user's folder, a home network's
+    address or a Steam account id."""
+    def first(text):
+        m = USER_PATH.search(text) or PRIVATE_ID.search(text)
+        return m.group(0) if m else None
     found = []
     for src, name in entries:
         if not name.lower().endswith(TEXT_EXT):
             continue
         try:
             with open(src, encoding="utf-8", errors="replace") as f:
-                m = USER_PATH.search(f.read())
+                hit = first(f.read())
         except OSError:
             continue
-        if m:
-            found.append((name, m.group(0)))
+        if hit:
+            found.append((name, hit))
     for name, content in (texts or {}).items():
-        m = USER_PATH.search(content)
-        if m:
-            found.append((name, m.group(0)))
+        hit = first(content)
+        if hit:
+            found.append((name, hit))
     return found
 
 

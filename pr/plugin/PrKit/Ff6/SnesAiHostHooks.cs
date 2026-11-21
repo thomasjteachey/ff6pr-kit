@@ -335,12 +335,39 @@ namespace PrKit.Ff6
                 else
                 {
                     if (data.PrEnds.Contains(snesId)) entries.RemoveAll(x => (x.B2 == 1 || x.B2 == 5) && x.B3 == 0xFF);
-                    // the fight's PR routine decides who is on screen: only "everyone dies like a boss" stays
-                    if (data.PrEntrances.Contains(snesId)) entries.RemoveAll(x => !((x.B2 == 1 || x.B2 == 5) && x.B3 == 0xFF));
+                    // the fight's PR routine decides who is on screen: only "everyone dies like a boss" stays, and a
+                    // member the PR's party doesn't list being brought in (the mod's own: BNW's Shemp in the Dream
+                    // Stooges' fight, which the PR's routine knows nothing of; QA 2026-11-21)
+                    if (data.PrEntrances.Contains(snesId)) entries.RemoveAll(x => !((x.B2 == 1 || x.B2 == 5) && x.B3 == 0xFF) && !BringsUnlisted(f, x));
                 }
                 if (Verbose && entries.Count != before) Log($": monster {snesId}: {before - entries.Count} entries/ends left to the PR's battle script");
             }
             return q;
+        }
+
+        // an entry (F5 mode 0 restore / 2 show) for slots whose members the PR's party doesn't list (the data's
+        // party_members: [SNES id, cell, shown at start, listed])
+        static bool BringsUnlisted(Fight f, SnesAiAction x)
+        {
+            if (x.B2 != 0 && x.B2 != 2 || f.Members == null) return false;
+            int mask = x.B3 & 0x3F;
+            if (mask == 0) return false;
+            for (int s = 0; s < 6; s++)
+            {
+                if ((mask >> s & 1) == 0) continue;
+                var m = s < f.Members.Length ? f.Members[s] : null;
+                if (m == null || m.Length < 4 || m[3] != 0) return false;
+            }
+            return true;
+        }
+
+        // a monster dying at 0 HP (its script's FB 0B 07) whose script brings others in: the SNES keeps the battle from
+        // ending meanwhile, as Final does for a death's entries (BNW's Larry bringing Shemp in after the other two;
+        // without it the fight was won as he died). Before ApplyEntries: a restore with nothing to create lifts it.
+        static void HoldForDeathEntries(Fight f, int uid, List<SnesAiAction> entries)
+        {
+            if (f.PendingKill.Contains(uid) && entries.Any(e => e.B2 == 0 || e.B2 == 2))
+                Hold(f, BattlePlugManager.Instance(), 15);
         }
 
         static string Show(List<(int ability, Il2CppReferenceArray<BattleUnitData> targets)> q) =>
@@ -541,6 +568,7 @@ namespace PrKit.Ff6
             if (EraseAllIn(entries)) q.Insert(0, (EraseAll, null));
             else
             {
+                if (atZero) HoldForDeathEntries(f, uid, entries);
                 ApplyEntries(f, slot, snesId, entries);
                 if (entries.Count > 0 && AllGone(f)) q.Insert(0, (EraseAll, null));
             }
@@ -710,6 +738,7 @@ namespace PrKit.Ff6
             if (EraseAllIn(entries)) q.Insert(0, (EraseAll, null));
             else
             {
+                HoldForDeathEntries(f, uid, entries);
                 ApplyEntries(f, slot, snesId, entries);
                 if (entries.Count > 0 && AllGone(f)) q.Insert(0, (EraseAll, null));
             }
@@ -750,6 +779,12 @@ namespace PrKit.Ff6
             var bm = BattlePlugManager.Instance();
             if (bm == null || !bm.IsBattle()) return "not in battle";
             var f = Current ?? EnsureFight();
+            // The battle's end waits half a second: the game judged it over as soon as the last HP hit 0, before it
+            // booked the deaths (its reward list, BattleAddExpPlug.expeditionMonsters), so a rewards check after
+            // `endfight` saw EXP 0 and no one defeated (bnw-11: the result logged before "dies (endfight)").
+            // Any longer hold (F5 mode 4, a death bringing others in) ends with it: RunDeferred lets go at HoldUntil.
+            Hold(f, bm, 0);
+            f.HoldUntil = f.Clock + 0.5;
             int n = 0;
             foreach (var e in bm.GetEnemyUnits())
             {
@@ -761,8 +796,7 @@ namespace PrKit.Ff6
                 Kill(f, ed, why);
                 n++;
             }
-            if (f.HoldEnd) { bm.BattleEndJugment?.SetEnabled(true); f.HoldEnd = false; }
-            return $"{n} enemies killed ({why})";
+            return $"{n} enemies killed ({why}; the battle may end in 0.5 s)";
         }
 
         // held too long (a script that never handles 0 HP, or no counter came): BNW would wait for good; a

@@ -1,0 +1,5 @@
+﻿# Why a scripted EncountBoss can reload the field: the instruction (operands party, x, y) and the field's handler
+External\.Misc\$\$EncountBoss$
+External\.Misc\.<>c__DisplayClass20_0\$\$<EncountBoss>b__0$
+Last\.Map\.EventProcedure\$\$Last\.Map\.IEventAccessor\.EventEncountBoss$
+Last\.Map\.EventProcedure\.<>c__DisplayClass48_0\$\$<Last\.Map\.IEventAccessor\.EventEncountBoss>b__\d+$

@@ -46,7 +46,10 @@ def chest_type(byte):
 
 
 def snes_chests(rom):
+    """{(map, x, y): chest}. A profile's grown item table can be named by a chest flag (ff6snes.extended
+    "chest_item_bank": (type bit, first item): T-Edition's bit 0x10 = item 256 + the content byte)."""
     d = rom.data
+    bank = S.extended(rom, "chest_item_bank")
     ptr = [int.from_bytes(d[PTRS + 2 * m:PTRS + 2 * m + 2], "little") for m in range(MAPS + 1)]
     out = {}
     for m in range(MAPS - 1):  # the last pointer is the table end
@@ -55,6 +58,8 @@ def snes_chests(rom):
             # keyed by place: chests can share an event bit (vanilla) or get new ones (WC re-bits them)
             out[(m, r[0], r[1])] = {"map": m, "x": r[0], "y": r[1], "type": chest_type(r[3]), "contents": r[4],
                                     "bit": r[2] | (r[3] & 1) << 8, "id": ptr[m] // 5 + c}
+            if bank and r[3] & bank[0] and not r[3] & (GOLD | MONSTER):
+                out[(m, r[0], r[1])].update(type=ITEM, contents=bank[1] + r[4])
             size = d[MAP_PROPS + 33 * m + 0x17]
             out[(m, r[0], r[1])]["size"] = (16 << (size >> 6 & 3), 16 << (size >> 4 & 3))   # the map's, in tiles
             if chest_type(r[3]) == MONSTER:   # a monster-in-a-box: its pack's first formation (miab_party)

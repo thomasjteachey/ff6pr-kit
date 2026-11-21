@@ -54,7 +54,7 @@ def register(data, tables, monster_base=None, **extra):
     names), extra data (monster_names, special_names: lists by monster; sprites: a reader whose
     sprite(e) is a snes_sprites.Sprite; event_maps: {formation: [SNES maps]}), and new monsters' PR ids
     monster_base + e (idmap.MONSTER_EXT)."""
-    entry = dict(tables)
+    entry = dict(tables, _image=data)   # the image itself: kept alive while registered (ff6snes.extended checks it)
     entry.update(extra)
     S.EXTENDED[id(data)] = entry
     mon = tables.get("monsters")

@@ -27,7 +27,7 @@ namespace PrKit.Snes
         public readonly Dictionary<int, string> Titles = new Dictionary<int, string>();
         public int SampleCount;
         // programs $00-$07, FF6's resident waveforms, when the pack carries them ("resident" rows:
-        // tools/snes_songs_at.py add_resident); null: the player's synthesized stand-ins
+        // tools/snes_songs.py resident / add_resident); null: the player's synthesized stand-ins
         public readonly Ff6Instrument[] Resident = new Ff6Instrument[8];
         public long Bytes;
 

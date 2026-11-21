@@ -22,6 +22,10 @@ namespace PrKit.Ff6
         // FB 0B / 0C (set / clear a status on itself; 0B 07 = it dies) and FB 02 (the battle ends): BNW's
         // boss deaths use them (Worlds Collide leaves them off until its fights are tested with them)
         public virtual bool ScriptStatusEffects => true;
+        // seconds of battle time this frame for the scripts' timers (battle timer, monster timers): the frame's time;
+        // a mod whose battle clock stops and speeds up as the SNES's did answers SnesBattleClock.Dt() (Brave New
+        // World: nATB, Quickfill). The host's own waits (holds, deferred entries) stay on the frame's time.
+        public virtual float BattleClockDt() => Time.deltaTime;
     }
 
     // Every monster runs its mod's SNES AI script the way the SNES runs it: the mod's data carries each
@@ -270,8 +274,8 @@ namespace PrKit.Ff6
             public void ClearTargettingTarget(int unit) { }
         }
 
-        // FF6's timers run on battle time (the PR stops time while an action plays; the SNES doesn't: close
-        // enough for the scripts' "after N seconds" checks)
+        // FF6's timers run on battle time: the frame's time by default (vanilla's clock runs through actions, as the
+        // PR's does), the mod's battle clock where it has one (SnesAiMod.BattleClockDt)
         public static void Update()
         {
             if (Mod == null || !Mod.Active) return;
@@ -279,7 +283,7 @@ namespace PrKit.Ff6
             if (bm == null || !bm.IsBattle()) return;
             StartHides();
             if (Current == null || fightSerial != battleSerial) return;   // the last battle's fight: nothing of it carries over
-            Tick(Time.deltaTime);
+            Tick(Time.deltaTime, Mod.BattleClockDt());
             KeepInvincible(Current);
             StartShows(Current);
             RunDeferred(Current);
@@ -287,16 +291,20 @@ namespace PrKit.Ff6
             ZeroHpChecks(Current);
         }
 
-        internal static void Tick(float dt)
+        // dt: the frame's time (the host's own clock); battleDt: the battle clock's (the scripts' timers)
+        internal static void Tick(float dt, float battleDt)
         {
             var f = Current;
             if (f == null) return;
-            f.BattleTime += dt;
+            f.BattleTime += battleDt;
             f.Clock += dt;
             var u = Units();
             for (int s = 0; s < 6; s++)
-                if (u[4 + s] != null && !IsDead(u[4 + s]) && !f.Hidden.Contains(s)) f.MonsterTime[s] += dt;
+                if (u[4 + s] != null && !IsDead(u[4 + s]) && !f.Hidden.Contains(s)) f.MonsterTime[s] += battleDt;
         }
+
+        // the scripts' battle timer this fight (seconds of battle time; -1: no fight on the host), for tests
+        public static double BattleTimerSeconds => Current?.BattleTime ?? -1;
 
         // ---- what the interpreter's actions become in the PR --------------------------------------------
         const int Nothing = 696;   // the PR AIs' idle ability

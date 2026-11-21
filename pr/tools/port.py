@@ -712,6 +712,37 @@ STAT_CAPS = {"MAX_STRNGTH": None, "MAX_VITALITY": None, "MAX_AGILITY": "agility"
              "MAX_ABILITY_ATTACK": "ability_attack"}
 
 
+EXP_TABLE = 0x2D8220   # ED/8220: 16-bit EXP per level up (level L -> L+1), x8 in battle (C2)
+
+
+def port_exp_table(van, bnw, tables, log):
+    """The mod's character EXP curve (SNES ED/8220, 99 words, EXP to the next level / 8) onto the PR's
+    exp_table (group 1: total_exp per level): total(L) = 8 x the sum of the first L-1 entries. Levels past
+    the mod's last non-zero entry keep the PR's rows (a mod's level cap is game_constant_int MAX_LV).
+    Opt-in (profile.port_exp_table; BNW, 2026-11-21: its curve differs from vanilla's in 98 of 99 levels)."""
+    def words(rom):
+        return [rom.data[EXP_TABLE + 2 * i] | rom.data[EXP_TABLE + 2 * i + 1] << 8 for i in range(99)]
+    if words(van) == words(bnw):
+        return {}
+    tab = tables.setdefault("exp_table", P.Table("exp_table"))
+    by_lv = {int(r["lv"]): r for r in tab if r["group_id"] == "1"}
+    ch, total = set(), 0
+    for i, w in enumerate(words(bnw)):
+        if w == 0:
+            break
+        total += 8 * w
+        lv = i + 2
+        if lv in by_lv and by_lv[lv]["total_exp"] != str(total):
+            by_lv[lv]["total_exp"] = str(total)
+            ch.add(int(by_lv[lv]["id"]))
+    for later in sorted(k for k in by_lv if k > lv):   # past the mod's curve (beyond its cap): never below it
+        if int(by_lv[later]["total_exp"]) < total:
+            by_lv[later]["total_exp"] = str(total)
+            ch.add(int(by_lv[later]["id"]))
+    log(f"exp table: {len(ch)} levels set to the mod's curve (level 2 at {8 * words(bnw)[0]}, last {lv} at {total})")
+    return {"exp_table": ch}
+
+
 def battle_constants(tables, profile, log):
     """profile.game_constants: {key_name: (value1, value2)} written over game_constant_int.csv
     (encounter-type odds, starting ATB ranges...)."""
@@ -1044,6 +1075,19 @@ def _main(profile):
                     tab[rid][col] = str(val)
                     changed.setdefault(tname, set()).add(rid)
             log(f"{tname} {rid}: {cols}")
+    # whole effects a mod gives a row in its code, not its data (BNW: Remedy and Regen also heal, Elixir and
+    # Megalixir lift statuses): {table: {row id: {"battle" / "menu": [(function, v1, v2, v3), ...]}}} -> that
+    # function group, found or made by the spell porter's allocator (past the table's highest id)
+    for tname, rows_ in (getattr(profile, "function_overrides", None) or {}).items():
+        tab = sp.ab if tname == "ability" else tables.setdefault(tname, P.Table(tname))
+        for rid, which in rows_.items():
+            for kind, funcs in which.items():
+                gid = sp.function_group([list(f) for f in funcs])
+                col = f"{kind}_function_group_id"
+                if tab[rid][col] != str(gid):
+                    tab[rid][col] = str(gid)
+                    changed.setdefault(tname, set()).add(rid)
+            log(f"{tname} {rid}: functions {which}")
     # WC's -fst (SwdTech gauge charges four times faster): the PR's Bushido charges for its
     # technique's ability_wait (Fang 3 .. Oblivion 17): a quarter of it
     if "-fst" in os.environ.get("WC_FLAGS", "").split():
@@ -1132,7 +1176,8 @@ def _main(profile):
     for name, ids in port_monster_ext.port(van, bnw, tables, encounters, messages, OUT, log, profile).items():
         changed.setdefault(name, set()).update(ids)
     import port_veldt   # the Veldt's formations: after the encounters, whose parties it fights
-    for name, ids in port_veldt.port(van, bnw, tables, encounters, OUT, log).items():
+    for name, ids in port_veldt.port(van, bnw, tables, encounters, OUT, log,
+                                     all_formations=getattr(profile, "veldt_all_formations", False)).items():
         changed.setdefault(name, set()).update(ids)
     if getattr(profile, "event_fights", False):
         import port_events   # BNW's own story fights (its packs' formations), after the chests' boxes
@@ -1149,6 +1194,9 @@ def _main(profile):
         changed.setdefault(name, set()).update(ids)
     for name, ids in battle_constants(tables, profile, log).items():
         changed.setdefault(name, set()).update(ids)
+    if getattr(profile, "port_exp_table", False):   # opt-in (BNW): the mod's EXP curve
+        for name, ids in port_exp_table(van, bnw, tables, log).items():
+            changed.setdefault(name, set()).update(ids)
     for name, ids in stat_caps(tables, profile, log).items():
         changed.setdefault(name, set()).update(ids)
     for name, ids in sp.changed.items():

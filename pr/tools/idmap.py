@@ -168,14 +168,35 @@ PARTY_FILE = "formation_party.json"   # precomputed for the in-game generator (t
 
 
 def _formation_parties():
-    import glob
     import json
     import os
-    from collections import Counter, defaultdict
 
     shipped = os.path.join(os.path.dirname(os.path.abspath(__file__)), PARTY_FILE)
     if os.path.exists(shipped):
         return {int(k): v for k, v in json.load(open(shipped, encoding="utf-8")).items()}
+    if P.ADDED_ROWS.get("monster_party") or P.ADDED_ROWS.get("monster"):
+        return _match_formation_parties()       # a port's own rows in the game's tables: not vanilla's answer
+    # the same for every run on these vanilla files and this code (2-3 s, most of it reading every map script):
+    # kept in vcache under a name with the code's hash
+    import hashlib
+    import ff6snes
+    import port_encounters
+    import vcache
+    h = hashlib.sha1()
+    for m in (__file__, port_encounters.__file__, ff6snes.__file__):
+        with open(m, "rb") as f:
+            h.update(f.read())
+    doc = vcache.cached("formation_parties_" + h.hexdigest()[:12],
+                        lambda: {str(k): v for k, v in _match_formation_parties().items()})
+    return {int(k): v for k, v in doc.items()}
+
+
+def _match_formation_parties():
+    """party()'s table, matched from the vanilla ROM's formations and the PR's parties and event scripts."""
+    import glob
+    import json
+    import os
+    from collections import Counter, defaultdict
 
     import ff6snes as S
     import port_encounters as E

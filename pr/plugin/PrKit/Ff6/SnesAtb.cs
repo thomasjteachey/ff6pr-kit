@@ -31,6 +31,7 @@ namespace PrKit.Ff6
     // (Auto-battle runs the PR's whole battle at 1.5x: BattleController.UpdateBattle, IsAuto.)
     // Left as the PR has it: the gauges' start (the PR: 50-80% at random; the SNES: Speed +
     // random(Speed) + a random 0-72 + 16 per empty slot, of 256).
+    // The math is game-free in SnesAtbRules (offline tests: PrKit.Tests); these hooks read the game and ask it.
     public static class SnesAtb
     {
         // what the mod sets (Worlds Collide: WcParity.cs; Beyond Chaos: its Plugin.cs)
@@ -40,15 +41,22 @@ namespace PrKit.Ff6
         public static Func<long> PerfNow = () => 0;                 // per-frame timing (WC's WcPerf)
         public static Action<int, string, long> PerfLap = (slot, name, since) => { };
 
-        const double TicksPerSecond = 60.0988 / 2;
-        static readonly int[] SnesBattleSpeedOf = { 5, 4, 2, 1, 0 };   // PR battle speed 0-4 -> SNES 0-5 (Bat.Speed 1-6)
         public static int Calls;
 
-        public static void Patch(Harmony h)
+        public static void Patch(Harmony h) => Patch(h, true);
+
+        // chants: the commands' waits and Jump's air time too (vanilla's table, SnesAtbRules.CommandWait); false
+        // for a mod with a wait table of its own (Brave New World: the fill rates only)
+        public static void Patch(Harmony h, bool chants)
         {
             var m = AccessTools.Method(typeof(BattleProgressATBFF6), "ATBCalc");
             if (m == null) throw new MissingMethodException("BattleProgressATBFF6.ATBCalc");
             h.Patch(m, postfix: new HarmonyMethod(typeof(SnesAtb), nameof(ATBCalc_Postfix)));
+            if (!chants)
+            {
+                Kit.Info(Tag + " ATB: the SNES's fill rates hooked (the game's chants left alone)");
+                return;
+            }
             var chant = AccessTools.Method(typeof(BattleProgressATBFF6), "GetChantingTime");
             if (chant == null) throw new MissingMethodException("BattleProgressATBFF6.GetChantingTime");
             h.Patch(chant, postfix: new HarmonyMethod(typeof(SnesAtb), nameof(Chanting_Postfix)));
@@ -57,17 +65,15 @@ namespace PrKit.Ff6
 
         // the ATB's multipliers (normal, Haste, Slow) and the monsters' battle-speed term: vanilla's by default
         // (WC, BC); a mod whose ROM changed them sets them (T-Edition: HasteK 144, MonsterSpeedTerm 4; C2/2482)
-        public static int NormalK = 96, HasteK = 126, SlowK = 48, MonsterSpeedTerm = 24;
+        // They live in SnesAtbRules; these names stay for the mods that set them.
+        public static int NormalK { get => SnesAtbRules.NormalK; set => SnesAtbRules.NormalK = value; }
+        public static int HasteK { get => SnesAtbRules.HasteK; set => SnesAtbRules.HasteK = value; }
+        public static int SlowK { get => SnesAtbRules.SlowK; set => SnesAtbRules.SlowK = value; }
+        public static int MonsterSpeedTerm { get => SnesAtbRules.MonsterSpeedTerm; set => SnesAtbRules.MonsterSpeedTerm = value; }
 
         // the SNES's gauge increase per second, in the PR's gauge (0-100)
-        public static double SnesRate(int speed, bool monster, int battleSpeed, bool haste, bool slow)
-        {
-            int k = slow ? SlowK : haste ? HasteK : NormalK;
-            int s = (Math.Max(0, speed) + 20) & 0xFF;              // ADC #$14, 8 bits
-            if (monster) s = s * (255 - MonsterSpeedTerm * Math.Clamp(battleSpeed, 0, 5)) >> 8;
-            int perTick = s * k >> 4;
-            return TicksPerSecond * perTick / 65536.0 * 100.0;
-        }
+        public static double SnesRate(int speed, bool monster, int battleSpeed, bool haste, bool slow) =>
+            SnesAtbRules.Rate(speed, monster, battleSpeed, haste, slow);
 
         // Jump's air time (the user, 2026-11-12, with the status timers): the SNES's jumper lands when its
         // wait timer ($3AB4, gaining $3AC8 / 2 a move, C2/1193) reaches 224 x 256 (C2/0B7A: $322C = $E0):
@@ -77,22 +83,14 @@ namespace PrKit.Ff6
         // Slow 0.5) x the battle speed), counted down by frame time x the battle speed (UpdateChantTime;
         // decompiled 2026-11-12): 600 / (Agility / 2 + 20) s at the default speed, 14.46 s at Speed 43
         // (measured headless 16.05 s; SNES 10.10). Now the landing's chant is the SNES's air time.
-        public const int JumpWait = 224 * 256;
+        public const int JumpWait = SnesAtbRules.JumpWait;
 
         public static double SnesJumpSeconds(int speed, bool monster, int battleSpeed, bool haste, bool slow) =>
-            SnesWaitSeconds(JumpWait >> 8, speed, monster, battleSpeed, haste, slow);
+            SnesAtbRules.JumpSeconds(speed, monster, battleSpeed, haste, slow);
 
         // the SNES's wait timer: `wait` x 256, gaining half the ATB's add a move (C2/1193)
-        public static double SnesWaitSeconds(int wait, int speed, bool monster, int battleSpeed, bool haste, bool slow)
-        {
-            if (wait <= 0) return 0;
-            int k = slow ? SlowK : haste ? HasteK : NormalK;
-            int s = (Math.Max(0, speed) + 20) & 0xFF;
-            if (monster) s = s * (255 - MonsterSpeedTerm * Math.Clamp(battleSpeed, 0, 5)) >> 8;
-            int perTick = Math.Max(1, (s * k >> 4) >> 1);           // LSR: half the ATB's add
-            int moves = (wait * 256 + perTick - 1) / perTick;
-            return moves / TicksPerSecond;
-        }
+        public static double SnesWaitSeconds(int wait, int speed, bool monster, int battleSpeed, bool haste, bool slow) =>
+            SnesAtbRules.WaitSeconds(wait, speed, monster, battleSpeed, haste, slow);
 
         // The wait between a character's command and its act (the user, 2026-11-12: "investigate and if
         // needed fix this"). The SNES's: the command's entry in the C2/067B table ($322C), then the wait
@@ -103,14 +101,9 @@ namespace PrKit.Ff6
         // character's act, 20 x the ability's ability_wait / ((Agility / 2 + 20) x (Haste 2, Slow 0.5)
         // x the battle speed): Attack (wait 3) 1.64 s at Agility 33 (SNES 0.87), spells (5) 2.74 s
         // (SNES 1.73), items (0) none (SNES 0.87); monsters none. PR command -> the SNES table's value
-        // (by the SNES command tools/port.py SNES_CMD maps to it):
-        public static readonly Dictionary<int, int> SnesCommandWait = new Dictionary<int, int>
-        {
-            [1] = 16, [2] = 16, [3] = 16, [5] = 16, [7] = 32, [8] = 0, [9] = 0, [10] = 16, [11] = 16,
-            [12] = 16, [13] = 16, [14] = 16, [15] = 16, [16] = 16, [17] = 32, [18] = 16, [19] = 16,
-            [20] = 16, [21] = 16, [22] = 16, [23] = 16, [24] = 16, [25] = 16, [26] = 16, [27] = 32,
-            [28] = 32, [29] = 16, [31] = 32,
-        };
+        // (by the SNES command tools/port.py SNES_CMD maps to it): SnesAtbRules.CommandWait; which acts wait
+        // at all: SnesAtbRules.ChantOf.
+        public static Dictionary<int, int> SnesCommandWait => SnesAtbRules.CommandWait;
         static readonly HashSet<int> unknownCommands = new HashSet<int>();
 
         public static void Chanting_Postfix(BattleActData battleActData, ref float __result)
@@ -130,44 +123,46 @@ namespace PrKit.Ff6
                     {
                         if (c == null) continue;
                         int t = c.ConditionType;
-                        if (t == 15) haste = true;
-                        else if (t == 16) slow = true;
-                        else if (t == 410 || t == 12) wild = true;      // Berserk ("Bersak"), Confusion
-                        else if (t == 619) dancing = true;              // Dance
+                        if (t == SnesAtbRules.HasteType) haste = true;
+                        else if (t == SnesAtbRules.SlowType) slow = true;
+                        else if (t == SnesAtbRules.BerserkType || t == SnesAtbRules.ConfusionType) wild = true;  // Berserk ("Bersak"), Confusion
+                        else if (t == SnesAtbRules.DanceType) dancing = true;
                     }
                 bool monster = u.TryCast<BattleEnemyData>() != null;
                 int cfg = UserDataManager.Instance()?.Config?.BattleSpeed ?? 2;
                 float speed = BattleUtility.GetBattleSpeedByConfigValue(cfg);   // the chant counts down at this rate
                 float was = __result;
-                if (ab.TypeId == 16)                                           // the landing (ContinuousJumpEnd)
+                int cmd = battleActData.Command?.Id ?? 0;
+                var chant = SnesAtbRules.ChantOf(ab.TypeId, cmd, monster, battleActData.isManipulateAttack, wild,
+                                                 battleActData.isRampageAct, dancing, battleActData.isCopiedAct, out int wait);
+                if (chant == SnesAtbRules.Chant.Landing)                          // the landing (ContinuousJumpEnd)
                 {
-                    double air = SnesJumpSeconds(p.ConfirmedAgility(), monster, SnesBattleSpeed(), haste, slow);
+                    double air = SnesAtbRules.JumpSeconds(p.ConfirmedAgility(), monster, SnesBattleSpeed(), haste, slow);
                     __result = (float)(air * speed);
                     JumpChants++;
                     if (JumpChants == 1)
                         Kit.Info($"{Tag} ATB: a landing's chant {was:0.00} -> {__result:0.00} (Speed {p.ConfirmedAgility()}: the SNES's {air:0.00} s in the air)");
                     return;
                 }
-                if (monster || battleActData.isManipulateAttack) return;         // monsters: none (the PR's 0)
-                int cmd = battleActData.Command?.Id ?? 0;
-                if (ab.TypeId == 15 || wild || battleActData.isRampageAct || (dancing && cmd == 22))
+                if (chant == SnesAtbRules.Chant.Game) return;                   // monsters: none (the PR's 0)
+                if (chant == SnesAtbRules.Chant.Now)
                 {
                     __result = 0f;                                             // up at once / no wait
                     return;
                 }
-                if (battleActData.isCopiedAct) cmd = 25;                         // Mimic's own wait
+                cmd = SnesAtbRules.WaitCommand(cmd, battleActData.isCopiedAct);  // Mimic's own wait
                 if (!CommandWaits)                                               // test only: the game's own
                 {
                     if (Testing() && cmd == 1) ChantLog.Add((SnesStatusTicks.BattleTime, u.Pointer, cmd, was));
                     return;
                 }
-                if (!SnesCommandWait.TryGetValue(cmd, out int wait))
+                if (chant == SnesAtbRules.Chant.Unknown)
                 {
                     if (unknownCommands.Add(cmd))
                         Kit.Info($"{Tag} ATB: no SNES wait for command {cmd} (ability {ab.Id}, type {ab.TypeId}): the game's {was:0.00} stays");
                     return;
                 }
-                double secs = SnesWaitSeconds(wait, p.ConfirmedAgility(), false, 0, haste, slow);
+                double secs = SnesAtbRules.WaitSeconds(wait, p.ConfirmedAgility(), false, 0, haste, slow);
                 __result = (float)(secs * speed);
                 CommandChants++;
                 if (Testing()) ChantLog.Add((SnesStatusTicks.BattleTime, u.Pointer, cmd, (float)secs));
@@ -181,11 +176,7 @@ namespace PrKit.Ff6
         // test only (WcTest status_timers): battle time, unit, command, the SNES wait given
         public static readonly List<(float Time, IntPtr Unit, int Command, float Wait)> ChantLog = new List<(float, IntPtr, int, float)>();
 
-        public static int SnesBattleSpeed()
-        {
-            int v = UserDataManager.Instance()?.Config?.BattleSpeed ?? 2;
-            return v >= 0 && v < SnesBattleSpeedOf.Length ? SnesBattleSpeedOf[v] : 2;
-        }
+        public static int SnesBattleSpeed() => SnesAtbRules.BattleSpeedOf(UserDataManager.Instance()?.Config?.BattleSpeed ?? 2);
 
         public static void ATBCalc_Postfix(BattleUnitData __0, ref float __result)
         {
@@ -202,11 +193,11 @@ namespace PrKit.Ff6
                     foreach (var c in list)
                     {
                         if (c == null) continue;
-                        if (c.ConditionType == 15) haste = true;        // ConditionType.Heist
-                        else if (c.ConditionType == 16) slow = true;    // ConditionType.Slow
+                        if (c.ConditionType == SnesAtbRules.HasteType) haste = true;    // ConditionType.Heist
+                        else if (c.ConditionType == SnesAtbRules.SlowType) slow = true; // ConditionType.Slow
                     }
                 bool monster = __0.TryCast<BattleEnemyData>() != null;
-                __result = (float)(SnesRate(p.ConfirmedAgility(), monster, SnesBattleSpeed(), haste, slow) * Time.deltaTime);
+                __result = (float)(SnesAtbRules.Rate(p.ConfirmedAgility(), monster, SnesBattleSpeed(), haste, slow) * Time.deltaTime);
                 Calls++;
             }
             catch (Exception e) { Hooks.WarnOnce("atb", e); }

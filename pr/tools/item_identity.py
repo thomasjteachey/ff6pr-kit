@@ -211,6 +211,14 @@ def baseline_image(van, slots):
     img = bytearray(van.data)
     rec, nam = S.ITEMS, S.ITEM_NAMES
     vraw, vnames = van.table(*rec), van.table(*nam)
+    count = max([256] + [s.slot + 1 for s in slots])
+    if count > 256:   # a mod with more items than the US table (T-Edition: 280): the slots past 255 in a grown
+        grown = len(img)  # table past the image's end, registered as the mod's is (ff6snes.items reads both)
+        img += bytes(count * (rec[1] + nam[1]))
+        rec, nam = (grown, rec[1], count), (grown + count * rec[1], nam[1], count)
+        for i in range(256):
+            img[rec[0] + rec[1] * i:rec[0] + rec[1] * (i + 1)] = vraw[i]
+            img[nam[0] + nam[1] * i:nam[0] + nam[1] * (i + 1)] = vnames[i]
     host = {}
     for s in slots:
         src = s.occupant if s.occupant is not None else s.template
@@ -221,11 +229,14 @@ def baseline_image(van, slots):
         r = bytearray(vraw[src])
         kind = next(k for k, v in S.ITEM_TYPES.items() if v == s.kind)
         r[0] = (r[0] & ~7) | kind
-        img[rec[0] + rec[1] * s.slot:rec[0] + rec[1] * (s.slot + 1)] = r
-        img[nam[0] + nam[1] * s.slot:nam[0] + nam[1] * (s.slot + 1)] = vnames[src]
+        for base, size, val in ((S.ITEMS[0], S.ITEMS[1], r), (S.ITEM_NAMES[0], S.ITEM_NAMES[1], vnames[src])) if s.slot < 256 else ():
+            img[base + size * s.slot:base + size * (s.slot + 1)] = val
+        if count > 256:
+            img[rec[0] + rec[1] * s.slot:rec[0] + rec[1] * (s.slot + 1)] = r
+            img[nam[0] + nam[1] * s.slot:nam[0] + nam[1] * (s.slot + 1)] = vnames[src]
 
-    def ren(b):
-        return b if b == 0xFF else host.get(b, 0xFF)
+    def ren(b):   # (a vanilla item now in a slot past 255: no byte can name it, as in the mod's own tables: empty)
+        return b if b == 0xFF else host.get(b, 0xFF) if host.get(b, 0xFF) < 256 else 0xFF
     for sh in range(SHOP_COUNT):
         for k in range(1, 9):
             a = SHOPS + 9 * sh + k
@@ -240,7 +251,10 @@ def baseline_image(van, slots):
         a = CHEST_DATA + 5 * c
         if img[a + 3] & CHEST_ITEM:
             img[a + 4] = ren(img[a + 4])
-    return bytes(img)
+    out = bytes(img)
+    if count > 256:
+        S.EXTENDED[id(out)] = {"items": rec, "item_names": nam, "_image": out}
+    return out
 
 
 def make_rows(tables, slots, messages, log=print):

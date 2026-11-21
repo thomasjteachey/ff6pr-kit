@@ -395,10 +395,23 @@ def cli_modules(argv):
 CHOICE = 0x15   # the dialogue code that draws a choice (both ROMs)
 
 
+_CHOICES = {}   # (sha1 of the ROM, kanji) -> _choices_us: a process loads "us"/"jp" again and again (~0.1 s each)
+
+
 def _choices_us(rom, kanji=()):
     """Dialogue number -> number of choices in it (pointers CC/E602, text CD/0000 and CE/0000; the
     JP ROM's 1C-1F + a byte are kanji)."""
     d = rom.data
+    if type(d) in (bytes, bytearray):
+        import hashlib
+        key = (hashlib.sha1(d).hexdigest(), tuple(kanji))
+        if key not in _CHOICES:
+            _CHOICES[key] = _choices_us_now(d, kanji)
+        return dict(_CHOICES[key])
+    return _choices_us_now(d, kanji)
+
+
+def _choices_us_now(d, kanji):
     split = d[0x0CE600] | d[0x0CE601] << 8
     out = {}
     for i in range(3084):
@@ -682,8 +695,11 @@ def entry_points(rom):
             bit = 0x300 + ((r[3] >> 1) << 3 | (r[2] >> 6) | (r[3] & 1) << 2)
             det = {"npc": n, "x": r[4] & 0x7F, "y": r[5] & 0x3F, "sprite": r[6], "bit": bit}
             # an address past the event code (CD/xxxx in vanilla: dialogue) marks a decoration
-            # (animated multi-part objects reuse those bytes): no event
-            out.append((ev, "npc" if ev < t.code_end else "npc_object", m, det))
+            # (animated multi-part objects reuse those bytes): no event. So does bit 7 of the x byte (special
+            # graphics: every one in the US and JP ROMs is a decoration or an actor column, 244 of them with
+            # bytes below the code's end, which were decoded as events; T-Edition's code reaches 0x40000, where
+            # they all look like events). ted-ex's finding, 2026-11-21; BNW's repurposed dialogues gain 2962.
+            out.append((ev, "npc" if ev < t.code_end and not r[4] & 0x80 else "npc_object", m, det))
     return out
 
 
@@ -805,8 +821,15 @@ class Program:
         return self.rom.byte(off) in self.rom.dialect.map_sensitive
 
     def walk_all(self):
+        """Walk every entry point. The result is cached (WALK_CACHE) once the same inputs are walked a second time:
+        a walk is 1.2-2.5 s, loading it 0.3-0.5 s; ROMs walked once (a seed's) never pay for the write."""
+        key = _walk_key(self) if not (self.code or self.entries) else None
+        if key and _walk_load(self, key):
+            return self
         self.entries = entry_points(self.rom)
         self.walk(self.entries)
+        if key:
+            _walk_store(self, key)
         return self
 
     def coverage(self):
@@ -823,6 +846,103 @@ class Program:
                 "obj_unknown": dict(self.obj_unknown), "by_class": dict(by_cls),
                 "gotos": len(self.dead), "map_ends": len(self.map_ends),
                 "entries_not_code": [f"map {m} {k} {d} {fmt(o)}" for o, k, m, d in self.bad_entries], "goto_bits": {f"{'+' if st else '-'}{b:03X}": n for (b, st), n in self.always_bits().most_common(12)}}
+
+
+# --- the walk cache (Program.walk_all) ------------------------------------------------------------------------
+WALK_CACHE = os.path.join(P.ROOT, "cache", "snes_events")
+WALK_KEEP = 6          # walks kept (5-7 MB each); the least recently used go
+
+
+def _sources(cls):
+    """The files holding a class and its bases (a mod's dialect: its module, e.g. ted_events.py)."""
+    import inspect
+    out = []
+    for c in cls.__mro__:
+        if c is object:
+            continue
+        try:
+            f = inspect.getsourcefile(c)
+        except TypeError:
+            continue
+        if f and f not in out:
+            out.append(f)
+    return out
+
+
+def _walk_key(prog):
+    """A walk's inputs: the ROM's bytes, tables and dialogue choice counts, its command set, the code of its dialect
+    and ROM classes, and this file. None: not cached (a traced ROM like wc_trace's, a Program subclass,
+    SNES_EVENTS_NO_CACHE=1)."""
+    rom = prog.rom
+    if os.environ.get("SNES_EVENTS_NO_CACHE") or type(prog) is not Program or type(rom.data) not in (bytes, bytearray):
+        return None
+    import hashlib
+    try:
+        d = rom.dialect
+        h = hashlib.sha1(bytes(rom.data))
+        h.update(repr((len(rom.data), rom.size, sorted(vars(rom.tables).items()),
+                       sorted((k, o.name, o.size, tuple(o.args), o.flow, o.cls) for k, o in d.ops.items()),
+                       sorted(d.map_sensitive),
+                       sorted(map(repr, rom.dialog_choices.items())) if rom.dialog_choices else rom.dialog_choices)).encode())
+        for f in dict.fromkeys([os.path.abspath(__file__)] + _sources(type(d)) + _sources(type(rom))):
+            with open(f, "rb") as fh:
+                h.update(fh.read())
+    except Exception:
+        return None
+    return h.hexdigest()
+
+
+def _walk_load(prog, key):
+    import pickle
+    path = os.path.join(WALK_CACHE, key + ".pkl")
+    if not os.path.exists(path):
+        return False
+    try:
+        with open(path, "rb") as f:
+            state = pickle.load(f)
+    except Exception:           # a damaged file: walk again
+        return False
+    # callers isn't stored: a set of addresses rebuilt by pickle iterates in another order than the walk's. Rebuilt
+    # here in the walk's own order (each instruction's targets, first seen in code's order), it iterates the same.
+    callers = collections.defaultdict(set)
+    for (off, _), ins in state["code"].items():
+        for _, t in ins.targets:
+            callers[t].add(off)
+    state["callers"] = callers
+    prog.__dict__.update(state)
+    try:
+        os.utime(path)          # recently used: kept by the pruning
+    except OSError:
+        pass
+    return True
+
+
+def _walk_store(prog, key):
+    """Written the second time the same inputs are walked (seen.txt holds the first): a ROM walked once never pays
+    the ~0.7 s write."""
+    import glob
+    import pickle
+    try:
+        os.makedirs(WALK_CACHE, exist_ok=True)
+        seen = os.path.join(WALK_CACHE, "seen.txt")
+        keys = open(seen, encoding="ascii").read().split() if os.path.exists(seen) else []
+        if key not in keys:
+            if len(keys) > 400:
+                with open(seen, "w", encoding="ascii") as f:
+                    f.write("".join(k + "\n" for k in keys[-200:]))
+            with open(seen, "a", encoding="ascii") as f:
+                f.write(key + "\n")
+            return
+        tmp = os.path.join(WALK_CACHE, f"{key}.{os.getpid()}.tmp")
+        with open(tmp, "wb") as f:
+            pickle.dump({k: v for k, v in vars(prog).items() if k not in ("rom", "callers")}, f,
+                        protocol=pickle.HIGHEST_PROTOCOL)
+        os.replace(tmp, os.path.join(WALK_CACHE, key + ".pkl"))
+        kept = sorted(glob.glob(os.path.join(WALK_CACHE, "*.pkl")), key=os.path.getmtime)
+        for p in kept[:-WALK_KEEP]:
+            os.remove(p)
+    except OSError:
+        pass
 
 
 def listing(prog, start, mode="field"):

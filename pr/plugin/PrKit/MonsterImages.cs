@@ -32,6 +32,12 @@ namespace PrKit
         public int Monster, W, H;
         public string Name = "", Key = "", Group = "", From, FromSha1, Sha1 = "", Pixels, Overlay;
         public Dictionary<int, int> Map;       // 0xRRGGBB -> 0xRRGGBB
+        // the same as slots (no game colors in the mod's data): the k-th of the source image's distinct opaque
+        // colors (sorted as 0xRRGGBB) -> 0xRRGGBB; SlotCount = how many the source has. Resolved into Map against
+        // the player's own image (whose sha1 must be FromSha1).
+        public List<KeyValuePair<int, int>> SlotMap;
+        public int SlotCount;
+        public bool SlotsResolved;             // SlotMap already turned into Map entries (ResolveSlots)
         public int[] Palette;                  // new art: 0xRRGGBB per palette slot
         public MonsterThumb Thumb;             // its bestiary thumbnail, if any
         public List<MonsterPart> Parts;        // an overlay's monster layers (drawn over it; a plugin can erase one)
@@ -93,6 +99,16 @@ namespace PrKit
                     {
                         var parts = p.GetString().Split(':');
                         img.Map[Convert.ToInt32(parts[0], 16)] = Convert.ToInt32(parts[1], 16);
+                    }
+                    if (e.TryGetProperty("map_slots", out var ms))
+                    {
+                        img.SlotMap = new List<KeyValuePair<int, int>>();
+                        foreach (var p in ms.EnumerateArray())
+                        {
+                            var parts = p.GetString().Split(':');
+                            img.SlotMap.Add(new KeyValuePair<int, int>(int.Parse(parts[0]), Convert.ToInt32(parts[1], 16)));
+                        }
+                        img.SlotCount = e.TryGetProperty("colors", out var nc) ? nc.GetInt32() : -1;
                     }
                 }
                 else
@@ -260,6 +276,31 @@ namespace PrKit
             return cache[group] = UnityBundle.Textures(file);
         }
 
+        // A slot-form color table (MonsterImage.SlotMap) as colors, from the player's own source image: its distinct
+        // opaque colors, sorted; false (with a warning) when that image isn't the one the mod's table was made on.
+        public static bool ResolveSlots(MonsterImage img, byte[] source, Action<string> warn)
+        {
+            if (img.SlotMap == null || img.SlotsResolved) return true;
+            if (!string.IsNullOrEmpty(img.FromSha1) && Hex(SHA1.HashData(source)) != img.FromSha1)
+            {
+                warn($"monster image {img.Key}: {img.From} differs from the art its colors were made for");
+                return false;
+            }
+            var colors = new SortedSet<int>();
+            for (int k = 0; k < source.Length; k += 4)
+                if (source[k + 3] != 0) colors.Add(source[k] << 16 | source[k + 1] << 8 | source[k + 2]);
+            if (img.SlotCount >= 0 && colors.Count != img.SlotCount)
+            {
+                warn($"monster image {img.Key}: {img.From} has {colors.Count} colors, the mod expects {img.SlotCount}");
+                return false;
+            }
+            var list = colors.ToList();
+            foreach (var kv in img.SlotMap)
+                if (kv.Key >= 0 && kv.Key < list.Count) img.Map[list[kv.Key]] = kv.Value;
+            img.SlotsResolved = true;
+            return true;
+        }
+
         static byte[] Recolor(byte[] rgba, Dictionary<int, int> map)
         {
             var o = (byte[])rgba.Clone();
@@ -308,6 +349,7 @@ namespace PrKit
             var tex = GroupTextures(gameRoot, img.Group, cache, warn);
             if (!tex.TryGetValue(img.From, out var t)) { warn($"monster image {img.Key}: no {img.From} in the game's {img.Group} bundle"); return null; }
             if (t.W != img.W || t.H != img.H) { warn($"monster image {img.Key}: {img.From} is {t.W}x{t.H}, the mod expects {img.W}x{img.H}"); return null; }
+            if (!ResolveSlots(img, t.Rgba, warn)) return null;
             var o = Recolor(t.Rgba, img.Map);
             var layers = new List<string>();    // the mod's own pixels painted over the game's picture, then its parts
             if (img.Overlay != null) layers.Add(img.Overlay);
