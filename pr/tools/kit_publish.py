@@ -24,10 +24,19 @@ PARTS = [
     ("pr/tools/prkit", ["**"]),
     ("pr/tools/ghidra", ["**"]),
     ("pr/tools/TypeDump", ["**"]),
-    ("pr/tests", ["test_prkit.py"]),
+    # the mod switcher (several mods in one game: Steam tiles / shortcuts make one active); not install.sh,
+    # which pushes this PC's setup to the user's Deck over ssh (its game path and host are the user's)
+    ("pr/tools/modswitch", ["ff6-mod-switch.sh", "Switch-Ff6Mod.ps1", "install_pc.ps1", "make_art.py"]),
+    ("pr/tests", ["test_prkit.py", "test_magicite_merge.py", "test_snes_disasm.py", "test_snes_events.py",
+                  "test_port_lock.py", "test_snes_rules.py", "test_magicite_check.py",
+                  # test_snes_maps.py: back in the publish after the WC release, with snes_maps.py's kitpath guard
+                  # (it can't import in a bare kit clone until then; the coordinator, 2026-11-20)
+                  "test_porter_items.py", "test_pr_scene_cut.py", "test_pr_art.py"]),
     ("pr", ["MODDING.md", "PORTING.md"]),
 ]
 NOT_PUBLISHED = set()
+# a mod's own Ghidra queries (tools/ghidra/bnw_ui.txt, bc_music.txt ...) stay out of the kit
+MOD_PREFIXES = ("bnw_", "bc_", "ted_", "wc_")
 
 README = """# FF6 Pixel Remaster modding kit
 
@@ -88,11 +97,24 @@ Square Enix's; this is unofficial fan tooling.
 
 def main():
     out = os.path.abspath(sys.argv[1] if len(sys.argv) > 1 else DEFAULT_OUT)
-    entries = [(s, n) for s, n in R.collect(PARTS, exclude=R.mod_tools) if n not in NOT_PUBLISHED]
+    # *.wip: a session's draft beside the live file (PrKit/ArtSwap.layers.cs.wip ...), not reviewed, not compiled
+    entries = [(s, n) for s, n in R.collect(PARTS, exclude=R.mod_tools) if n not in NOT_PUBLISHED
+               and not n.endswith(".wip")
+               and not (n.startswith("pr/tools/ghidra/") and n.split("/")[-1].startswith(MOD_PREFIXES))]
     entries.append((bnw_text.VWF_TBL, "pr/data/vwf.tbl"))  # the menu font's text table (description decoding)
     # the SNES chests' areas for the chest matcher (port_chests.wc_areas), from Worlds Collide (MIT)
     entries.append((os.path.join(R.PR, "data", "snes_chest_areas.json"), "pr/data/snes_chest_areas.json"))
     entries.append((os.path.join(R.PROJECT, "mods", "worlds-collide", "LICENSE.txt"), "pr/data/LICENSE-WorldsCollide.txt"))
+    # SNES map -> PR map table with offsets (tools/snes_maps.py; ids and offsets only, no game data)
+    for f in ("snes_pr_maps.json", "snes_pr_maps_overrides.json"):
+        entries.append((os.path.join(R.PR, "data", f), "pr/data/" + f))
+    # SNES event -> PR map table for the event decoder/translator (tools/snes_events.py, event_translate.py;
+    # learned from vanilla, no game data). T-Edition's own snes_event_*ted*.json go in its repo.
+    for f in ("snes_event_maps.json", "snes_event_overrides.json"):
+        entries.append((os.path.join(R.PR, "data", f), "pr/data/" + f))
+    # SNES character sprites -> PR frames (tools/snes_charsprites.py): poses, frames, slots, groups and palette-slot
+    # indices only; the colours are made from the player's own game at run time (no colour or pixel values)
+    entries.append((os.path.join(R.PR, "data", "ff6_charsprites.json"), "pr/data/ff6_charsprites.json"))
     texts = {"README.md": README, ".gitignore": R.GITIGNORE_COMMON, "pr/requirements.txt": R.REQUIREMENTS,
              "pr/modkit.json": R.manifest(keep=())}
     print("kit publish:", R.write(out, entries, texts), "->", out)

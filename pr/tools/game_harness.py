@@ -14,9 +14,20 @@ then send commands (each argument one command, replies printed in order):
     .venv/Scripts/python tools/game_harness.py --until "scene battle" --timeout 120 state
     .venv/Scripts/python tools/game_harness.py --repeat "press action" --until "scene field" --timeout 300
 
-Commands: ping, help, state, newgame, slots, load [slot], skipmsg on|off, press <key> [hold frames],
-wait <frames>, warp <map> [point], script <name>, battle <party>, encount <party>, log, quit, and a
-mod's own (BNW: party). Keys: action cancel menu up down left right pageup pagedown switchleft
+Commands: ping, help, state, newgame, slots, load [slot|party] [goto], skipmsg on|off, press <key> [hold frames],
+wait <frames>, warp <map> [point], script <name>, battle <party>, encount <party>, log,
+shot <file.png> [width [height]] [layers], shotinfo, title, idle <minutes>, quit, and a mod's own (BNW: party).
+newgame answers once the title took it (asked again every 1.5 s through the title's intro); title goes back to
+the title screen (the game's own MainGame.GotoTitle); idle <minutes> makes a game with no client quit by itself
+(tools/test_batch.py keeps a "warm" game up between batches that way). Any number of clients may be connected at
+once (their commands run one at a time): this client works while the test runner is connected too.
+shot needs a run with a graphics device, still windowless: probe_headless.ps1 -Graphics, or
+kit.py run <game> --harness --graphics. It draws the frame from the game's cameras (a windowless
+run draws nothing by itself) to a PNG at the path given (absolute, no spaces; a width alone keeps
+the screen's shape); 'layers' also writes each off-screen layer (field, UI...). shotinfo lists the
+cameras, images and canvases it works from:
+
+    .venv/Scripts/python tools/game_harness.py "shot C:/tmp/shots/01.png 1280" Keys: action cancel menu up down left right pageup pagedown switchleft
 switchright start select shortcut.
 --until REGEX: send the commands again (every --every seconds) until a reply matches.
 --repeat CMD: with --until, the command sent between checks (e.g. a press), the checks being

@@ -72,8 +72,9 @@ class Snes:
         self._dir = tempfile.mkdtemp(prefix="snes_harness_")
         self._dir_c = ctypes.c_char_p(self._dir.encode())
         # the callbacks must outlive the core's use of them
-        self._cbs = (ENV_CB(self._env), VIDEO_CB(self._video), AUDIO_CB(lambda l, r: None),
-                     AUDIO_BATCH_CB(lambda d, n: n), POLL_CB(lambda: None), STATE_CB(self._state))
+        self.audio = None               # a bytearray: the core's sound (int16 stereo) while capturing (bc-music)
+        self._cbs = (ENV_CB(self._env), VIDEO_CB(self._video), AUDIO_CB(self._audio_one),
+                     AUDIO_BATCH_CB(self._audio_batch), POLL_CB(lambda: None), STATE_CB(self._state))
         L = self.lib
         L.retro_set_environment(self._cbs[0])
         L.retro_set_video_refresh(self._cbs[1])
@@ -138,6 +139,29 @@ class Snes:
             zero = bytes(n)
             self.black = all(ctypes.string_at(data + y * pitch, n) == zero
                              for y in range(height // 8, height - height // 8, max(1, height // 8)))
+
+    # sound, kept only while capturing: snes.capture_audio(); snes.run(n); pcm = bytes(snes.audio)
+    def _audio_batch(self, data, frames):
+        if self.audio is not None and data:
+            self.audio += ctypes.string_at(data, frames * 4)
+        return frames
+
+    def _audio_one(self, left, right):
+        if self.audio is not None:
+            self.audio += int(left & 0xFFFF).to_bytes(2, "little") + int(right & 0xFFFF).to_bytes(2, "little")
+
+    def capture_audio(self, on=True):
+        """Start (a fresh buffer) or stop keeping the core's sound; audio_rate() is its sample rate."""
+        self.audio = bytearray() if on else None
+
+    def audio_rate(self):
+        class AvInfo(ctypes.Structure):
+            _fields_ = [("base_width", ctypes.c_uint), ("base_height", ctypes.c_uint), ("max_width", ctypes.c_uint),
+                        ("max_height", ctypes.c_uint), ("aspect", ctypes.c_float), ("fps", ctypes.c_double),
+                        ("sample_rate", ctypes.c_double)]
+        av = AvInfo()
+        self.lib.retro_get_system_av_info(ctypes.byref(av))
+        return av.sample_rate
 
     def _state(self, port, device, index, id_):
         if port != 0 or device != RETRO_DEVICE_JOYPAD:

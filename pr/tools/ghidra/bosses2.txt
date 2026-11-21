@@ -1,0 +1,3 @@
+# Boss routines for the BNW AI hybrids (2026-11-20): Asura/Fiend counter, Soul Train escape, King Behemoth, Register*
+SystemCall\.Current\$\$(FiendCounterAttack|MagicTrainAnimStart|KingBehemahInBattle|RegisterVargas|RegisterUltros|RegisterUltrosEsperCave|RegisterShivaIfrit|RegisterTyphon|Number024Battle)
+Last\.Interpreter\.Instructions\.BattleAI\$\$(ModeCount|CountIfritShiva)

@@ -1,20 +1,41 @@
-import sys; sys.path.insert(0,'tools')
-import ff6snes as S, prdata
-INFO, GFX, PAL = 0x127000, 0x297000, 0x127820
-def parts(r,i):
-    e=r.b(INFO+5*i,5); ptr=e[0]|e[1]<<8; bpp3=bool(ptr&0x8000)
-    pal=(e[2]&0x03)<<8|e[3]
-    return bytes(r.b(GFX+(ptr&0x7FFF)*8,96)), bytes(r.b(PAL+16*pal, 16 if bpp3 else 32)), e[4], bool(e[2]&0x80)
-b=S.Rom(r'C:\Projects\Gamedev\ff6-mod\build\brave-new-world\Brave New World 3.0 FRC.sfc'); v=S.Rom(prdata.VANILLA_ROM)
-be={e.id:e for e in S.enemies(b)}; ve={e.id:e for e in S.enemies(v)}
-V=[parts(v,i) for i in range(384)]; B=[parts(b,i) for i in range(384)]
-same=0; swap=[]; recolor=[]; new=[]
-for i in range(384):
-    if B[i]==V[i]: same+=1; continue
-    js=[j for j in range(384) if V[j]==B[i]]
-    if js: swap.append((i,be[i].name.strip(),js[0],ve[js[0]].name.strip())); continue
-    js=[j for j in range(384) if V[j][0]==B[i][0]]
-    if js: recolor.append((i,be[i].name.strip(),js[0],ve[js[0]].name.strip())); continue
-    new.append((i,be[i].name.strip(),ve[i].name.strip()))
-print('same',same,'another vanilla sprite',len(swap),'recolor of a vanilla sprite',len(recolor),'no match',len(new))
-print('SWAP',swap[:40]); print('RECOLOR',recolor[:40]); print('NEW',new[:40])
+"""How a mod's monster sprites differ from vanilla's, as the SNES draws them (port_sprites.classify).
+
+    .venv/Scripts/python tools/sprite_compare.py [<mod.sfc>]      (default: BNW 3.0)
+
+Each monster: same (or a pixel touch-up in vanilla's colors), swap (looks like another vanilla
+monster), recolor (a vanilla shape in new colors), new (the mod's own art) or empty. Sprites are
+compared cropped to their opaque box with palette slots matched by content: an earlier version
+compared graphics pointers and palette slots and counted ~220 BNW "recolors" that were palette
+moves with the same colors (BNW 3.0: 15 recolors, 2 swaps, 11 new art, 2026-11-20).
+"""
+import collections
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import ff6snes as S  # noqa: E402
+import prdata as P  # noqa: E402
+import port_sprites  # noqa: E402
+from snes_sprites import Sprites  # noqa: E402
+
+BNW = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                   "build", "brave-new-world", "Brave New World 3.0 FRC.sfc")
+
+
+def main():
+    path = sys.argv[1] if len(sys.argv) > 1 else BNW
+    van, mod = S.Rom(P.VANILLA_ROM), S.Rom(path)
+    vn = {e.id: e.name.strip() for e in S.enemies(van)}
+    mn = {e.id: e.name.strip() for e in S.enemies(mod)}
+    rows, _, _ = port_sprites.classify(Sprites(van), Sprites(mod))
+    print(dict(collections.Counter(k for _, k, _, _ in rows)))
+    for kind in ("swap", "recolor", "new"):
+        items = [f"{i} {mn[i] or '?'}" + (f" ({vn[j]}'s shape)" if j is not None and j != i else "")
+                 for i, k, j, _ in rows if k == kind]
+        print(f"{kind}: {', '.join(items) or 'none'}")
+    touch = [f"{i} {mn[i] or '?'}" for i, k, _, d in rows if k == "same" and d > 0]
+    print(f"touch-ups (same colors, a few pixels): {', '.join(touch)}")
+
+
+if __name__ == "__main__":
+    main()

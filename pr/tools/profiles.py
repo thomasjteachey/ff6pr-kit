@@ -21,6 +21,10 @@ class Profile:
                              # the plugin's SP bank instead (BNW c2.asm "Remove learning spells")
     esper_learning = "snes"  # "snes": an esper's 5 (rate, spell) pairs, the PR's learn rate = the SNES
                              # rate (Ramuh Bolt x10 = 10); "bnw": BNW's 3 (SP cost, spell) pairs
+    monster_names = False  # True: the mod's monster names onto the PR's (tools/port_names.py; with
+                           # rename_all every monster's, else only those the mod renamed)
+    character_names = False  # True: the mod's names for the 14 characters onto MSG_CHAR_NAME_01..14, for those
+                             # it renamed (tools/port_names.port_character_names; Beyond Chaos's c, makeover)
     stat_cap = None  # e.g. 255: raise the PR's 128 caps on Vigor/Stamina/Speed/Magic/magic power
                      # (game_constant_int.csv). Caps are raised anyway where a monster needs it.
 

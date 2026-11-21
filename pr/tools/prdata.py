@@ -29,20 +29,30 @@ VANILLA_ROM = os.environ.get("FF6_VANILLA_ROM") or next(
      if os.path.exists(p)), os.path.join(ROOT, "..", "rom", "vanilla", ROM_NAME))
 
 
+# Rows a port made for the game's tables this run ({table: {id: row}}; tools/item_identity.py's new
+# weapon rows, copies of a template row): every table read from the game's data includes them, so a
+# porter looking a row up in a fresh copy finds it as it was made. Empty unless a profile asks.
+ADDED_ROWS = {}
+
+
 class Table:
     """A PR master CSV: keeps column order and rows (as dicts of strings) keyed by id."""
 
     def __init__(self, name, text=None):
         self.name = name
+        added = {}
         if text is None:
             with open(os.path.join(MASTER, name + ".csv"), encoding="utf-8", newline="") as f:
                 text = f.read()
+            added = ADDED_ROWS.get(name, {})
         reader = csv.reader(io.StringIO(text))
         self.columns = next(reader)
         self.rows = {}
         for r in reader:
             if r:
                 self.rows[int(r[0])] = dict(zip(self.columns, r))
+        for i, r in added.items():
+            self.rows.setdefault(i, dict(r))
 
     def __getitem__(self, i):
         return self.rows[i]

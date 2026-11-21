@@ -1,0 +1,12 @@
+# headless save loading (2026-11-20): what the title's load does after the slot is read, up to the field
+# (the harness's "load <slot> title" read the save and stalled at the title)
+Last\.UI\.KeyInput\.TitleWindowController\.<SubSceneLoadingWait>d__25\$\$MoveNext$
+Last\.UI\.KeyInput\.TitleWindowController\$\$(Update|UpdateLoadGame|InitLoadGame|UpdateNone|InitNone|ChangeStateFromNoneToSelect|IsIdleState|NeedPause|FreezeStateMachine|PlayOpening|CreateLoadGameWindow|InitializeSubScreen|Initialize|CreateState|SetEnableTitleWindow)$
+Last\.UI\.KeyInput\.SaveListController\.<LoadSlotAsync>d__45\$\$MoveNext$
+Last\.UI\.KeyInput\.SaveListController\.<>c__DisplayClass45_0\$\$<LoadSlotAsync>b__0$
+Last\.Management\.SaveSlotManager\.<LoadAsync>d__(39|40)\$\$MoveNext$
+Last\.Management\.SaveSlotManager\.<>c__DisplayClass(39|40)_0\$\$<LoadAsync>b__\d$
+Last\.Map\.MapLoadProcessor\$\$(Start|Update|IsFinished|Reset)$
+Last\.Map\.LoadData\$\$RestoreSaveData$
+Last\.Management\.SubSceneManagerTitle\$\$.*
+Last\.Management\.SubSceneManager\$\$.*

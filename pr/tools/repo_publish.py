@@ -7,6 +7,7 @@ and BNW all need to be separate repos"):
     ff6pr-kit                tools/kit_publish.py    the modding kit: porter, PrKit, prkit, harnesses
     ff6pr-worlds-collide     tools/wc_publish.py     Worlds Collide; the kit as its kit/ submodule
     ff6pr-brave-new-world    tools/bnw_publish.py    Brave New World; the kit as its kit/ submodule
+    ff6pr-t-edition          tools/ted_publish.py    T-Edition; the kit as its kit/ submodule
 
 Each lands beside this project (C:/Projects/Gamedev/<name>) with the project's layout (pr/...).
 Publishing never touches .git: commit and push from the repository's folder. Publish the kit and
@@ -18,6 +19,7 @@ every copied file is checked against the game's extract (prkit/package.py game_f
 import fnmatch
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -38,13 +40,20 @@ SKIP_FILES = {"Games.props"}  # this PC's game folders (tools/kit.py games write
 # tools/*.py that belong to one mod; everything else in tools/ is the kit's
 WC_TOOLS = ["wc_*.py", "snes_doma_siege.py", "port_trace.py", "kitpath.py", "wc_basedata_regions.json"]
 BNW_TOOLS = ["port_bnw.py", "bnw_plugin_data.py", "profile_bnw.py", "probe_check.py", "probe_headless.ps1",
-             "bnw_publish.py", "bnw_dialog.py", "kitpath.py"]
+             "bnw_publish.py", "bnw_dialog.py", "kitpath.py",
+             "port_bnw_*.py", "port_boss_events.py", "ai_fights.py"]   # BNW's scenes/rewards/mechanics/dream, story fights, AI fight runner
 OTHER_TOOLS = ["battle_options_test.py", "bo_publish.py",   # Battle Options: its own repository
-               "run_tests.ps1"]                              # every mod's tests at once: the project's only
+               "run_tests.ps1",                              # every mod's tests at once: the project's only
+               "ff6_deploy_mcp.py",                          # the tracker's Deck button (this PC's desktop app): the project's only
+               "owners.py",                                  # who owns a path (pr/OWNERS: this project's sessions): the project's only
+               "deck_push.sh", "session_budget.py",          # the user's own test setup (pr/OWNERS): the project's only
+               "remote_batch.py"]                            # the user's test machines (their host and address): the project's only
+BC_TOOLS = ["bc_*.py", "kitpath.py"]                         # Beyond Chaos: its own repository (to come)
+TED_TOOLS = ["ted_*.py", "profile_tedition.py", "kitpath.py"]               # T-Edition: ff6pr-t-edition
 
 
 def mod_tools(name):
-    return any(fnmatch.fnmatch(name, p) for p in WC_TOOLS + BNW_TOOLS + OTHER_TOOLS + ["wc_publish.py"])
+    return any(fnmatch.fnmatch(name, p) for p in WC_TOOLS + BNW_TOOLS + BC_TOOLS + TED_TOOLS + OTHER_TOOLS + ["wc_publish.py"])
 
 
 def collect(parts, exclude=lambda name: False):
@@ -55,7 +64,8 @@ def collect(parts, exclude=lambda name: False):
         if patterns != ["**"]:
             for f in sorted(os.listdir(root)):
                 p = os.path.join(root, f)
-                if (os.path.isfile(p) and not f.lower().endswith(SKIP_EXT) and f not in SKIP_FILES
+                if (os.path.isfile(p) and not f.startswith(".")   # hidden: staging copies (".deploy_test_batch.sh")
+                        and not f.lower().endswith(SKIP_EXT) and f not in SKIP_FILES
                         and any(fnmatch.fnmatch(f, x) for x in patterns) and not exclude(f)):
                     yield p, f"{src}/{f}"
             continue
@@ -81,6 +91,33 @@ def head(repo):
     return subprocess.run(["git", "-C", repo, "rev-parse", "HEAD"], capture_output=True, text=True, check=True).stdout.strip()
 
 
+# a local user's folder in a published text (C:\Users\<name>\..., /c/Users/<name>): it names the user and only works on
+# this PC (the BNW lead, 2026-11-20: cheap insurance). Code reads the user's folder from the environment instead.
+USER_PATH = re.compile(r"(?:\b[A-Za-z]:|/[a-z])[\\/]+Users[\\/]+(?!Public\b)[A-Za-z0-9][\w.-]*", re.I)
+TEXT_EXT = (".py", ".cs", ".md", ".json", ".sh", ".ps1", ".txt", ".props", ".csproj", ".java", ".tbl", ".yml", ".yaml",
+            ".xml", ".cfg", ".ini", ".bat", ".cmd", ".tsv", ".csv")
+
+
+def user_paths(entries, texts=None):
+    """[(published name, the path found)] for every published text naming a local user's folder."""
+    found = []
+    for src, name in entries:
+        if not name.lower().endswith(TEXT_EXT):
+            continue
+        try:
+            with open(src, encoding="utf-8", errors="replace") as f:
+                m = USER_PATH.search(f.read())
+        except OSError:
+            continue
+        if m:
+            found.append((name, m.group(0)))
+    for name, content in (texts or {}).items():
+        m = USER_PATH.search(content)
+        if m:
+            found.append((name, m.group(0)))
+    return found
+
+
 def write(out, entries, texts, submodules=()):
     """Make out's tree afresh (all but .git): the copied entries, the generated texts
     ({published name: content}), and submodules [(path, url, commit)] as gitlinks."""
@@ -95,6 +132,9 @@ def write(out, entries, texts, submodules=()):
     dupes = sorted({n for n in names if names.count(n) > 1})
     if dupes:
         raise SystemExit(f"publish: published twice: {dupes}")
+    personal = user_paths(entries, texts)
+    if personal:
+        raise SystemExit(f"publish: {len(personal)} file(s) name a local user folder, not publishing: {personal[:8]}")
     os.makedirs(out, exist_ok=True)
     for name in os.listdir(out):
         if name in (".git",):

@@ -1,6 +1,6 @@
 """Start a Pixel Remaster headless for a kit plugin's test run: no window, no sound, no saves.
 
-    kit.py run <game> [--harness] [--minutes 30] [--until REGEX] [--set key=value ...] [--dry-run]
+    kit.py run <game> [--harness] [--graphics] [--minutes 30] [--until REGEX] [--set key=value ...] [--dry-run]
 
 Then talk to it (with --harness) from another shell:
     .venv/Scripts/python tools/game_harness.py state "press action" "wait 60"
@@ -13,7 +13,8 @@ tools/probe_headless.ps1 does for BNW's probe:
   - adds steam_appid.txt so Steamworks doesn't relaunch the game through Steam (a normal window),
     and removes it afterwards if it added it;
   - sets the previous BepInEx log aside;
-  - starts the game with -batchmode -nographics, hidden;
+  - starts the game with -batchmode -nographics, hidden (--graphics: -batchmode with a graphics
+    device and a 1920x1080 screen, still no window, so the harness's "shot <png>" can draw frames);
   - stops its own game (only that process) if it shows a window, if someone else starts the game
     meanwhile, when --until matches the log, or after --minutes;
   - prints the log's kit lines ([kit], [test], [check], [harness], errors).
@@ -99,7 +100,8 @@ def run(game_id, harness=False, minutes=30, until=None, settings=None, dry_run=F
         req["harness"] = "1"
     req.setdefault("minutes", str(minutes))
     # graphics: still no window (batch mode), but the game renders, so it can save screenshots
-    args = [g.exe, "-batchmode"] if graphics else [g.exe, "-batchmode", "-nographics"]
+    args = ([g.exe, "-batchmode", "-screen-width", "1920", "-screen-height", "1080", "-screen-fullscreen", "0"]
+            if graphics else [g.exe, "-batchmode", "-nographics"])
     if dry_run:
         out(f"[run] would write {os.path.join(g.bepinex, REQUEST)}:\n{request_text(req)}[run] would start: {' '.join(args)} (hidden)")
         return 0

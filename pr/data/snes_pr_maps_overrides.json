@@ -1,0 +1,37 @@
+{
+ "_about": "Hand-confirmed SNES map -> PR map pairs (US v1.0 map ids; PR (x, y) = SNES (x + dx, y + dy)). tools/snes_maps.py lists them first and its build follows exits from them, so one confirmed room can place its neighbours. Add a pair when you have confirmed it in the game or by its objects; rebuild with: python tools/snes_maps.py build",
+ "maps": {
+  "0": [
+   {
+    "pr": "Map_10010",
+    "dx": 0,
+    "dy": 0,
+    "note": "World of Balance: the PR world map keeps the SNES tile grid (Narshe's entrance object at (84, 34) as the SNES exit)"
+   }
+  ],
+  "1": [
+   {
+    "pr": "Map_10020",
+    "dx": 0,
+    "dy": 0,
+    "note": "World of Ruin: as the World of Balance"
+   }
+  ],
+  "126": [
+   {
+    "pr": "Map_20451_2",
+    "dx": 0,
+    "dy": 3,
+    "note": "Doma Castle (WoR) east wing: BNW's merchant room, the Remedy chest SNES (55, 5) = PR (55, 8) (profile_bnw.py)"
+   }
+  ],
+  "391": [
+   {
+    "pr": "Map_30871_29",
+    "dx": 8,
+    "dy": 15,
+    "note": "Kefka's Tower's outer stair (16x32, reached from 384): the PR room's 9-wide platform and its one-tile stair lie exactly on the SNES map's walkable platform and stair at this offset (walk 0.96 over 48 cells, tiles share 1.0 / 0.75); confirmed 2026-11-20 by overlaying the two (ted-maps). T-Edition's map 435 copies this layout."
+   }
+  ]
+ }
+}

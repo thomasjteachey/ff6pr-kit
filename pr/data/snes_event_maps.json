@@ -1,0 +1,5121 @@
+{
+"_doc": "SNES -> PR ties learned by tools/event_translate.py learn from paired vanilla scenes (SNES event bit -> [PR flag category, index, scenes together, SNES scenes, PR scenes, how]; song -> [PR bgm id, ...]; sound -> [PR se id, ...]; arrival 'map,x,y' -> [[PR map id, point], votes, scenes, how]; SNES map -> [PR map id, arrivals])",
+"pairs": 694,
+"flags": {
+"001": [
+"ScenarioFlag1",
+11,
+2,
+3,
+2,
+"test-votes"
+],
+"003": [
+"ScenarioFlag1",
+20,
+3,
+3,
+4,
+"test-votes"
+],
+"004": [
+"ScenarioFlag1",
+15,
+1,
+1,
+1,
+"set-single"
+],
+"005": [
+"ScenarioFlag1",
+16,
+1,
+1,
+1,
+"set-single"
+],
+"006": [
+"ScenarioFlag1",
+20,
+1,
+1,
+1,
+"set-single"
+],
+"007": [
+"ScenarioFlag3",
+10,
+1,
+1,
+1,
+"set-single"
+],
+"008": [
+"ScenarioFlag1",
+21,
+1,
+1,
+1,
+"set-single"
+],
+"00B": [
+"ScenarioFlag1",
+28,
+4,
+4,
+4,
+"set-votes"
+],
+"010": [
+"ScenarioFlag1",
+41,
+1,
+1,
+1,
+"set-single"
+],
+"011": [
+"ScenarioFlag1",
+42,
+1,
+1,
+1,
+"set-single"
+],
+"012": [
+"ScenarioFlag1",
+42,
+1,
+1,
+1,
+"set-single"
+],
+"014": [
+"ScenarioFlag3",
+32,
+2,
+2,
+3,
+"test-votes"
+],
+"017": [
+"ScenarioFlag3",
+32,
+2,
+2,
+3,
+"test-votes"
+],
+"018": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"019": [
+"ScenarioFlag1",
+48,
+1,
+1,
+1,
+"set-single"
+],
+"01B": [
+"ScenarioFlag1",
+62,
+1,
+1,
+1,
+"set-single"
+],
+"01C": [
+"ScenarioFlag1",
+58,
+2,
+2,
+2,
+"set-votes"
+],
+"01D": [
+"ScenarioFlag1",
+59,
+1,
+1,
+1,
+"set-single"
+],
+"01F": [
+"ScenarioFlag1",
+66,
+3,
+3,
+3,
+"set-votes"
+],
+"020": [
+"ScenarioFlag1",
+67,
+1,
+1,
+1,
+"set-single"
+],
+"021": [
+"ScenarioFlag1",
+66,
+3,
+6,
+3,
+"test-votes"
+],
+"022": [
+"ScenarioFlag1",
+104,
+1,
+1,
+1,
+"set-single"
+],
+"024": [
+"ScenarioFlag2",
+211,
+13,
+13,
+13,
+"set-votes"
+],
+"026": [
+"ScenarioFlag2",
+211,
+13,
+13,
+13,
+"set-votes"
+],
+"027": [
+"ScenarioFlag2",
+211,
+13,
+13,
+13,
+"set-votes"
+],
+"028": [
+"ScenarioFlag2",
+211,
+13,
+13,
+13,
+"set-votes"
+],
+"029": [
+"ScenarioFlag3",
+45,
+1,
+1,
+1,
+"set-order"
+],
+"02A": [
+"ScenarioFlag2",
+31,
+1,
+1,
+1,
+"set-single"
+],
+"02B": [
+"ScenarioFlag1",
+84,
+2,
+2,
+2,
+"set-votes"
+],
+"02C": [
+"ScenarioFlag1",
+85,
+1,
+1,
+1,
+"set-single"
+],
+"030": [
+"ScenarioFlag1",
+88,
+4,
+5,
+4,
+"set-votes"
+],
+"031": [
+"ScenarioFlag1",
+89,
+1,
+1,
+1,
+"set-order"
+],
+"032": [
+"ScenarioFlag1",
+90,
+1,
+1,
+1,
+"set-single"
+],
+"033": [
+"ScenarioFlag1",
+90,
+1,
+1,
+1,
+"set-single"
+],
+"037": [
+"ScenarioFlag1",
+97,
+3,
+3,
+3,
+"set-votes"
+],
+"038": [
+"ScenarioFlag1",
+107,
+1,
+1,
+1,
+"set-single"
+],
+"039": [
+"ScenarioFlag1",
+109,
+2,
+2,
+3,
+"set-votes"
+],
+"03C": [
+"ScenarioFlag1",
+124,
+7,
+7,
+8,
+"set-votes"
+],
+"03F": [
+"ScenarioFlag1",
+125,
+2,
+2,
+3,
+"set-votes"
+],
+"041": [
+"ScenarioFlag1",
+133,
+1,
+1,
+1,
+"set-order"
+],
+"043": [
+"ScenarioFlag1",
+134,
+1,
+1,
+1,
+"set-single"
+],
+"045": [
+"ScenarioFlag1",
+136,
+3,
+3,
+3,
+"set-votes"
+],
+"048": [
+"ScenarioFlag1",
+138,
+11,
+22,
+16,
+"test-votes"
+],
+"049": [
+"ScenarioFlag3",
+10,
+1,
+1,
+1,
+"set-single"
+],
+"04A": [
+"ScenarioFlag1",
+141,
+2,
+2,
+2,
+"set-votes"
+],
+"04C": [
+"ScenarioFlag1",
+100,
+1,
+1,
+1,
+"set-single"
+],
+"04D": [
+"ScenarioFlag1",
+144,
+1,
+1,
+1,
+"set-single"
+],
+"04F": [
+"ScenarioFlag1",
+145,
+1,
+1,
+1,
+"set-single"
+],
+"053": [
+"ScenarioFlag1",
+149,
+1,
+1,
+1,
+"set-single"
+],
+"054": [
+"ScenarioFlag1",
+155,
+4,
+7,
+5,
+"test-votes"
+],
+"055": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"056": [
+"ScenarioFlag1",
+159,
+1,
+1,
+1,
+"set-order"
+],
+"057": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"059": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"05A": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"05C": [
+"ScenarioFlag1",
+160,
+2,
+2,
+2,
+"set-votes"
+],
+"05D": [
+"ScenarioFlag1",
+178,
+2,
+2,
+2,
+"set-votes"
+],
+"05E": [
+"ScenarioFlag1",
+178,
+2,
+2,
+2,
+"set-votes"
+],
+"05F": [
+"ScenarioFlag1",
+183,
+3,
+3,
+3,
+"set-votes"
+],
+"068": [
+"ScenarioFlag1",
+192,
+1,
+1,
+1,
+"set-single"
+],
+"069": [
+"ScenarioFlag1",
+194,
+1,
+1,
+1,
+"set-single"
+],
+"06A": [
+"ScenarioFlag1",
+195,
+3,
+3,
+4,
+"set-votes"
+],
+"06B": [
+"ScenarioFlag1",
+195,
+3,
+3,
+4,
+"set-votes"
+],
+"06C": [
+"ScenarioFlag1",
+196,
+1,
+1,
+1,
+"set-single"
+],
+"06E": [
+"ScenarioFlag1",
+197,
+1,
+1,
+1,
+"set-single"
+],
+"06F": [
+"ScenarioFlag1",
+203,
+1,
+1,
+1,
+"set-single"
+],
+"070": [
+"ScenarioFlag1",
+203,
+1,
+1,
+1,
+"set-single"
+],
+"074": [
+"ScenarioFlag2",
+241,
+1,
+1,
+1,
+"set-order"
+],
+"076": [
+"ScenarioFlag1",
+207,
+3,
+3,
+3,
+"set-votes"
+],
+"079": [
+"ScenarioFlag1",
+225,
+1,
+1,
+1,
+"set-single"
+],
+"07A": [
+"ScenarioFlag1",
+225,
+6,
+12,
+9,
+"test-votes"
+],
+"07C": [
+"ScenarioFlag1",
+229,
+1,
+1,
+1,
+"set-single"
+],
+"07D": [
+"ScenarioFlag2",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"07E": [
+"ScenarioFlag2",
+142,
+1,
+1,
+1,
+"set-single"
+],
+"081": [
+"ScenarioFlag1",
+73,
+1,
+1,
+1,
+"set-single"
+],
+"082": [
+"ScenarioFlag1",
+73,
+1,
+1,
+1,
+"set-single"
+],
+"086": [
+"ScenarioFlag2",
+10,
+2,
+2,
+4,
+"test-votes"
+],
+"08B": [
+"ScenarioFlag2",
+13,
+1,
+1,
+1,
+"set-single"
+],
+"08C": [
+"ScenarioFlag2",
+14,
+1,
+1,
+1,
+"set-single"
+],
+"08D": [
+"ScenarioFlag2",
+15,
+1,
+1,
+1,
+"set-single"
+],
+"08F": [
+"ScenarioFlag2",
+18,
+1,
+1,
+1,
+"set-single"
+],
+"092": [
+"ScenarioFlag2",
+20,
+1,
+1,
+1,
+"set-single"
+],
+"095": [
+"ScenarioFlag2",
+24,
+1,
+1,
+1,
+"set-single"
+],
+"099": [
+"ScenarioFlag2",
+25,
+1,
+1,
+1,
+"set-single"
+],
+"0A3": [
+"ScenarioFlag2",
+117,
+2,
+4,
+3,
+"test-votes"
+],
+"0A7": [
+"ScenarioFlag2",
+67,
+1,
+1,
+1,
+"set-single"
+],
+"0A8": [
+"ScenarioFlag2",
+69,
+1,
+1,
+1,
+"set-single"
+],
+"0A9": [
+"ScenarioFlag2",
+66,
+1,
+1,
+1,
+"set-single"
+],
+"0AA": [
+"ScenarioFlag2",
+68,
+1,
+1,
+1,
+"set-single"
+],
+"0AB": [
+"ScenarioFlag2",
+66,
+4,
+4,
+4,
+"test-votes"
+],
+"0B1": [
+"ScenarioFlag1",
+98,
+1,
+1,
+1,
+"set-order"
+],
+"0B6": [
+"ScenarioFlag2",
+161,
+1,
+1,
+1,
+"set-single"
+],
+"0B8": [
+"ScenarioFlag2",
+162,
+1,
+1,
+1,
+"set-single"
+],
+"0BA": [
+"ScenarioFlag2",
+136,
+4,
+4,
+4,
+"set-votes"
+],
+"0BE": [
+"ScenarioFlag2",
+60,
+1,
+1,
+1,
+"set-single"
+],
+"0BF": [
+"ScenarioFlag2",
+100,
+1,
+1,
+1,
+"set-single"
+],
+"0C6": [
+"ScenarioFlag2",
+79,
+1,
+1,
+1,
+"set-single"
+],
+"0C8": [
+"ScenarioFlag2",
+172,
+1,
+1,
+1,
+"set-single"
+],
+"0CA": [
+"ScenarioFlag1",
+147,
+2,
+3,
+2,
+"test-votes"
+],
+"0CB": [
+"ScenarioFlag2",
+84,
+1,
+1,
+1,
+"set-single"
+],
+"0CC": [
+"ScenarioFlag2",
+96,
+1,
+1,
+1,
+"test-single"
+],
+"0D2": [
+"ScenarioFlag2",
+109,
+1,
+1,
+1,
+"set-single"
+],
+"0D4": [
+"ScenarioFlag2",
+154,
+1,
+1,
+1,
+"set-single"
+],
+"0D9": [
+"ScenarioFlag2",
+135,
+1,
+1,
+1,
+"set-single"
+],
+"0DA": [
+"ScenarioFlag2",
+199,
+1,
+1,
+1,
+"set-single"
+],
+"0DE": [
+"ScenarioFlag1",
+23,
+1,
+1,
+1,
+"set-single"
+],
+"101": [
+"ScenarioFlag1",
+55,
+1,
+1,
+1,
+"set-single"
+],
+"102": [
+"ScenarioFlag1",
+31,
+1,
+1,
+1,
+"set-single"
+],
+"103": [
+"ScenarioFlag1",
+53,
+21,
+21,
+21,
+"test-votes"
+],
+"104": [
+"ScenarioFlag1",
+52,
+11,
+12,
+14,
+"test-votes"
+],
+"105": [
+"ScenarioFlag1",
+51,
+1,
+1,
+1,
+"set-single"
+],
+"108": [
+"ScenarioFlag1",
+24,
+1,
+1,
+1,
+"test-single"
+],
+"10B": [
+"ScenarioFlag4",
+133,
+2,
+2,
+4,
+"reset-votes"
+],
+"10D": [
+"ScenarioFlag1",
+61,
+1,
+1,
+1,
+"set-single"
+],
+"10E": [
+"ScenarioFlag1",
+157,
+1,
+1,
+1,
+"set-single"
+],
+"110": [
+"ScenarioFlag1",
+167,
+1,
+1,
+1,
+"set-single"
+],
+"112": [
+"ScenarioFlag2",
+94,
+2,
+2,
+2,
+"set-votes"
+],
+"116": [
+"ScenarioFlag1",
+200,
+1,
+1,
+1,
+"set-single"
+],
+"117": [
+"ScenarioFlag1",
+201,
+1,
+1,
+1,
+"set-single"
+],
+"118": [
+"ScenarioFlag1",
+202,
+1,
+1,
+1,
+"set-single"
+],
+"119": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"123": [
+"ScenarioFlag2",
+76,
+1,
+1,
+1,
+"set-single"
+],
+"128": [
+"ScenarioFlag1",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"129": [
+"ScenarioFlag1",
+2,
+1,
+1,
+1,
+"set-single"
+],
+"12A": [
+"ScenarioFlag1",
+3,
+1,
+1,
+1,
+"set-single"
+],
+"12B": [
+"ScenarioFlag1",
+6,
+3,
+3,
+3,
+"set-votes"
+],
+"12C": [
+"ScenarioFlag1",
+8,
+1,
+1,
+1,
+"set-single"
+],
+"12D": [
+"ScenarioFlag1",
+12,
+1,
+1,
+1,
+"set-single"
+],
+"130": [
+"ScenarioFlag1",
+4,
+1,
+1,
+1,
+"set-single"
+],
+"131": [
+"ScenarioFlag1",
+5,
+1,
+1,
+1,
+"set-single"
+],
+"133": [
+"ScenarioFlag1",
+7,
+1,
+1,
+1,
+"set-order"
+],
+"134": [
+"ScenarioFlag3",
+36,
+4,
+4,
+4,
+"set-votes"
+],
+"135": [
+"ScenarioFlag1",
+9,
+1,
+1,
+1,
+"set-single"
+],
+"136": [
+"ScenarioFlag1",
+180,
+1,
+1,
+1,
+"set-single"
+],
+"138": [
+"ScenarioFlag1",
+182,
+3,
+3,
+3,
+"set-votes"
+],
+"13A": [
+"ScenarioFlag1",
+227,
+1,
+1,
+1,
+"set-single"
+],
+"13C": [
+"ScenarioFlag2",
+2,
+11,
+16,
+18,
+"test-votes"
+],
+"14F": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"151": [
+"ScenarioFlag1",
+72,
+3,
+3,
+3,
+"set-votes"
+],
+"155": [
+"ScenarioFlag1",
+88,
+4,
+5,
+4,
+"set-votes"
+],
+"156": [
+"ScenarioFlag2",
+125,
+1,
+1,
+1,
+"set-single"
+],
+"15A": [
+"ScenarioFlag1",
+43,
+1,
+1,
+1,
+"set-single"
+],
+"15B": [
+"ScenarioFlag1",
+44,
+1,
+1,
+1,
+"set-single"
+],
+"15C": [
+"ScenarioFlag1",
+45,
+1,
+1,
+1,
+"set-single"
+],
+"15D": [
+"ScenarioFlag1",
+46,
+1,
+1,
+1,
+"set-single"
+],
+"15E": [
+"ScenarioFlag1",
+43,
+1,
+1,
+1,
+"set-single"
+],
+"162": [
+"ScenarioFlag1",
+71,
+1,
+1,
+1,
+"set-order"
+],
+"167": [
+"ScenarioFlag1",
+93,
+3,
+3,
+4,
+"set-votes"
+],
+"169": [
+"ScenarioFlag1",
+70,
+1,
+1,
+1,
+"set-single"
+],
+"16A": [
+"ScenarioFlag1",
+76,
+1,
+1,
+1,
+"set-single"
+],
+"16B": [
+"ScenarioFlag1",
+76,
+1,
+1,
+1,
+"set-single"
+],
+"171": [
+"ScenarioFlag1",
+94,
+1,
+1,
+1,
+"set-order"
+],
+"178": [
+"ScenarioFlag2",
+27,
+1,
+1,
+1,
+"set-single"
+],
+"179": [
+"ScenarioFlag4",
+167,
+1,
+1,
+1,
+"reset-single"
+],
+"17B": [
+"ScenarioFlag1",
+132,
+2,
+2,
+2,
+"set-votes"
+],
+"17C": [
+"ScenarioFlag4",
+166,
+2,
+5,
+2,
+"reset-votes"
+],
+"17D": [
+"ScenarioFlag1",
+111,
+1,
+1,
+1,
+"set-single"
+],
+"17E": [
+"ScenarioFlag1",
+109,
+2,
+2,
+5,
+"test-votes"
+],
+"17F": [
+"ScenarioFlag1",
+114,
+1,
+1,
+1,
+"set-single"
+],
+"180": [
+"ScenarioFlag1",
+109,
+3,
+3,
+5,
+"test-votes"
+],
+"182": [
+"ScenarioFlag1",
+113,
+1,
+1,
+1,
+"set-order"
+],
+"183": [
+"ScenarioFlag1",
+114,
+1,
+1,
+1,
+"set-single"
+],
+"184": [
+"ScenarioFlag1",
+129,
+2,
+2,
+2,
+"set-votes"
+],
+"185": [
+"ScenarioFlag1",
+130,
+1,
+1,
+1,
+"set-single"
+],
+"186": [
+"ScenarioFlag1",
+131,
+1,
+1,
+1,
+"set-single"
+],
+"187": [
+"ScenarioFlag1",
+117,
+1,
+1,
+1,
+"set-single"
+],
+"189": [
+"ScenarioFlag2",
+180,
+1,
+1,
+1,
+"set-order"
+],
+"18A": [
+"ScenarioFlag2",
+25,
+1,
+1,
+1,
+"set-single"
+],
+"18E": [
+"ScenarioFlag1",
+147,
+2,
+2,
+2,
+"test-votes"
+],
+"190": [
+"ScenarioFlag2",
+16,
+4,
+6,
+9,
+"test-votes"
+],
+"191": [
+"ScenarioFlag2",
+184,
+1,
+1,
+1,
+"set-single"
+],
+"193": [
+"ScenarioFlag2",
+197,
+1,
+1,
+1,
+"set-single"
+],
+"194": [
+"ScenarioFlag2",
+198,
+1,
+1,
+1,
+"set-single"
+],
+"195": [
+"ScenarioFlag2",
+115,
+1,
+1,
+1,
+"set-single"
+],
+"198": [
+"ScenarioFlag2",
+196,
+1,
+1,
+1,
+"set-single"
+],
+"19A": [
+"ScenarioFlag2",
+201,
+2,
+2,
+3,
+"set-votes"
+],
+"19B": [
+"ScenarioFlag2",
+202,
+1,
+1,
+1,
+"set-single"
+],
+"19C": [
+"ScenarioFlag2",
+205,
+1,
+1,
+1,
+"set-single"
+],
+"19D": [
+"ScenarioFlag1",
+116,
+1,
+1,
+1,
+"set-single"
+],
+"1D0": [
+"ScenarioFlag1",
+55,
+1,
+1,
+1,
+"set-single"
+],
+"1D1": [
+"ScenarioFlag1",
+60,
+1,
+1,
+1,
+"set-single"
+],
+"1D7": [
+"ScenarioFlag3",
+17,
+1,
+1,
+1,
+"set-order"
+],
+"1D9": [
+"ScenarioFlag2",
+111,
+1,
+1,
+1,
+"set-order"
+],
+"1DA": [
+"ScenarioFlag2",
+127,
+1,
+1,
+1,
+"set-single"
+],
+"1DB": [
+"ScenarioFlag2",
+105,
+1,
+1,
+1,
+"set-single"
+],
+"200": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"201": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"202": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"203": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"204": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"205": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"206": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"207": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"208": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"209": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"20A": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"20B": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"20C": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"20D": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"20E": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"20F": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"210": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"211": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"212": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"213": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"214": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"215": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"216": [
+"ScenarioFlag2",
+2,
+16,
+22,
+18,
+"test-votes"
+],
+"217": [
+"ScenarioFlag1",
+232,
+1,
+1,
+1,
+"set-single"
+],
+"218": [
+"ScenarioFlag1",
+233,
+1,
+1,
+1,
+"set-single"
+],
+"219": [
+"ScenarioFlag1",
+234,
+1,
+1,
+1,
+"set-single"
+],
+"21A": [
+"ScenarioFlag1",
+229,
+3,
+3,
+6,
+"test-votes"
+],
+"21B": [
+"ScenarioFlag1",
+237,
+1,
+1,
+1,
+"set-single"
+],
+"21C": [
+"ScenarioFlag1",
+238,
+1,
+1,
+1,
+"set-order"
+],
+"21D": [
+"ScenarioFlag1",
+239,
+1,
+1,
+1,
+"set-single"
+],
+"21E": [
+"ScenarioFlag1",
+236,
+1,
+1,
+1,
+"set-single"
+],
+"21F": [
+"ScenarioFlag1",
+244,
+1,
+1,
+1,
+"set-single"
+],
+"220": [
+"ScenarioFlag1",
+245,
+1,
+1,
+1,
+"set-single"
+],
+"221": [
+"ScenarioFlag1",
+246,
+1,
+1,
+1,
+"set-single"
+],
+"222": [
+"ScenarioFlag1",
+247,
+1,
+1,
+1,
+"set-single"
+],
+"223": [
+"ScenarioFlag1",
+248,
+1,
+1,
+1,
+"set-single"
+],
+"224": [
+"ScenarioFlag1",
+231,
+1,
+1,
+1,
+"set-single"
+],
+"226": [
+"ScenarioFlag1",
+251,
+1,
+1,
+1,
+"set-single"
+],
+"228": [
+"ScenarioFlag1",
+252,
+1,
+1,
+1,
+"set-single"
+],
+"229": [
+"ScenarioFlag1",
+243,
+1,
+1,
+1,
+"set-single"
+],
+"22B": [
+"ScenarioFlag1",
+253,
+1,
+1,
+1,
+"set-single"
+],
+"22D": [
+"ScenarioFlag1",
+250,
+1,
+1,
+1,
+"set-single"
+],
+"22E": [
+"ScenarioFlag1",
+240,
+1,
+1,
+1,
+"set-single"
+],
+"237": [
+"ScenarioFlag2",
+0,
+1,
+1,
+1,
+"set-single"
+],
+"239": [
+"ScenarioFlag1",
+208,
+1,
+1,
+1,
+"set-single"
+],
+"23C": [
+"ScenarioFlag1",
+212,
+1,
+1,
+1,
+"set-single"
+],
+"240": [
+"ScenarioFlag2",
+135,
+1,
+1,
+1,
+"set-single"
+],
+"243": [
+"ScenarioFlag2",
+123,
+1,
+1,
+1,
+"test-single"
+],
+"246": [
+"ScenarioFlag1",
+195,
+3,
+6,
+4,
+"set-votes"
+],
+"247": [
+"ScenarioFlag1",
+75,
+2,
+2,
+2,
+"set-votes"
+],
+"249": [
+"ScenarioFlag1",
+75,
+2,
+2,
+2,
+"set-votes"
+],
+"24A": [
+"ScenarioFlag2",
+123,
+1,
+1,
+1,
+"set-single"
+],
+"252": [
+"ScenarioFlag2",
+126,
+1,
+1,
+1,
+"set-single"
+],
+"253": [
+"ScenarioFlag2",
+134,
+1,
+1,
+1,
+"set-single"
+],
+"256": [
+"ScenarioFlag1",
+75,
+2,
+2,
+2,
+"set-votes"
+],
+"257": [
+"ScenarioFlag1",
+48,
+1,
+1,
+1,
+"set-single"
+],
+"266": [
+"ScenarioFlag2",
+36,
+1,
+1,
+1,
+"set-single"
+],
+"26E": [
+"ScenarioFlag2",
+78,
+1,
+1,
+1,
+"set-single"
+],
+"272": [
+"ScenarioFlag1",
+185,
+1,
+1,
+1,
+"test-single"
+],
+"274": [
+"ScenarioFlag1",
+187,
+1,
+1,
+1,
+"test-single"
+],
+"27A": [
+"ScenarioFlag2",
+141,
+1,
+1,
+1,
+"set-single"
+],
+"27C": [
+"ScenarioFlag1",
+206,
+1,
+1,
+1,
+"set-single"
+],
+"27F": [
+"ScenarioFlag2",
+247,
+1,
+1,
+1,
+"set-single"
+],
+"280": [
+"ScenarioFlag2",
+247,
+1,
+1,
+1,
+"set-single"
+],
+"281": [
+"ScenarioFlag2",
+247,
+1,
+1,
+1,
+"set-single"
+],
+"282": [
+"ScenarioFlag2",
+247,
+1,
+1,
+1,
+"set-single"
+],
+"283": [
+"ScenarioFlag2",
+247,
+1,
+1,
+1,
+"set-single"
+],
+"284": [
+"ScenarioFlag2",
+248,
+3,
+3,
+3,
+"test-votes"
+],
+"285": [
+"ScenarioFlag2",
+248,
+3,
+3,
+3,
+"test-votes"
+],
+"286": [
+"ScenarioFlag2",
+248,
+3,
+3,
+3,
+"test-votes"
+],
+"287": [
+"ScenarioFlag2",
+248,
+3,
+3,
+3,
+"test-votes"
+],
+"288": [
+"ScenarioFlag2",
+248,
+3,
+6,
+3,
+"test-votes"
+],
+"28A": [
+"ScenarioFlag2",
+56,
+2,
+2,
+2,
+"set-votes"
+],
+"28B": [
+"ScenarioFlag2",
+55,
+1,
+1,
+1,
+"set-single"
+],
+"28E": [
+"ScenarioFlag2",
+60,
+1,
+1,
+1,
+"set-single"
+],
+"28F": [
+"ScenarioFlag2",
+61,
+1,
+1,
+1,
+"set-single"
+],
+"290": [
+"ScenarioFlag2",
+62,
+1,
+1,
+1,
+"set-single"
+],
+"291": [
+"ScenarioFlag2",
+63,
+1,
+1,
+1,
+"set-single"
+],
+"292": [
+"ScenarioFlag2",
+99,
+1,
+1,
+1,
+"set-single"
+],
+"294": [
+"ScenarioFlag3",
+18,
+1,
+1,
+1,
+"set-single"
+],
+"295": [
+"ScenarioFlag2",
+102,
+1,
+1,
+1,
+"set-order"
+],
+"296": [
+"ScenarioFlag3",
+18,
+1,
+1,
+1,
+"test-single"
+],
+"297": [
+"ScenarioFlag2",
+110,
+1,
+1,
+1,
+"set-single"
+],
+"29A": [
+"ScenarioFlag2",
+221,
+1,
+1,
+1,
+"set-order"
+],
+"29B": [
+"ScenarioFlag3",
+22,
+1,
+1,
+1,
+"set-single"
+],
+"29C": [
+"ScenarioFlag3",
+18,
+1,
+1,
+1,
+"set-single"
+],
+"29D": [
+"ScenarioFlag2",
+164,
+1,
+1,
+1,
+"set-order"
+],
+"29E": [
+"ScenarioFlag2",
+139,
+1,
+1,
+1,
+"set-single"
+],
+"29F": [
+"ScenarioFlag1",
+215,
+1,
+1,
+1,
+"set-single"
+],
+"2AF": [
+"ScenarioFlag2",
+208,
+1,
+1,
+1,
+"set-single"
+],
+"2B2": [
+"ScenarioFlag2",
+96,
+1,
+1,
+1,
+"set-single"
+],
+"2BA": [
+"ScenarioFlag1",
+167,
+1,
+1,
+1,
+"set-single"
+],
+"2BE": [
+"ScenarioFlag4",
+197,
+1,
+1,
+1,
+"set-order"
+],
+"2D7": [
+"ScenarioFlag2",
+64,
+1,
+1,
+1,
+"set-single"
+],
+"2D8": [
+"ScenarioFlag1",
+68,
+1,
+1,
+1,
+"set-single"
+],
+"2D9": [
+"ScenarioFlag1",
+144,
+1,
+1,
+1,
+"set-single"
+],
+"2DB": [
+"ScenarioFlag2",
+168,
+1,
+1,
+1,
+"set-single"
+],
+"2DD": [
+"ScenarioFlag2",
+176,
+1,
+1,
+1,
+"set-single"
+],
+"2DF": [
+"ScenarioFlag2",
+171,
+3,
+3,
+3,
+"set-votes"
+],
+"302": [
+"ScenarioFlag3",
+10,
+1,
+1,
+1,
+"set-single"
+],
+"308": [
+"ScenarioFlag1",
+16,
+1,
+1,
+1,
+"set-single"
+],
+"30A": [
+"ScenarioFlag1",
+55,
+1,
+1,
+1,
+"set-single"
+],
+"30C": [
+"ScenarioFlag1",
+51,
+1,
+1,
+1,
+"set-single"
+],
+"30E": [
+"ScenarioFlag1",
+15,
+1,
+1,
+1,
+"set-single"
+],
+"311": [
+"ScenarioFlag1",
+15,
+1,
+1,
+1,
+"set-single"
+],
+"313": [
+"ScenarioFlag1",
+21,
+1,
+1,
+1,
+"set-single"
+],
+"314": [
+"ScenarioFlag4",
+175,
+1,
+1,
+1,
+"reset-single"
+],
+"316": [
+"ScenarioFlag1",
+16,
+1,
+1,
+1,
+"set-single"
+],
+"317": [
+"ScenarioFlag1",
+58,
+2,
+2,
+2,
+"set-votes"
+],
+"31B": [
+"ScenarioFlag1",
+51,
+1,
+1,
+1,
+"set-single"
+],
+"31E": [
+"ScenarioFlag1",
+149,
+1,
+1,
+1,
+"set-single"
+],
+"31F": [
+"ScenarioFlag1",
+149,
+1,
+1,
+1,
+"set-single"
+],
+"320": [
+"ScenarioFlag1",
+149,
+1,
+1,
+1,
+"set-single"
+],
+"321": [
+"ScenarioFlag1",
+149,
+1,
+1,
+1,
+"set-single"
+],
+"322": [
+"ScenarioFlag1",
+149,
+1,
+1,
+1,
+"set-single"
+],
+"323": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"324": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"325": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"326": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"327": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"328": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"331": [
+"ScenarioFlag1",
+156,
+1,
+1,
+1,
+"set-single"
+],
+"333": [
+"ScenarioFlag4",
+175,
+1,
+1,
+1,
+"reset-single"
+],
+"334": [
+"ScenarioFlag4",
+175,
+1,
+1,
+1,
+"reset-single"
+],
+"335": [
+"ScenarioFlag4",
+175,
+1,
+1,
+1,
+"reset-single"
+],
+"336": [
+"ScenarioFlag4",
+175,
+1,
+1,
+1,
+"reset-single"
+],
+"337": [
+"ScenarioFlag1",
+196,
+1,
+1,
+1,
+"set-single"
+],
+"339": [
+"ScenarioFlag1",
+196,
+1,
+1,
+1,
+"set-single"
+],
+"33A": [
+"ScenarioFlag1",
+196,
+1,
+1,
+1,
+"set-single"
+],
+"33B": [
+"ScenarioFlag1",
+203,
+1,
+1,
+1,
+"set-single"
+],
+"33D": [
+"ScenarioFlag1",
+196,
+1,
+1,
+1,
+"set-single"
+],
+"33E": [
+"ScenarioFlag1",
+197,
+1,
+1,
+1,
+"set-single"
+],
+"341": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"344": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"347": [
+"ScenarioFlag1",
+167,
+1,
+1,
+1,
+"set-single"
+],
+"351": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"352": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"353": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"354": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"359": [
+"ScenarioFlag4",
+175,
+1,
+1,
+1,
+"reset-single"
+],
+"35A": [
+"ScenarioFlag1",
+203,
+1,
+1,
+1,
+"set-single"
+],
+"35B": [
+"ScenarioFlag1",
+203,
+1,
+1,
+1,
+"set-single"
+],
+"35C": [
+"ScenarioFlag1",
+201,
+1,
+1,
+1,
+"set-single"
+],
+"35D": [
+"ScenarioFlag1",
+201,
+1,
+1,
+1,
+"set-single"
+],
+"35E": [
+"ScenarioFlag2",
+33,
+1,
+1,
+1,
+"set-order"
+],
+"360": [
+"ScenarioFlag1",
+51,
+1,
+1,
+1,
+"set-single"
+],
+"366": [
+"ScenarioFlag1",
+158,
+1,
+1,
+1,
+"set-single"
+],
+"372": [
+"ScenarioFlag2",
+52,
+1,
+1,
+1,
+"set-single"
+],
+"378": [
+"ScenarioFlag2",
+72,
+1,
+1,
+1,
+"set-single"
+],
+"37D": [
+"ScenarioFlag2",
+40,
+2,
+2,
+2,
+"test-votes"
+],
+"37E": [
+"ScenarioFlag2",
+74,
+1,
+1,
+1,
+"test-single"
+],
+"37F": [
+"ScenarioFlag2",
+74,
+1,
+1,
+1,
+"set-single"
+],
+"381": [
+"ScenarioFlag2",
+79,
+1,
+1,
+1,
+"set-single"
+],
+"383": [
+"ScenarioFlag2",
+76,
+1,
+1,
+1,
+"set-single"
+],
+"398": [
+"ScenarioFlag2",
+74,
+1,
+1,
+1,
+"set-single"
+],
+"399": [
+"ScenarioFlag2",
+75,
+1,
+1,
+1,
+"set-single"
+],
+"403": [
+"ScenarioFlag1",
+85,
+1,
+1,
+1,
+"set-single"
+],
+"404": [
+"ScenarioFlag1",
+72,
+3,
+3,
+3,
+"set-votes"
+],
+"406": [
+"ScenarioFlag1",
+85,
+1,
+1,
+1,
+"set-single"
+],
+"415": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"416": [
+"ScenarioFlag1",
+42,
+1,
+1,
+1,
+"set-single"
+],
+"41C": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"41E": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"41F": [
+"ScenarioFlag1",
+42,
+1,
+1,
+1,
+"set-single"
+],
+"420": [
+"ScenarioFlag1",
+42,
+1,
+1,
+1,
+"set-single"
+],
+"421": [
+"ScenarioFlag1",
+46,
+1,
+1,
+1,
+"set-single"
+],
+"423": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"424": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"426": [
+"ScenarioFlag4",
+166,
+2,
+3,
+2,
+"reset-votes"
+],
+"427": [
+"ScenarioFlag4",
+166,
+2,
+3,
+2,
+"reset-votes"
+],
+"428": [
+"ScenarioFlag1",
+47,
+2,
+2,
+2,
+"set-votes"
+],
+"429": [
+"ScenarioFlag1",
+97,
+3,
+3,
+3,
+"set-votes"
+],
+"42A": [
+"ScenarioFlag1",
+97,
+3,
+3,
+3,
+"set-votes"
+],
+"42C": [
+"ScenarioFlag1",
+90,
+1,
+1,
+1,
+"set-single"
+],
+"42D": [
+"ScenarioFlag1",
+90,
+1,
+1,
+1,
+"set-single"
+],
+"432": [
+"ScenarioFlag1",
+93,
+3,
+3,
+4,
+"set-votes"
+],
+"433": [
+"ScenarioFlag1",
+93,
+3,
+3,
+4,
+"set-votes"
+],
+"435": [
+"ScenarioFlag1",
+93,
+3,
+3,
+4,
+"set-votes"
+],
+"438": [
+"ScenarioFlag1",
+97,
+3,
+4,
+3,
+"set-votes"
+],
+"439": [
+"ScenarioFlag4",
+164,
+3,
+3,
+3,
+"reset-votes"
+],
+"457": [
+"ScenarioFlag1",
+178,
+2,
+2,
+2,
+"set-votes"
+],
+"458": [
+"ScenarioFlag1",
+160,
+2,
+2,
+2,
+"set-votes"
+],
+"459": [
+"ScenarioFlag1",
+178,
+2,
+3,
+2,
+"set-votes"
+],
+"471": [
+"ScenarioFlag1",
+225,
+1,
+1,
+1,
+"set-single"
+],
+"48E": [
+"ScenarioFlag1",
+75,
+2,
+2,
+2,
+"set-votes"
+],
+"497": [
+"ScenarioFlag1",
+42,
+1,
+1,
+1,
+"set-single"
+],
+"4AD": [
+"ScenarioFlag2",
+126,
+1,
+1,
+1,
+"set-single"
+],
+"4AE": [
+"ScenarioFlag2",
+126,
+1,
+1,
+1,
+"set-single"
+],
+"4AF": [
+"ScenarioFlag2",
+126,
+1,
+1,
+1,
+"set-single"
+],
+"4B0": [
+"ScenarioFlag2",
+126,
+1,
+1,
+1,
+"set-single"
+],
+"4EE": [
+"ScenarioFlag1",
+72,
+3,
+3,
+3,
+"set-votes"
+],
+"4FC": [
+"ScenarioFlag1",
+48,
+1,
+1,
+1,
+"set-single"
+],
+"501": [
+"ScenarioFlag1",
+90,
+1,
+1,
+1,
+"set-single"
+],
+"502": [
+"ScenarioFlag1",
+117,
+1,
+1,
+1,
+"set-single"
+],
+"503": [
+"ScenarioFlag2",
+15,
+1,
+1,
+1,
+"set-single"
+],
+"507": [
+"ScenarioFlag4",
+166,
+2,
+5,
+2,
+"reset-votes"
+],
+"508": [
+"ScenarioFlag4",
+166,
+2,
+5,
+2,
+"reset-votes"
+],
+"509": [
+"ScenarioFlag4",
+166,
+2,
+3,
+2,
+"reset-votes"
+],
+"50B": [
+"ScenarioFlag1",
+88,
+4,
+5,
+4,
+"set-votes"
+],
+"50C": [
+"ScenarioFlag1",
+88,
+4,
+6,
+4,
+"set-votes"
+],
+"512": [
+"ScenarioFlag1",
+90,
+1,
+1,
+1,
+"set-single"
+],
+"515": [
+"ScenarioFlag2",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"517": [
+"ScenarioFlag2",
+184,
+1,
+1,
+1,
+"set-single"
+],
+"51D": [
+"ScenarioFlag2",
+25,
+1,
+1,
+1,
+"set-single"
+],
+"51E": [
+"ScenarioFlag2",
+25,
+1,
+1,
+1,
+"set-single"
+],
+"51F": [
+"ScenarioFlag2",
+25,
+1,
+1,
+1,
+"set-single"
+],
+"523": [
+"ScenarioFlag4",
+196,
+1,
+1,
+1,
+"reset-single"
+],
+"53E": [
+"ScenarioFlag2",
+184,
+1,
+1,
+1,
+"set-single"
+],
+"53F": [
+"ScenarioFlag2",
+184,
+1,
+1,
+1,
+"set-single"
+],
+"540": [
+"ScenarioFlag2",
+184,
+1,
+1,
+1,
+"set-single"
+],
+"547": [
+"ScenarioFlag4",
+195,
+1,
+1,
+1,
+"reset-single"
+],
+"548": [
+"ScenarioFlag4",
+196,
+1,
+1,
+1,
+"reset-single"
+],
+"549": [
+"ScenarioFlag2",
+199,
+1,
+1,
+1,
+"set-single"
+],
+"552": [
+"ScenarioFlag2",
+115,
+1,
+1,
+1,
+"set-single"
+],
+"553": [
+"ScenarioFlag2",
+115,
+1,
+1,
+1,
+"set-single"
+],
+"55C": [
+"ScenarioFlag2",
+201,
+2,
+2,
+3,
+"set-votes"
+],
+"55D": [
+"ScenarioFlag2",
+202,
+1,
+1,
+1,
+"set-single"
+],
+"55E": [
+"ScenarioFlag2",
+201,
+2,
+3,
+3,
+"set-votes"
+],
+"55F": [
+"ScenarioFlag2",
+205,
+1,
+1,
+1,
+"set-single"
+],
+"563": [
+"ScenarioFlag2",
+15,
+1,
+1,
+1,
+"set-single"
+],
+"567": [
+"ScenarioFlag1",
+109,
+2,
+2,
+3,
+"set-votes"
+],
+"56A": [
+"ScenarioFlag1",
+72,
+3,
+3,
+3,
+"set-votes"
+],
+"570": [
+"ScenarioFlag2",
+122,
+1,
+1,
+1,
+"set-single"
+],
+"5F6": [
+"ScenarioFlag2",
+201,
+2,
+2,
+3,
+"set-votes"
+],
+"611": [
+"ScenarioFlag1",
+136,
+3,
+3,
+3,
+"set-votes"
+],
+"62B": [
+"ScenarioFlag4",
+148,
+3,
+3,
+4,
+"reset-votes"
+],
+"62F": [
+"ScenarioFlag1",
+227,
+1,
+1,
+1,
+"set-single"
+],
+"634": [
+"ScenarioFlag1",
+229,
+1,
+1,
+1,
+"set-single"
+],
+"636": [
+"ScenarioFlag2",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"638": [
+"ScenarioFlag2",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"63B": [
+"ScenarioFlag4",
+148,
+3,
+3,
+4,
+"reset-votes"
+],
+"63C": [
+"ScenarioFlag2",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"63F": [
+"ScenarioFlag1",
+208,
+1,
+1,
+1,
+"set-single"
+],
+"645": [
+"ScenarioFlag4",
+148,
+3,
+3,
+4,
+"reset-votes"
+],
+"64B": [
+"ScenarioFlag1",
+192,
+1,
+1,
+1,
+"set-single"
+],
+"64C": [
+"ScenarioFlag1",
+195,
+3,
+3,
+4,
+"set-votes"
+],
+"64D": [
+"ScenarioFlag1",
+195,
+3,
+4,
+4,
+"set-votes"
+],
+"64E": [
+"ScenarioFlag1",
+207,
+3,
+3,
+3,
+"set-votes"
+],
+"64F": [
+"ScenarioFlag1",
+144,
+1,
+1,
+1,
+"set-single"
+],
+"65B": [
+"ScenarioFlag2",
+141,
+1,
+1,
+1,
+"set-single"
+],
+"65D": [
+"ScenarioFlag2",
+1,
+1,
+1,
+1,
+"set-single"
+],
+"666": [
+"ScenarioFlag1",
+194,
+1,
+1,
+1,
+"set-single"
+],
+"668": [
+"ScenarioFlag2",
+56,
+2,
+2,
+2,
+"set-votes"
+],
+"670": [
+"ScenarioFlag2",
+63,
+1,
+1,
+1,
+"set-single"
+],
+"671": [
+"ScenarioFlag2",
+60,
+1,
+1,
+1,
+"set-single"
+],
+"674": [
+"ScenarioFlag2",
+60,
+1,
+1,
+1,
+"set-single"
+],
+"676": [
+"ScenarioFlag2",
+100,
+1,
+1,
+1,
+"set-single"
+],
+"677": [
+"ScenarioFlag2",
+100,
+1,
+1,
+1,
+"set-single"
+],
+"682": [
+"ScenarioFlag2",
+109,
+1,
+1,
+1,
+"set-single"
+],
+"685": [
+"ScenarioFlag2",
+109,
+1,
+1,
+1,
+"set-single"
+],
+"691": [
+"ScenarioFlag1",
+150,
+1,
+1,
+1,
+"set-single"
+],
+"69B": [
+"ScenarioFlag2",
+171,
+3,
+3,
+3,
+"set-votes"
+],
+"6A0": [
+"ScenarioFlag2",
+171,
+3,
+3,
+3,
+"set-votes"
+],
+"6A1": [
+"ScenarioFlag2",
+171,
+3,
+3,
+3,
+"set-votes"
+],
+"6A3": [
+"ScenarioFlag1",
+194,
+1,
+1,
+1,
+"set-single"
+],
+"6A8": [
+"ScenarioFlag3",
+18,
+1,
+1,
+1,
+"set-single"
+],
+"6AE": [
+"ScenarioFlag1",
+194,
+1,
+1,
+1,
+"set-single"
+],
+"6BF": [
+"ScenarioFlag2",
+208,
+1,
+1,
+1,
+"set-single"
+]
+},
+"bgm": {
+"5": [
+4,
+10.5,
+17,
+"votes"
+],
+"6": [
+46,
+2,
+2,
+"votes"
+],
+"7": [
+12,
+2.5,
+3,
+"votes"
+],
+"8": [
+49,
+2.5,
+3,
+"votes"
+],
+"9": [
+19,
+5.0,
+5,
+"votes"
+],
+"10": [
+8,
+5.5,
+10,
+"votes"
+],
+"11": [
+28,
+2,
+2,
+"votes"
+],
+"12": [
+14,
+8.5,
+10,
+"votes"
+],
+"13": [
+5,
+2.0,
+4,
+"votes"
+],
+"14": [
+30,
+4.5,
+5,
+"votes"
+],
+"15": [
+50,
+4.5,
+7,
+"votes"
+],
+"16": [
+42,
+3.5,
+5,
+"votes"
+],
+"17": [
+60,
+1.0,
+1,
+"single"
+],
+"21": [
+43,
+4.5,
+5,
+"votes"
+],
+"23": [
+3,
+4.5,
+9,
+"votes"
+],
+"27": [
+44,
+6.0,
+9,
+"votes"
+],
+"28": [
+13,
+6.5,
+8,
+"votes"
+],
+"29": [
+22,
+2,
+2,
+"votes"
+],
+"32": [
+17,
+4,
+4,
+"votes"
+],
+"33": [
+21,
+2,
+4,
+"votes"
+],
+"35": [
+10,
+2,
+2,
+"votes"
+],
+"38": [
+35,
+1.0,
+1,
+"single"
+],
+"42": [
+9,
+2,
+3,
+"votes"
+],
+"43": [
+47,
+2.33,
+4,
+"votes"
+],
+"46": [
+11,
+1.0,
+2,
+"votes"
+],
+"48": [
+62,
+2,
+2,
+"votes"
+],
+"49": [
+48,
+3.0,
+3,
+"votes"
+],
+"50": [
+15,
+5.0,
+10,
+"votes"
+],
+"53": [
+46,
+2.0,
+4,
+"votes"
+],
+"60": [
+3,
+1.0,
+1,
+"single"
+],
+"61": [
+32,
+2,
+2,
+"votes"
+],
+"64": [
+31,
+2,
+3,
+"votes"
+],
+"65": [
+35,
+1.0,
+1,
+"single"
+],
+"66": [
+35,
+1.0,
+1,
+"single"
+],
+"67": [
+35,
+1.0,
+1,
+"single"
+],
+"68": [
+40,
+1.0,
+1,
+"single"
+],
+"69": [
+40,
+1.0,
+1,
+"single"
+],
+"70": [
+40,
+1.0,
+1,
+"single"
+],
+"72": [
+20,
+3.0,
+4,
+"votes"
+],
+"73": [
+46,
+1.5,
+3,
+"votes"
+],
+"74": [
+3,
+1.0,
+1,
+"single"
+],
+"79": [
+48,
+1.0,
+1,
+"single"
+],
+"83": [
+72,
+1.0,
+1,
+"single"
+],
+"84": [
+72,
+1.0,
+1,
+"single"
+],
+"144": [
+27,
+2,
+2,
+"votes"
+],
+"184": [
+8,
+2,
+4,
+"votes"
+]
+},
+"se": {
+"5": [
+134,
+2,
+4,
+"votes"
+],
+"10": [
+180,
+2,
+2,
+"votes"
+],
+"22": [
+156,
+4,
+4,
+"votes"
+],
+"27": [
+911,
+10.2,
+11,
+"votes"
+],
+"30": [
+932,
+2,
+2,
+"votes"
+],
+"40": [
+116,
+20.46,
+26,
+"votes"
+],
+"41": [
+932,
+2,
+2,
+"votes"
+],
+"44": [
+9,
+37.64,
+65,
+"votes"
+],
+"61": [
+110,
+3.0,
+3,
+"votes"
+],
+"64": [
+151,
+6,
+12,
+"votes"
+],
+"69": [
+106,
+8,
+8,
+"votes"
+],
+"70": [
+133,
+2,
+3,
+"votes"
+],
+"71": [
+183,
+5.0,
+7,
+"votes"
+],
+"79": [
+904,
+1.0,
+1,
+"single"
+],
+"80": [
+138,
+5.16,
+9,
+"votes"
+],
+"85": [
+174,
+1.0,
+1,
+"single"
+],
+"96": [
+111,
+2,
+3,
+"votes"
+],
+"98": [
+136,
+2,
+2,
+"votes"
+],
+"103": [
+104,
+23.48,
+39,
+"votes"
+],
+"108": [
+125,
+2,
+2,
+"votes"
+],
+"109": [
+137,
+2,
+4,
+"votes"
+],
+"134": [
+187,
+11.5,
+13,
+"votes"
+],
+"141": [
+105,
+69.89,
+83,
+"votes"
+],
+"146": [
+126,
+8.2,
+9,
+"votes"
+],
+"166": [
+909,
+16.33,
+20,
+"votes"
+],
+"173": [
+194,
+6.5,
+13,
+"votes"
+],
+"174": [
+194,
+6.5,
+13,
+"votes"
+],
+"186": [
+168,
+21.93,
+37,
+"votes"
+],
+"192": [
+128,
+1.0,
+1,
+"single"
+],
+"195": [
+135,
+12.08,
+15,
+"votes"
+],
+"196": [
+138,
+2,
+3,
+"votes"
+],
+"206": [
+116,
+5.2,
+7,
+"votes"
+],
+"209": [
+6,
+1.0,
+2,
+"votes"
+],
+"214": [
+135,
+2,
+2,
+"votes"
+],
+"219": [
+111,
+5.33,
+9,
+"votes"
+],
+"220": [
+174,
+18,
+20,
+"votes"
+],
+"222": [
+115,
+2,
+2,
+"votes"
+],
+"227": [
+151,
+4,
+4,
+"votes"
+],
+"230": [
+124,
+18,
+31,
+"votes"
+],
+"232": [
+110,
+2.2,
+3,
+"votes"
+],
+"233": [
+934,
+9.0,
+10,
+"votes"
+],
+"239": [
+105,
+1.0,
+2,
+"votes"
+],
+"240": [
+135,
+24,
+27,
+"votes"
+],
+"245": [
+138,
+1.0,
+2,
+"votes"
+],
+"247": [
+156,
+2,
+2,
+"votes"
+]
+},
+"arrivals": {
+"0,85,111": [
+[
+38,
+1
+],
+2,
+2,
+"votes"
+],
+"0,161,36": [
+[
+1,
+35
+],
+2,
+3,
+"votes"
+],
+"0,164,194": [
+[
+1,
+28
+],
+3.0,
+4,
+"votes"
+],
+"0,179,71": [
+[
+1,
+11
+],
+6,
+6,
+"votes"
+],
+"1,38,46": [
+[
+267,
+1
+],
+2,
+2,
+"votes"
+],
+"1,142,76": [
+[
+2,
+1
+],
+1.0,
+2,
+"votes"
+],
+"2,117,120": [
+[
+376,
+1
+],
+2,
+3,
+"votes"
+],
+"7,10,30": [
+[
+120,
+2
+],
+11.0,
+19,
+"votes"
+],
+"7,40,16": [
+[
+120,
+2
+],
+11.0,
+19,
+"votes"
+],
+"10,18,6": [
+[
+119,
+1
+],
+2,
+2,
+"votes"
+],
+"11,16,8": [
+[
+120,
+2
+],
+11.0,
+19,
+"votes"
+],
+"19,50,15": [
+[
+17,
+1
+],
+2,
+2,
+"votes"
+],
+"20,15,55": [
+[
+322,
+1
+],
+2,
+2,
+"votes"
+],
+"20,15,56": [
+[
+3,
+1
+],
+2,
+2,
+"votes"
+],
+"30,60,37": [
+[
+17,
+3
+],
+8.0,
+8,
+"votes"
+],
+"30,63,29": [
+[
+3,
+1
+],
+2,
+2,
+"votes"
+],
+"30,64,33": [
+[
+17,
+1
+],
+2,
+2,
+"votes"
+],
+"30,110,26": [
+[
+14,
+1
+],
+6,
+6,
+"votes"
+],
+"41,5,29": [
+[
+3,
+1
+],
+2,
+2,
+"votes"
+],
+"41,21,9": [
+[
+318,
+1
+],
+2,
+2,
+"votes"
+],
+"47,50,34": [
+[
+1,
+5
+],
+2,
+2,
+"votes"
+],
+"51,14,12": [
+[
+179,
+1
+],
+2,
+2,
+"votes"
+],
+"51,14,13": [
+[
+318,
+2
+],
+2,
+2,
+"votes"
+],
+"55,28,9": [
+[
+27,
+1
+],
+2,
+2,
+"votes"
+],
+"57,58,14": [
+[
+21,
+1
+],
+2,
+2,
+"votes"
+],
+"57,59,21": [
+[
+27,
+1
+],
+2,
+2,
+"votes"
+],
+"60,100,20": [
+[
+28,
+1
+],
+2,
+2,
+"votes"
+],
+"75,47,43": [
+[
+38,
+1
+],
+4,
+6,
+"votes"
+],
+"75,48,43": [
+[
+38,
+13
+],
+2,
+2,
+"votes"
+],
+"76,51,12": [
+[
+40,
+1
+],
+2,
+2,
+"votes"
+],
+"83,35,14": [
+[
+48,
+1
+],
+4,
+4,
+"votes"
+],
+"83,57,12": [
+[
+50,
+1
+],
+4,
+4,
+"votes"
+],
+"109,24,28": [
+[
+67,
+1
+],
+1.0,
+2,
+"votes"
+],
+"110,21,48": [
+[
+68,
+1
+],
+2,
+2,
+"votes"
+],
+"112,7,42": [
+[
+67,
+1
+],
+1.0,
+2,
+"votes"
+],
+"114,6,23": [
+[
+346,
+1
+],
+1.0,
+2,
+"votes"
+],
+"115,7,7": [
+[
+73,
+2
+],
+2,
+2,
+"votes"
+],
+"116,116,14": [
+[
+2,
+14
+],
+2.17,
+3,
+"votes"
+],
+"120,33,42": [
+[
+76,
+1
+],
+6,
+6,
+"votes"
+],
+"120,33,49": [
+[
+75,
+1
+],
+6,
+6,
+"votes"
+],
+"121,23,12": [
+[
+75,
+1
+],
+4.0,
+4,
+"votes"
+],
+"123,8,8": [
+[
+300,
+1
+],
+1.07,
+2,
+"votes"
+],
+"123,10,44": [
+[
+75,
+2
+],
+6,
+6,
+"votes"
+],
+"123,25,17": [
+[
+83,
+1
+],
+2,
+2,
+"votes"
+],
+"126,8,8": [
+[
+530,
+1
+],
+2,
+2,
+"votes"
+],
+"131,7,12": [
+[
+314,
+1
+],
+2.17,
+3,
+"votes"
+],
+"137,12,10": [
+[
+372,
+1
+],
+2,
+2,
+"votes"
+],
+"138,19,9": [
+[
+354,
+1
+],
+2,
+2,
+"votes"
+],
+"139,49,8": [
+[
+372,
+1
+],
+2,
+2,
+"votes"
+],
+"141,117,8": [
+[
+362,
+1
+],
+2,
+4,
+"votes"
+],
+"145,26,11": [
+[
+357,
+1
+],
+4,
+4,
+"votes"
+],
+"148,22,40": [
+[
+212,
+1
+],
+2,
+2,
+"votes"
+],
+"153,8,9": [
+[
+1,
+13
+],
+2,
+2,
+"votes"
+],
+"154,50,45": [
+[
+583,
+1
+],
+2,
+2,
+"votes"
+],
+"154,54,43": [
+[
+207,
+1
+],
+2,
+2,
+"votes"
+],
+"158,16,20": [
+[
+212,
+1
+],
+4,
+4,
+"votes"
+],
+"188,22,22": [
+[
+262,
+1
+],
+2,
+2,
+"votes"
+],
+"189,22,22": [
+[
+97,
+1
+],
+2,
+2,
+"votes"
+],
+"195,10,57": [
+[
+266,
+1
+],
+2,
+2,
+"votes"
+],
+"195,37,57": [
+[
+584,
+1
+],
+2,
+2,
+"votes"
+],
+"198,16,14": [
+[
+282,
+9
+],
+2,
+2,
+"votes"
+],
+"201,34,16": [
+[
+313,
+1
+],
+2.17,
+3,
+"votes"
+],
+"206,19,40": [
+[
+313,
+1
+],
+2.17,
+3,
+"votes"
+],
+"209,118,24": [
+[
+611,
+1
+],
+2,
+2,
+"votes"
+],
+"219,31,10": [
+[
+156,
+1
+],
+2,
+2,
+"votes"
+],
+"219,46,44": [
+[
+160,
+1
+],
+2,
+3,
+"votes"
+],
+"221,33,6": [
+[
+383,
+22
+],
+2,
+2,
+"votes"
+],
+"221,57,45": [
+[
+383,
+1
+],
+2,
+2,
+"votes"
+],
+"242,29,0": [
+[
+143,
+1
+],
+3.0,
+3,
+"votes"
+],
+"244,18,7": [
+[
+318,
+1
+],
+2,
+2,
+"votes"
+],
+"251,80,25": [
+[
+177,
+3
+],
+2,
+2,
+"votes"
+],
+"266,7,0": [
+[
+404,
+1
+],
+2,
+2,
+"votes"
+],
+"272,8,46": [
+[
+625,
+1
+],
+2,
+2,
+"votes"
+],
+"281,14,55": [
+[
+493,
+1
+],
+2,
+2,
+"votes"
+],
+"301,23,3": [
+[
+577,
+1
+],
+2,
+2,
+"votes"
+],
+"305,15,14": [
+[
+201,
+7
+],
+2.0,
+2,
+"votes"
+],
+"317,20,54": [
+[
+520,
+1
+],
+2,
+3,
+"votes"
+],
+"343,29,15": [
+[
+180,
+8
+],
+3.0,
+3,
+"votes"
+],
+"344,29,15": [
+[
+310,
+2
+],
+4,
+5,
+"votes"
+],
+"349,39,10": [
+[
+305,
+7
+],
+4,
+4,
+"votes"
+],
+"349,63,12": [
+[
+311,
+1
+],
+4,
+4,
+"votes"
+],
+"377,6,17": [
+[
+1,
+28
+],
+3.0,
+3,
+"votes"
+],
+"384,10,28": [
+[
+606,
+1
+],
+2,
+2,
+"votes"
+],
+"394,4,8": [
+[
+431,
+1
+],
+1.25,
+2,
+"votes"
+],
+"400,10,9": [
+[
+192,
+1
+],
+2,
+2,
+"votes"
+]
+},
+"maps": {
+"0": [
+1,
+4
+],
+"1": [
+2,
+2
+],
+"2": [
+376,
+1
+],
+"7": [
+120,
+2
+],
+"10": [
+119,
+1
+],
+"11": [
+120,
+1
+],
+"19": [
+17,
+1
+],
+"20": [
+3,
+2
+],
+"30": [
+17,
+4
+],
+"41": [
+3,
+2
+],
+"47": [
+1,
+1
+],
+"51": [
+179,
+2
+],
+"55": [
+27,
+1
+],
+"57": [
+21,
+2
+],
+"60": [
+28,
+1
+],
+"75": [
+38,
+2
+],
+"76": [
+40,
+1
+],
+"83": [
+48,
+2
+],
+"109": [
+67,
+1
+],
+"110": [
+68,
+1
+],
+"112": [
+67,
+1
+],
+"114": [
+346,
+1
+],
+"115": [
+73,
+1
+],
+"116": [
+2,
+1
+],
+"120": [
+75,
+2
+],
+"121": [
+75,
+1
+],
+"123": [
+75,
+3
+],
+"126": [
+530,
+1
+],
+"131": [
+314,
+1
+],
+"137": [
+372,
+1
+],
+"138": [
+354,
+1
+],
+"139": [
+372,
+1
+],
+"141": [
+362,
+1
+],
+"145": [
+357,
+1
+],
+"148": [
+212,
+1
+],
+"153": [
+1,
+1
+],
+"154": [
+207,
+2
+],
+"158": [
+212,
+1
+],
+"188": [
+262,
+1
+],
+"189": [
+97,
+1
+],
+"195": [
+266,
+2
+],
+"198": [
+282,
+1
+],
+"201": [
+313,
+1
+],
+"206": [
+313,
+1
+],
+"209": [
+611,
+1
+],
+"219": [
+156,
+2
+],
+"221": [
+383,
+2
+],
+"242": [
+143,
+1
+],
+"244": [
+318,
+1
+],
+"251": [
+177,
+1
+],
+"266": [
+404,
+1
+],
+"272": [
+625,
+1
+],
+"281": [
+493,
+1
+],
+"301": [
+577,
+1
+],
+"305": [
+201,
+1
+],
+"317": [
+520,
+1
+],
+"343": [
+180,
+1
+],
+"344": [
+310,
+1
+],
+"349": [
+305,
+2
+],
+"377": [
+1,
+1
+],
+"384": [
+606,
+1
+],
+"394": [
+431,
+1
+],
+"400": [
+192,
+1
+]
+}
+}

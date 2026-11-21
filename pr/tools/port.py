@@ -147,6 +147,19 @@ def port_characters(van, bnw, tables, messages=None):
                 log(f"  {cb.name}: command {c} has no PR equivalent (dropped)")
         if messages is not None and cb.name and cb.name.lower() != cv.name.lower():
             messages[f"MSG_CHAR_NAME_{cb.id + 1:02d}"] = cb.name
+    # profile.guest_commands (Beyond Chaos's `o`): the guests' commands too (SNES 16-27: Ghosts, Moogles, ...;
+    # PR rows 17-28), commands only
+    if getattr(PROFILE, "guest_commands", False):
+        for cv, cb in zip(S.characters(van)[16:28], S.characters(bnw)[16:28]):
+            row = cs.rows.get(M.character(cb.id))
+            if row is None or cv.commands == cb.commands:
+                continue
+            unknown = Counter()
+            vpr = [int(row[f"command_id{k}"]) for k in range(1, 7)]
+            for k, cid in enumerate(pr_commands(cb.commands, vpr, unknown), 1):
+                setv(row, f"command_id{k}", cid, changed)
+            for c in unknown:
+                log(f"  guest {cb.id}: command {c} has no PR equivalent (dropped)")
     log(f"characters: {len(changed)} changed")
 
     g = tables["growth_curve"]
@@ -254,6 +267,18 @@ def drop_fields(items):
     return drop, (ci(cs), ci(rs))
 
 
+def set_drop_slots(row, items, ch):
+    """A mod's drop slots (SNES item ids, 0xFF empty; profile.monster_drop_slots) onto the PR's
+    drop_content_id1..8: the PR picks a slot by the game-wide odds MONSTER_DROP_RATE_1..8 (the
+    profile's game_constants). Not checked yet: what the PR does when the slot it picks is empty."""
+    ids = [0 if x == 0xFF else M.item_content(x) for x in items][:8]
+    ids += [0] * (8 - len(ids))
+    setv(row, "drop_rate", 100 if any(ids) else 0, ch)
+    for k, cid in enumerate(ids, 1):
+        setv(row, f"drop_content_id{k}", cid, ch)
+        setv(row, f"drop_content_id{k}_value", 1 if cid else 0, ch)
+
+
 PR_EQUIP_SLOT = (1, 2, 4, 3, 5, 6)             # SNES equip index -> character_status content_idN
 PR_EMPTY_SLOT = {1: 93, 2: 93, 3: 198, 4: 199, 5: 200, 6: 200}
 
@@ -290,7 +315,10 @@ def port_enemies(van, bnw, tables):
     groups = tables.setdefault("monster_flag_group", P.Table("monster_flag_group"))
     ch, new_groups = set(), set()
     blanks, kept_hp = [], []
+    drop_slots = getattr(PROFILE, "monster_drop_slots", None)   # a mod with more drop slots (T-Edition: 4)
     for ev, eb in zip(S.enemies(van), S.enemies(bnw)):
+        if drop_slots and not S.blank_enemy(bnw, ev.id):
+            set_drop_slots(mo[ev.id + 1], drop_slots(ev.id), ch)
         if ev.raw == eb.raw and ev.items == eb.items:
             continue
         if S.blank_enemy(bnw, ev.id) and not S.blank_enemy(van, ev.id):
@@ -323,17 +351,68 @@ def port_enemies(van, bnw, tables):
             setv(row, "monster_flag_group_id", gid, ch)
         if ev.items != eb.items:
             (rate, d1, d2), (s1, s2) = drop_fields(eb.items)
-            setv(row, "drop_rate", rate, ch)
-            setv(row, "drop_content_id1", d1, ch)
-            setv(row, "drop_content_id1_value", 1 if d1 else 0, ch)
-            setv(row, "drop_content_id2", d2, ch)
-            setv(row, "drop_content_id2_value", 1 if d2 else 0, ch)
+            if not drop_slots:
+                setv(row, "drop_rate", rate, ch)
+                setv(row, "drop_content_id1", d1, ch)
+                setv(row, "drop_content_id1_value", 1 if d1 else 0, ch)
+                setv(row, "drop_content_id2", d2, ch)
+                setv(row, "drop_content_id2_value", 1 if d2 else 0, ch)
             setv(row, "steal_content_id1", s1, ch)
             setv(row, "steal_content_id2", s2, ch)
     log(f"monster: {len(ch)} changed; {len(blanks)} slots BNW emptied keep the PR's monster "
         f"(SNES {', '.join(map(str, blanks))}); {len(kept_hp)} placeholders keep their HP (SNES {', '.join(map(str, kept_hp))})"
         + (f"; {len(new_groups)} monster_flag_group rows made" if new_groups else ""))
     return ch, new_groups
+
+
+# a Coliseum copy's own columns (no drops, EXP or gil in the Coliseum, its own script, Rage and exit)
+COPY_OWN_COLUMNS = {"id", "exp", "gill", "drop_rate", "drop_content_id1", "drop_content_id1_value",
+                    "drop_content_id2", "drop_content_id2_value", "steal_content_id1", "steal_content_id2",
+                    "script_id", "rage_ability_random_group_id", "disappear_type_id"}
+
+
+def monster_copies(van=None):
+    """{copy: regular}: the PR's Coliseum copies of monsters (ids 500+) and the regular each copies
+    (vanilla monster.csv: the regular below 500 with the same name key, HP, level, attack and
+    defense). Also for a mod's per-monster lists (BNW's can't-be-suplexed list covers the copies)."""
+    van = van or P.Table("monster")
+    match = ("mes_id_name", "hp", "lv", "attack", "defense")
+    regular = {}
+    for i, r in van.rows.items():
+        if i < 500:
+            regular.setdefault(tuple(r[c] for c in match), i)
+    out = {}
+    for c, vc in van.rows.items():
+        if c >= 500:
+            j = regular.get(tuple(vc[k] for k in match))
+            if j is not None:
+                out[c] = j
+    return out
+
+
+def sync_monster_copies(tables, log):
+    """The PR's Coliseum fights copies of monsters (ids 500+; in vanilla each has its regular's
+    name key and stats, and differs only in COPY_OWN_COLUMNS). The port writes only the regulars
+    (SNES enemy + 1), so a copy kept vanilla's stats: each copy takes its regular's ported value in
+    every column vanilla had equal. Opt-in per mod (profile.sync_monster_copies; BNW, 2026-11-20)."""
+    mo = tables.get("monster")
+    if mo is None:
+        return {}
+    van = P.Table("monster")
+    ch, pairs = set(), 0
+    for c, j in monster_copies(van).items():
+        if c not in mo.rows or j not in mo.rows:
+            continue
+        vc = van.rows[c]
+        pairs += 1
+        vj, pj, pc = van.rows[j], mo.rows[j], mo.rows[c]
+        for col in mo.columns:
+            if col in COPY_OWN_COLUMNS or col not in vj or col not in vc:
+                continue
+            if vc[col] == vj[col] and pj[col] != vj[col]:
+                setv(pc, col, pj[col], ch)
+    log(f"monster copies: {pairs} Coliseum copies matched to their regulars; {len(ch)} took the port's changes")
+    return {"monster": ch}
 
 
 MESSAGE_PATH = "Assets/GameAssets/Serial/Data/Message"
@@ -554,11 +633,21 @@ def port_item_text(van, bnw, messages):
     vdescs = [] if PROFILE.rename_all else PROFILE.vanilla_descriptions().get("items", [])
     names = S.items(bnw)
     vnames = S.items(van)
+    # a changed name in the PR's words (pr_names: an SNES name of the same item, or of another one)
+    import pr_names
+
+    def pr_name(snes_id):
+        m = M.item(snes_id)
+        if not m:
+            return ""
+        key = content[M.content_id(*m)]["mes_id_name"]
+        return re.sub(r"^<IC_[A-Z]+>", "", vmsg.get(key, ""))
+    pairs = [(v.name, pr_name(v.id)) for v in vnames if v.name]
     n = 0
     for it, vit in zip(names, vnames):
         m = M.item(it.id)
-        if not m or not it.name:
-            continue
+        if not m or not it.name or content[M.content_id(*m)]["mes_id_name"] not in vmsg:
+            continue   # a row the port made (item_identity) was named when it was made
         desc_changed = it.id < len(descs) and (it.id >= len(vdescs) or descs[it.id] != vdescs[it.id])
         if it.name == vit.name and not desc_changed and not PROFILE.rename_all:
             continue
@@ -567,8 +656,12 @@ def port_item_text(van, bnw, messages):
             continue
         old = vmsg.get(row["mes_id_name"], "")
         icon = re.match(r"(<IC_[A-Z]+>)", old)
-        if PROFILE.rename_all or it.name != vit.name:
+        if PROFILE.rename_all:
             messages[row["mes_id_name"]] = (icon.group(1) if icon else "") + it.name
+        elif it.name != vit.name:
+            shown = pr_names.in_pr_words(it.name, vit.name, re.sub(r"^<IC_[A-Z]+>", "", old), pairs)
+            if (icon.group(1) if icon else "") + shown != old:
+                messages[row["mes_id_name"]] = (icon.group(1) if icon else "") + shown
         desc = descs[it.id] if desc_changed else ""
         if desc and row["mes_id_description"] not in ("None", ""):
             messages[row["mes_id_description"]] = " ".join(desc.split("\n"))
@@ -657,13 +750,197 @@ def stat_caps(tables, profile, log):
     return {"game_constant_int": changed} if changed else {}
 
 
+# One port per output folder, and nobody reads a half-written one (kit lead, 2026-11-20: two BNW ports
+# started in the same second corrupted each other, and test_mod / installs read half-written folders).
+# <out>.porting is the lock: an atomic mkdir with owner.txt (pid, start, command) held for the whole
+# port; a second port of the same folder waits for it (PORT_LOCK_WAIT seconds, default 900, then stops
+# with the holder named), and a lock whose process is gone is taken over. The port writes <out>.new,
+# which replaces <out> by rename at the end; until then <out> is the last complete port.
+LOCK_SUFFIX, STAGE_SUFFIX = ".porting", ".new"
+
+
+def _pid_alive(pid):
+    if pid <= 0:
+        return False
+    if os.name == "nt":   # never os.kill on Windows: it terminates the process
+        import ctypes
+        k = ctypes.WinDLL("kernel32", use_last_error=True)
+        h = k.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return ctypes.get_last_error() == 5   # access denied: it exists
+        try:
+            code = ctypes.c_ulong()
+            return bool(k.GetExitCodeProcess(h, ctypes.byref(code))) and code.value == 259   # STILL_ACTIVE
+        finally:
+            k.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def _pid_started(pid):
+    """When a live process started (epoch seconds), or None where that can't be told (not Windows, no access)."""
+    if os.name != "nt":
+        return None
+    import ctypes
+    from ctypes import wintypes
+    k = ctypes.WinDLL("kernel32", use_last_error=True)
+    h = k.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+    if not h:
+        return None
+    try:
+        t = [wintypes.FILETIME() for _ in range(4)]   # creation, exit, kernel, user
+        if not k.GetProcessTimes(h, *[ctypes.byref(x) for x in t]):
+            return None
+        return (t[0].dwHighDateTime << 32 | t[0].dwLowDateTime) / 1e7 - 11644473600
+    finally:
+        k.CloseHandle(h)
+
+
+def _holds(pid, lock):
+    """The lock's holder is still at it: its process is alive, isn't this one, and didn't start after the lock was
+    taken. A lock left by a port that was killed (the game closed mid-seed) can name a pid that is now another
+    process's, ours included: Proton restarts its process ids with each session."""
+    if pid is None or pid == os.getpid() or not _pid_alive(pid):
+        return False
+    started = _pid_started(pid)
+    if started is None:
+        # Windows: a holder is this user's python.exe, which can always be opened; a process we may not open (a
+        # system process that got the pid) isn't one. Elsewhere there's no start time: alive counts.
+        return os.name != "nt"
+    try:
+        taken = os.path.getmtime(os.path.join(lock, "owner.txt"))
+    except OSError:
+        return True
+    return started <= taken + 5
+
+
+def _lock_owner(lock):
+    """(pid or None, one-line description) of a lock folder's owner.txt."""
+    try:
+        with open(os.path.join(lock, "owner.txt"), encoding="utf-8") as f:
+            text = f.read()
+    except OSError:
+        return None, "a port (no owner.txt yet)"
+    m = re.search(r"^pid (\d+)", text, re.M)
+    return (int(m.group(1)) if m else None), " ".join(text.split())
+
+
+def lock_out(out, say=print):
+    """Take <out>.porting (waiting for another port of the same folder); returns the lock's path."""
+    import shutil
+    import time
+    lock = out + LOCK_SUFFIX
+    os.makedirs(os.path.dirname(lock) or ".", exist_ok=True)
+    wait = float(os.environ.get("PORT_LOCK_WAIT", "900"))
+    t0, said = time.time(), False
+    while True:
+        try:
+            os.mkdir(lock)
+            break
+        except FileExistsError:
+            pid, who = _lock_owner(lock)
+            try:
+                age = time.time() - os.path.getmtime(lock)
+            except OSError:
+                continue   # released meanwhile
+            if (pid is not None and not _holds(pid, lock)) or (pid is None and age > 120):
+                # the holder is gone: take its lock over (renamed away first, so two takers can't both win)
+                tomb = f"{lock}.stale{os.getpid()}"
+                try:
+                    os.rename(lock, tomb)
+                except OSError:
+                    continue
+                if _lock_owner(tomb)[0] != pid:   # renamed a fresh lock (a race): put it back
+                    try:
+                        os.rename(tomb, lock)
+                    except OSError:
+                        pass
+                    continue
+                say(f"port lock: taking over {lock}: its holder is gone ({who})")
+                shutil.rmtree(tomb, ignore_errors=True)
+                continue
+            if time.time() - t0 > wait:
+                raise SystemExit(f"port: {out} is being ported by another process ({who}); waited {wait:.0f} s "
+                                 f"(PORT_LOCK_WAIT). Its lock: {lock}")
+            if not said:
+                say(f"port lock: waiting for {lock} ({who})")
+                said = True
+            time.sleep(2)
+    with open(os.path.join(lock, "owner.txt"), "w", encoding="utf-8") as f:
+        f.write(f"pid {os.getpid()}\nstart {time.strftime('%Y-%m-%d %H:%M:%S')}\ncmd {' '.join(sys.argv)[:300]}\n")
+    return lock
+
+
+def unlock_out(lock):
+    import shutil
+    shutil.rmtree(lock, ignore_errors=True)
+
+
+def _swap_in(stage, out):
+    """<out> becomes <stage> (renames; retried while something holds a file in <out> open). If the stage can't
+    go in, the last port goes back to <out>."""
+    import glob
+    import shutil
+    import time
+    for left in glob.glob(glob.escape(out) + ".old*"):   # earlier swaps' leftovers a reader held open
+        shutil.rmtree(left, ignore_errors=True)
+    old = f"{out}.old{os.getpid()}"
+    for attempt in range(60):
+        try:
+            if os.path.isdir(out):
+                os.rename(out, old)
+            break
+        except OSError:
+            if attempt == 59:
+                raise
+            time.sleep(0.5)
+    try:
+        os.rename(stage, out)
+    except OSError:
+        if os.path.isdir(old) and not os.path.exists(out):
+            os.rename(old, out)
+        raise
+    shutil.rmtree(old, ignore_errors=True)
+
+
 def main(profile):
+    """Port profile.rom into profile.out (one port per folder at a time; built aside and swapped in)."""
+    import shutil
+    global OUT
+    final = profile.out
+    lock = lock_out(final, lambda m: print(m, flush=True))   # not log(): the report stays the port's own
+    stage = final + STAGE_SUFFIX
+    cls = profile.__class__
+    ok = False
+    try:
+        shutil.rmtree(stage, ignore_errors=True)   # a crashed port's leftovers (ours now: we hold the lock)
+        # every step writes through profile.out / OUT: point them at the stage for this port
+        profile.__class__ = type(cls.__name__, (cls,), {"out": property(lambda self: stage)})
+        try:
+            _main(profile)
+        finally:
+            profile.__class__ = cls
+        _swap_in(stage, final)
+        ok = True
+    finally:
+        OUT = final
+        if not ok:
+            shutil.rmtree(stage, ignore_errors=True)
+        unlock_out(lock)
+
+
+def _main(profile):
     global OUT, PROFILE
     PROFILE, OUT = profile, profile.out
     import shutil
     if os.path.isdir(OUT):
         shutil.rmtree(OUT)
-    log(f"porting {profile.rom} -> {OUT}")
+    log(f"porting {profile.rom} -> {OUT[:-len(STAGE_SUFFIX)] if OUT.endswith(STAGE_SUFFIX) else OUT}")
     van, bnw = S.Rom(VANILLA_ROM), S.Rom(profile.rom)
     M.SPELL_OVERRIDES.clear()
     M.SPELL_OVERRIDES.update(getattr(profile, "spell_relocations", None) or {})
@@ -674,9 +951,13 @@ def main(profile):
     jobs = JobGroups()
     changed = {}
     messages = {}
+    # a mod that rebuilt FF6's item list (T-Edition): each slot's PR row and look, and a vanilla baseline
+    # in the mod's item numbering for the diffs below (tools/item_identity.py; off unless the profile asks)
+    import item_identity
+    van, item_rows, _ = item_identity.prepare(profile, van, bnw, tables, messages, log)
     changed.update(port_characters(van, bnw, tables, messages))
     changed.update(port_items(van, bnw, tables, jobs))
-    for k, v in port_sell(tables).items():
+    for k, v in list(port_sell(tables).items()) + list(item_rows.items()):
         changed.setdefault(k, set()).update(v)
     changed["monster"], flag_rows = port_enemies(van, bnw, tables)
     if flag_rows:
@@ -689,7 +970,14 @@ def main(profile):
     sp.port()
     PS.LearningPorter(van, bnw, sp, log).port()
     port_item_text(van, bnw, messages)
-    changed["monster_party"] = port_ap(van, bnw, tables) | port_escape(van, bnw, tables) | port_event_formations(van, bnw, tables)
+    if getattr(PROFILE, "character_names", False):   # opt-in: the mod's character names (port_names.py)
+        import port_names
+        port_names.port_character_names(van, bnw, messages, log)
+    if getattr(PROFILE, "monster_names", False):   # opt-in: the mod's monster names (port_names.py)
+        import port_names
+        for name, ids in port_names.port_monster_names(van, bnw, tables, messages, PROFILE.rename_all, log).items():
+            changed.setdefault(name, set()).update(ids)
+    changed["monster_party"] =port_ap(van, bnw, tables) | port_escape(van, bnw, tables) | port_event_formations(van, bnw, tables)
     changed["product"] = port_shops(van, bnw, tables)
     import port_chests
     for name, ids in port_chests.port(van, bnw, OUT, log, tables).items():
@@ -723,6 +1011,12 @@ def main(profile):
     import port_dances
     if "-dda" in os.environ.get("WC_FLAGS", "").split() or getattr(profile, "dance_descriptions", False):
         log(f"dances: {port_dances.describe_steps(bnw, messages)} dance descriptions list their steps")
+    if hasattr(profile, "rage_descriptions"):
+        # each Rage's two attacks in its description (after port_rages: the fallback reads its rows)
+        ch, own, made = port_dances.describe_rages(profile.rage_descriptions(), tables, messages)
+        for name, ids in ch.items():
+            changed.setdefault(name, set()).update(ids)
+        log(f"rages: {own} descriptions in the mod's words, {made} from their two attacks")
     for name, ids in port_dances.port(van, bnw, tables, log, profile, messages).items():
         changed.setdefault(name, set()).update(ids)
     import port_procs
@@ -741,6 +1035,15 @@ def main(profile):
                 row[col] = str(val)
                 changed.setdefault("ability", set()).add(aid)
         log(f"ability {aid}: {cols}")
+    # single values a mod sets in its event code, not in data tables: {table: {row id: {column: value}}}
+    for tname, rows_ in (getattr(profile, "table_overrides", None) or {}).items():
+        tab = tables.setdefault(tname, P.Table(tname))
+        for rid, cols in rows_.items():
+            for col, val in cols.items():
+                if tab[rid][col] != str(val):
+                    tab[rid][col] = str(val)
+                    changed.setdefault(tname, set()).add(rid)
+            log(f"{tname} {rid}: {cols}")
     # WC's -fst (SwdTech gauge charges four times faster): the PR's Bushido charges for its
     # technique's ability_wait (Fang 3 .. Oblivion 17): a quarter of it
     if "-fst" in os.environ.get("WC_FLAGS", "").split():
@@ -825,6 +1128,9 @@ def main(profile):
     encounters = port_encounters.EncounterPorter(van, bnw, tables, log)
     for name, ids in encounters.port().items():
         changed.setdefault(name, set()).update(ids)
+    import port_monster_ext   # monsters/formations past the US tables (a profile's grown ones: T-Edition); else nothing
+    for name, ids in port_monster_ext.port(van, bnw, tables, encounters, messages, OUT, log, profile).items():
+        changed.setdefault(name, set()).update(ids)
     import port_veldt   # the Veldt's formations: after the encounters, whose parties it fights
     for name, ids in port_veldt.port(van, bnw, tables, encounters, OUT, log).items():
         changed.setdefault(name, set()).update(ids)
@@ -838,6 +1144,7 @@ def main(profile):
         port_ai.SNES_AI = True
         port_ai.SNES_AI_RULES = getattr(profile, "snes_ai_rules", "vanilla")
         port_ai.SNES_AI_STATUS = getattr(profile, "snes_ai_status", False)
+        port_ai.PROFILE = profile   # its per-fight AI settings (snes_ai_events, snes_ai_formations...)
     for name, ids in port_ai.port(van, bnw, tables, OUT, log, getattr(profile, "battle_messages", False)).items():
         changed.setdefault(name, set()).update(ids)
     for name, ids in battle_constants(tables, profile, log).items():
@@ -847,8 +1154,12 @@ def main(profile):
     for name, ids in sp.changed.items():
         changed.setdefault(name, set()).update(ids)
     import port_resist
-    for name, ids in port_resist.ResistPorter(van, bnw, tables, log).port().items():
+    for name, ids in port_resist.ResistPorter(van, bnw, tables, log,
+                                              stop_block=getattr(profile, "equip_stop_block", False)).port().items():
         changed.setdefault(name, set()).update(ids)
+    if getattr(profile, "sync_monster_copies", False):   # opt-in (BNW): after every monster stage
+        for name, ids in sync_monster_copies(tables, log).items():
+            changed.setdefault(name, set()).update(ids)
     os.makedirs(OUT, exist_ok=True)
     for fname, data in (profile.extra_data(bnw) or {}).items():
         with open(os.path.join(OUT, fname), "w", encoding="utf-8") as f:

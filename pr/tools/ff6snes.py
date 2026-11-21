@@ -48,7 +48,24 @@ EVADE_STEPS = [0, 10, 20, 30, 40, 50, -10, -20, -30, -40, -50]
 # ROM bytes held in memory, by absolute path (the ROM-free WC generator: its input is
 # tools/wc_basedata.py's shipped data, its output never a ROM file)
 MEMORY = {}
+# A mod image's tables grown past the US layout's counts (T-Edition: 512 monsters, 768 formations),
+# by the id() of the image's bytes (the object registered in MEMORY): {name: (file offset in the
+# image, record size, count)} for tables in the image, or data the profile hands the porters
+# ("monster_names", "special_names": lists by monster; "sprites": a snes_sprites-like reader).
+# Empty unless a profile registers its image (profile_tedition.build, through
+# port_monster_ext.register); readers that know a table read past the US count through extended().
+# Tables: formations (15), formation_flags (4), formation_ap (1), monsters (32), monster_items (4,
+# the US layout's), sketches (2), monster_graphics (5), map_properties (33).
+EXTENDED = {}
+
+
+def extended(rom, name, default=None):
+    """A grown table of rom's image ((offset, record size, count)) or a profile's data, else default."""
+    return EXTENDED.get(id(getattr(rom, "data", rom)), {}).get(name, default)
+
+
 OUT_MAGIC = b"FF6WCO1\0"   # a ROM-free WC run's output (tools/wc_romfree.py): zlib'd bytes
+OUT_MAGICS = (OUT_MAGIC, b"FF6BCO1\0")   # ... and a Beyond Chaos run's (tools/bc_run.py)
 
 
 def rom_bytes(path):
@@ -59,7 +76,7 @@ def rom_bytes(path):
         return MEMORY[key]
     with open(path, "rb") as f:
         data = f.read()
-    if data.startswith(OUT_MAGIC):
+    if data.startswith(OUT_MAGICS):
         import zlib
         data = zlib.decompress(data[len(OUT_MAGIC):])
     if len(data) % 0x8000 == 0x200:

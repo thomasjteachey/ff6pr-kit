@@ -90,3 +90,72 @@ def describe_steps(mod, messages):
             messages[dance["mes_id_description"]] = " / ".join(step_names)
             n += 1
     return n
+
+
+RAGE_ABILITY_TYPE = 625   # the PR's Rage abilities (800 + SNES monster id; data_a = the PR monster id)
+
+
+def describe_rages(texts, tables, messages):
+    """Each Rage's two attacks in its description, as BNW's Rage menu shows them (bnw 3.0
+    ragedance_descriptions.asm). texts: {SNES monster id: (first attack, second attack)}, the
+    mod's own words; any other Rage gets its two abilities' names from its ability_random_group
+    rows (as ported). The PR's Rage abilities have content rows without a description key: each
+    gets MSG_BNW_RAGE_INF_<PR monster id>, which the battle's ability list and the Skills menu show.
+    Returns {"content": changed row ids}."""
+    import re
+    content = tables.setdefault("content", P.Table("content"))
+    mo = tables.get("monster") or P.Table("monster")
+    arg = tables.get("ability_random_group") or P.Table("ability_random_group")
+    names = dict(P.messages())
+    names.update(messages)
+    by4 = {int(r["type_value"]): r for r in content if r["type_id"] == "4"}
+    groups = {}
+    for r in arg:
+        groups.setdefault(int(r["group_id"]), []).append(r)
+
+    def plain(key):
+        return re.sub(r"<[^>]*>", "", names.get(key, "")).strip()
+
+    def frac(rate, total):
+        share = rate / total if total else 0
+        for label, v in (("2/3", 2 / 3), ("1/3", 1 / 3), ("1/2", 1 / 2)):
+            if abs(share - v) < 0.03:
+                return label
+        return f"{round(100 * share)}%"
+
+    changed, own, made = set(), 0, 0
+    for r in P.Table("ability"):
+        if r["type_id"] != str(RAGE_ABILITY_TYPE):
+            continue
+        aid, mid = int(r["id"]), int(r["data_a"])
+        row = by4.get(aid)
+        if row is None or mid < 1:
+            continue
+        e = mid - 1
+        if e in texts:
+            a, b = texts[e]
+            text = f"2/3: {a}; 1/3: {b}"
+            own += 1
+        else:
+            try:
+                g = int(mo[mid]["rage_ability_random_group_id"])
+            except (KeyError, ValueError):
+                continue
+            rates = {}   # by name: the PR splits a special over two rows (two ability ids, one name)
+            for x in groups.get(g, []):
+                a = int(x["ability_id"])
+                name = plain(by4[a]["mes_id_name"]) if a in by4 else ""
+                if name and int(x["invocation_rate"]) > 0:
+                    rates[name] = rates.get(name, 0) + int(x["invocation_rate"])
+            if not rates:
+                continue
+            picks = sorted(rates.items(), key=lambda p: -p[1])
+            total = sum(rates.values())
+            text = "; ".join(f"{frac(rate, total)}: {name}" for name, rate in picks[:2]) if len(picks) > 1 else picks[0][0]
+            made += 1
+        key = f"MSG_BNW_RAGE_INF_{mid:03d}"
+        if row["mes_id_description"] != key:
+            row["mes_id_description"] = key
+            changed.add(int(row["id"]))
+        messages[key] = text
+    return {"content": changed}, own, made

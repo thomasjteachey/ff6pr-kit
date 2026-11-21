@@ -1,0 +1,7 @@
+{
+ "_doc": "SNES event bit -> PR flag ties confirmed by hand (tools/event_translate.py reads them over data/snes_event_maps.json's learned ones): bit (hex) -> [PR flag category, index, why]",
+ "flags": {
+  "0A4": ["ScenarioFlag2", 41, "the World of Ruin: WC's IN_WOR; the PR's merged towns show their WoR state with it (wc_events COLLAPSED)"],
+  "0CD": ["ScenarioFlag2", 97, "the Falcon obtained: WC's GOT_FALCON (wc_events GOT_FALCON)"]
+ }
+}

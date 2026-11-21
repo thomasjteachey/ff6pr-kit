@@ -1,0 +1,2 @@
+# Noise Blaster self-test: where a Tools act gets its function group (2026-11-20, bnw-engine)
+FunctionUtility\$\$GetAbilityFunction

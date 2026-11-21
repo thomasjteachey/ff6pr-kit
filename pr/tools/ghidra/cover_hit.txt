@@ -1,0 +1,12 @@
+# BNW's cover extras (2026-11-20): a covering knight's Evade halved, Interceptor not blocking a
+# covered hit, Umaro's Mog toss a sure critical: the physical function's hit flow, the
+# Interceptor roll and the toss animation that picks the thrown ally
+BattleFunction2\$\$HitCalc$
+BattleFunction2\$\$FixedTarget$
+BattleBasicFunction\$\$HitCalc$
+BattleBasicFunction\$\$MainCalc$
+BattleBasicFunction\$\$FixedTarget$
+WildFangConditionFunction\$\$CheckDefendInvoke$
+ActSelectWildFang\$\$CheckInterceptorCounterOccurrence$
+ThrowAtActFunction\$\$
+ThrowAtActFunction\.<>c

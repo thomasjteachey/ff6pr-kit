@@ -1,0 +1,7 @@
+# headless save loading, part 2 (2026-11-20): after the title's scene switch the field never got ready (scene other,
+# map 0): what MainGame waits on at its start, and the field's own map load (which pumps MapLoadProcessor)
+MainGame\$\$(Update|InitCompleted|CheckInitCompleted|ChangeState|LoadingIsAlmostDone|get_FieldReady|set_FieldReady|get_SubScenesReady|FinishSetupSubScenes|LateLoadSubScenes|InitializeUniTask|LoadSubScene|SubSceneLoadingWait|GotoSceneTask)$
+MainGame\.<(InitializeUniTask|SubSceneLoadingWait|LoadSubScene|LateLoadSubScenes)>d__\d+\$\$MoveNext$
+Last\.Map\.FieldController\.<LoadMap>d__182\$\$MoveNext$
+Last\.Map\.FieldController\$\$LoadMap$
+Last\.Management\.TaskMachine\$\$(UpdateProcess|GetRunningTaskCount|AddTask)$

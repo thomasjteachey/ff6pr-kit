@@ -22,6 +22,9 @@ static class Program
         Test("snake_case table to master type name", Pascal);
         Test("SNES encounter rules: vanilla", EncountersVanilla);
         Test("SNES encounter rules: BNW's roll and tables", EncountersBnw);
+        Test("monster images: recipe, pixels, thumbnail", MonsterImagesRecipe);
+        Test("monster images: files, keys, marker", MonsterImagesWrite);
+        Test("SNES Suplex: the monsters it misses", SuplexRules);
         Console.WriteLine($"\n{passes} passed, {failures} failed");
         return failures;
     }
@@ -35,6 +38,30 @@ static class Program
     static void Eq<T>(T want, T got, string what)
     {
         if (!EqualityComparer<T>.Default.Equals(want, got)) throw new Exception($"{what}: want {want}, got {got}");
+    }
+
+    // PrKit/Ff6/SnesSuplexRules.cs (tests/test_snes_rules.py checks the list against the US ROM)
+    static void SuplexRules()
+    {
+        var v = PrKit.Ff6.SnesSuplexRules.VanillaNoSuplex;
+        Eq(159, v.Length, "vanilla's can't-suplex monsters (146 named + 13 unnamed slots)");
+        Eq(v.Length, v.Distinct().Count(), "no id twice");
+        if (v.Any(id => id < 1 || id > 384)) throw new Exception("an id outside the PR's 1-384 SNES rows");
+        var set = new HashSet<int>(v);
+        const int suplex = PrKit.Ff6.SnesSuplexRules.SuplexAbility, whisper = 15, ghostTrain = 263, vargas = 260;
+        Eq(true, PrKit.Ff6.SnesSuplexRules.Misses(suplex, whisper, set), "Whisper can't be suplexed");
+        Eq(true, PrKit.Ff6.SnesSuplexRules.Misses(suplex, vargas, set), "Vargas can't be suplexed");
+        Eq(false, PrKit.Ff6.SnesSuplexRules.Misses(suplex, ghostTrain, set), "the Phantom Train can be");
+        Eq(false, PrKit.Ff6.SnesSuplexRules.Misses(1, whisper, set), "only Suplex misses (Attack doesn't)");
+        Eq(false, PrKit.Ff6.SnesSuplexRules.Misses(suplex, 0, set), "not a monster (a character)");
+        Eq(false, PrKit.Ff6.SnesSuplexRules.Misses(suplex, whisper, new HashSet<int>()), "a mod with an empty list");
+        Eq(true, PrKit.Ff6.SnesSuplexRules.Misses(200, whisper, set, 200), "a mod's own Suplex ability id");
+        var copies = PrKit.Ff6.SnesSuplexRules.VanillaNoSuplexCopies;
+        Eq(18, copies.Length, "Coliseum copies of can't-suplex monsters");
+        if (copies.Any(id => id < 500 || set.Contains(id))) throw new Exception("a copy below 500 or already a regular");
+        Eq(177, PrKit.Ff6.SnesSuplexRules.VanillaWithCopies.Length, "regulars + copies");
+        Eq(true, PrKit.Ff6.SnesSuplexRules.Misses(suplex, 500, new HashSet<int>(PrKit.Ff6.SnesSuplexRules.VanillaWithCopies)),
+           "Suplex misses a flagged monster's Coliseum copy");
     }
 
     static void GameNames()
@@ -164,5 +191,76 @@ static class Program
         Eq(2, r.MapCode(219), "set 219: high");
         Eq(0, r.MapCode(5), "a set not listed: normal");
         Eq(0x180, r.Rate(true, r.WorldCode(1, 1, 9), false, false), "the rate");
+    }
+
+    // MonsterImages (game-free): a synthetic recipe with one new-art image (palette + pixels, a
+    // thumbnail at 3x) built into a scratch Magicite folder: pixels, PNG, sprite data, keys, marker.
+    static string MonsterRecipeJson()
+    {
+        // 3x2 sprite: slots 0 (clear), 1 (red), 2 (blue)
+        var idx = new byte[] { 0, 1, 2, 1, 1, 0 };
+        string b64;
+        using (var ms = new MemoryStream())
+        {
+            using (var z = new System.IO.Compression.ZLibStream(ms, System.IO.Compression.CompressionLevel.Optimal, true)) z.Write(idx, 0, idx.Length);
+            b64 = Convert.ToBase64String(ms.ToArray());
+        }
+        return "{\"imgs\": {\"id\": \"test1\", \"version\": 1, \"images\": [{\"monster\": 7, \"name\": \"Test\", \"key\": \"MN_FF6_001_B007\", " +
+               "\"group\": \"mn_ff6_001\", \"w\": 3, \"h\": 2, \"palette\": [\"000000\", \"ff0000\", \"0000ff\"], \"pixels\": \"" + b64 + "\", " +
+               "\"thumb\": {\"group\": \"mt_ff6_001_b007\", \"x\": 100, \"y\": 110, \"scale\": 3}}]}}";
+    }
+
+    static void MonsterImagesRecipe()
+    {
+        Eq(null, MonsterImageRecipe.FromJson("{\"x\": 1}", "imgs"), "no recipe");
+        var r = MonsterImageRecipe.FromJson(MonsterRecipeJson(), "imgs");
+        Eq("test1", r.Id, "id");
+        var img = r.Images.Single();
+        Eq(7, img.Monster, "monster");
+        Eq("mt_ff6_001_b007", img.Thumb.Group, "thumb group");
+        Eq(3, img.Thumb.Scale, "thumb scale");
+        var px = MonsterImages.Build(".", img, new Dictionary<string, Dictionary<string, BundleTexture>>(), _ => { });
+        Eq(3 * 2 * 4, px.Length, "rgba size");
+        Eq(0, (int)px[3], "slot 0 is clear");
+        Eq("255,0,0,255", $"{px[4]},{px[5]},{px[6]},{px[7]}", "slot 1 red");
+        Eq("0,0,255,255", $"{px[8]},{px[9]},{px[10]},{px[11]}", "slot 2 blue");
+        var th = MonsterImages.BuildThumb(".", img, px, null, _ => { });
+        Eq(MonsterThumb.Size * MonsterThumb.Size * 4, th.Length, "thumb size");
+        int at(int x, int y) => 4 * (y * MonsterThumb.Size + x);
+        Eq(255, (int)th[at(103, 110) + 0], "thumb: art (1,0) at 3x is red");
+        Eq(255, (int)th[at(108, 112) + 2], "thumb: art (2,0) at 3x is blue");
+        Eq(0, (int)th[at(100, 110) + 3], "thumb: art (0,0) clear");
+        Eq(0, (int)th[at(99, 110) + 3], "thumb: outside the art clear");
+    }
+
+    static void MonsterImagesWrite()
+    {
+        var r = MonsterImageRecipe.FromJson(MonsterRecipeJson(), "imgs");
+        var dir = Path.Combine(Path.GetTempPath(), "prkit_monster_images_test");
+        if (Directory.Exists(dir)) Directory.Delete(dir, true);
+        var warn = new List<string>();
+        var line = MonsterImages.Ensure(dir, dir, r, warn.Add);
+        Eq(0, warn.Count, "warnings: " + string.Join("; ", warn));
+        var img = r.Images[0];
+        var png = File.ReadAllBytes(MonsterImages.PngPath(dir, img));
+        Eq("89-50-4E-47-0D-0A-1A-0A", BitConverter.ToString(png, 0, 8), "PNG signature");
+        Eq(3, png[16] << 24 | png[17] << 16 | png[18] << 8 | png[19], "PNG width");
+        Eq(2, png[20] << 24 | png[21] << 16 | png[22] << 8 | png[23], "PNG height");
+        var sd = File.ReadAllText(Path.ChangeExtension(MonsterImages.PngPath(dir, img), ".spriteData"));
+        if (!sd.Contains("Rect = [0,0,3,2]") || !sd.Contains("Pivot = [0.5,0]")) throw new Exception("sprite data: " + sd);
+        var keys = File.ReadAllText(Path.Combine(dir, "mn_ff6_001", "keys", "Export.json"));
+        if (!keys.Contains("\"MN_FF6_001_B007\"") || !keys.Contains("Assets/GameAssets/Serial/Res/Battle/Monster/MN_FF6_001/MN_FF6_001_B007"))
+            throw new Exception("keys: " + keys);
+        if (!File.Exists(MonsterImages.ThumbPngPath(dir, img.Thumb))) throw new Exception("no thumbnail");
+        var tkeys = File.ReadAllText(Path.Combine(dir, "mt_ff6_001_b007", "keys", "Export.json"));
+        if (!tkeys.Contains("Res/UI/Common/Library/Thumbnail/MT_FF6_001_B007/Thumbnail")) throw new Exception("thumb keys: " + tkeys);
+        if (!line.StartsWith("monster images: made 1 of 1 (+1")) throw new Exception(line);
+        if (!MonsterImages.Ensure(dir, dir, r, warn.Add).EndsWith("up to date")) throw new Exception("second run should skip");
+        // a new recipe id: the old groups go, the new ones are made
+        var r2 = MonsterImageRecipe.FromJson(MonsterRecipeJson().Replace("\"test1\"", "\"test2\""), "imgs");
+        if (MonsterImages.UpToDate(dir, r2)) throw new Exception("a new id isn't up to date");
+        MonsterImages.Ensure(dir, dir, r2, warn.Add);
+        Eq("test2", File.ReadAllLines(Path.Combine(dir, MonsterImages.Marker))[0], "marker id");
+        Directory.Delete(dir, true);
     }
 }

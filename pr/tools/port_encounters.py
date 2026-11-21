@@ -16,10 +16,15 @@ A PR party also holds its battle's background and music; the SNES takes the back
 the map. So a formation gets one party per look of the places it is fought (the set's own
 vanilla background and music): the first at 2000 + f, the next at 4000 + 600 k + f (a WC seed
 fought a factory formation in the Crumbling House on the factory's background with the battle
-music the house doesn't play: the user's playtest, 2026-11-06).
+music the house doesn't play: the user's playtest, 2026-11-06). Formations 600+ (a mod's grown
+table: T-Edition's 576-767, ff6snes.extended) have parties of their own at 30000 + 1000 k + f, since
+4000 + 600 k + f would meet formation f - 600's; under 600 nothing changes (WcPlugin's WcVeldt reads
+2000 + f and 4000 + 600 k + f).
 """
 from collections import Counter, defaultdict
 
+import ff6snes as S
+import idmap as M
 import prdata as P
 
 FORMATIONS, PACKS = 0x0F6200, 0x0F4800
@@ -27,11 +32,17 @@ ZONES = {"WoB": 0x0F5400, "WoR": 0x0F5500}  # 64 zones x 4 terrain packs
 MAP_PACKS, MAPS = 0x0F5600, 416
 NEW_PARTY_BASE = 2000
 VARIANT_BASE, VARIANT_STRIDE = 4000, 600    # past vanilla's parties (to 3410)
+EXT_FROM, EXT_BASE, EXT_STRIDE = 600, 30000, 1000   # formations 600+ (a mod's grown table): 30000 + 1000 k + f
 LOOK = ("battle_background_asset_id", "battle_bgm_asset_id")
 
 
 def party_ids(f, rows):
     """The parties this porter made for SNES formation f, present in `rows` (first one first)."""
+    if f >= EXT_FROM:
+        out = []
+        while EXT_BASE + EXT_STRIDE * len(out) + f in rows:
+            out.append(EXT_BASE + EXT_STRIDE * len(out) + f)
+        return out
     out = [NEW_PARTY_BASE + f] if NEW_PARTY_BASE + f in rows else []
     k = 0
     while VARIANT_BASE + VARIANT_STRIDE * k + f in rows:
@@ -43,9 +54,19 @@ def party_ids(f, rows):
 def next_party_id(f, rows, vanilla_rows):
     """The id formation f's next party takes (party_ids' order; port_chests' box copies share it)."""
     made = party_ids(f, rows)
+    if f >= EXT_FROM:
+        pid = EXT_BASE + EXT_STRIDE * len(made) + f
+        assert pid not in vanilla_rows and f < EXT_STRIDE, f"party {pid}: vanilla's, or past the per-look range"
+        return pid
     pid = NEW_PARTY_BASE + f if not made else VARIANT_BASE + VARIANT_STRIDE * (len(made) - 1) + f
     assert pid not in vanilla_rows and pid < 20000, f"party {pid}: vanilla's, or past the per-look range"
     return pid
+
+
+def first_party_id(f):
+    """The id formation f's first party takes (2000 + f; 30000 + f from 600): the one a mod's event
+    battles fight (port_monster_ext makes it where no random set needed it)."""
+    return EXT_BASE + f if f >= EXT_FROM else NEW_PARTY_BASE + f
 
 # PR formation cells form a 3x3 grid: 1-3 front column, 4-6 middle, 7-9 back;
 # within a column top/middle/bottom. Approximate SNES cell centres (x, y in 8px tiles):
@@ -53,9 +74,38 @@ CELL_XY = {1: (10, 6), 2: (10, 9), 3: (10, 12), 4: (7.5, 6), 5: (7.5, 9), 6: (7.
            7: (5, 6), 8: (5, 9), 9: (5, 12)}
 
 
+def formation_raw(rom, f):
+    """Formation f's 15 bytes; past the US table's 576 from a mod image's grown table (ff6snes.extended
+    "formations") when the profile registered one (b"" past its end)."""
+    base = FORMATIONS
+    if f >= 576:
+        ext = S.extended(rom, "formations")
+        if ext:
+            if f >= ext[2]:
+                return b""
+            base = ext[0]
+    return rom.data[base + 15 * f:base + 15 * f + 15]
+
+
 def formation(rom, f):
-    r = rom.data[FORMATIONS + 15 * f:FORMATIONS + 15 * f + 15]
+    """[(SNES monster, x, y)] of formation f's members shown at the start (formation_raw: past 576 from a
+    grown table). A profile can hand formations over decoded (ff6snes.extended "formation_monsters":
+    {f: [(monster, x, y, shown)]}: T-Edition EX's, whose monsters are past the 9 bits a record holds)."""
+    decoded = S.extended(rom, "formation_monsters")
+    if decoded and f in decoded:
+        return [(e, x, y) for e, x, y, shown in decoded[f] if shown]
+    r = formation_raw(rom, f)
+    if not r:
+        return []
     return [((r[2 + s] | ((r[14] >> s & 1) << 8)), r[8 + s] >> 4, r[8 + s] & 15) for s in range(6) if r[1] >> s & 1]
+
+
+def formation_ap(rom, f):
+    """Formation f's magic points (the US table holds 512; past it from a grown table, else 0)."""
+    if f < 512:
+        return rom.data[0x1FB400 + f]
+    ext = S.extended(rom, "formation_ap")
+    return rom.data[ext[0] + f] if ext and f < ext[2] else 0
 
 
 def pack(rom, p):
@@ -98,7 +148,7 @@ class EncounterPorter:
 
     # --- matching -----------------------------------------------------------------
     def pack_fingerprint(self, rom, p):
-        return tuple(sorted(tuple(sorted(e + 1 for e, _, _ in formation(rom, f))) for f in pack(rom, p)))
+        return tuple(sorted(tuple(sorted(M.monster(e) for e, _, _ in formation(rom, f))) for f in pack(rom, p)))
 
     def set_to_pack(self):
         by_fp = defaultdict(list)
@@ -137,7 +187,7 @@ class EncounterPorter:
         when one has the same line-up, else each in the free grid cell nearest its SNES position;
         the formation's magic points (get_value). port_events builds its event parties with it."""
         enemies = formation(self.bnw, f)
-        members = tuple(sorted(e + 1 for e, _, _ in enemies))
+        members = tuple(sorted(M.monster(e) for e, _, _ in enemies))
         row = dict(template_row, id=str(pid))
         layout = self.layouts.get(members)
         self.last_layout = layout
@@ -155,9 +205,8 @@ class EncounterPorter:
                     break
                 cell = min(free, key=lambda c: (CELL_XY[c][0] - x) ** 2 + (CELL_XY[c][1] - y) ** 2)
                 free.discard(cell)
-                row[f"monster{cell}"] = str(e + 1)
-        ap = self.bnw.data[0x1FB400 + f] if f < 512 else 0
-        row["get_value"] = str(ap)
+                row[f"monster{cell}"] = str(M.monster(e))
+        row["get_value"] = str(formation_ap(self.bnw, f))
         return row
 
     def port(self):

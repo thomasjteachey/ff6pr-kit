@@ -1,0 +1,2 @@
+# the PR event ops RemoveGil / SetGilTag (BNW Bob sales, 2026-11-20)
+\$\$(RemoveGil|SetGilTag)$

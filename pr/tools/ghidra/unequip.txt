@@ -1,0 +1,6 @@
+# BNW's leavers unequipped (char_unequip, 4 scenes): the PR's per-character unequip and optimize, and the
+# party-wide SysCalls they're made of (port_bnw_mechanics leavers, BnwPlugin "BNW:unequip")
+OwnedItemClient\$\$RemoveEquipmentsItems$
+OwnedItemClient\$\$RemoveEquipmentItem$
+SystemCall\.Current\$\$RemoveEquipmentFromMembers$
+SystemCall\.Current\$\$SetStrongestEquipCommon$

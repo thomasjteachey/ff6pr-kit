@@ -613,6 +613,12 @@ def miab_party(rom, contents):
 _scripts = None
 
 
+def live_seed():
+    """A seed the game applies live (tools/wc_seed.py, bc_seed.py: WC_FLAGS / PR_SEED_LIVE set): no
+    new files (Magicite only serves files there at startup), so no new box scripts."""
+    return "WC_FLAGS" in os.environ or os.environ.get("PR_SEED_LIVE") == "1"
+
+
 def script_name(script_id):
     """A chest entity's script_id -> its script name (master script.csv)."""
     global _scripts
@@ -704,7 +710,7 @@ def moved_chests(vc, bc, flags):
 def lineup(rom, f):
     """SNES formation f's monsters as PR monster ids, sorted (port_encounters' party_members)."""
     import port_encounters as E
-    return tuple(sorted(e + 1 for e, _, _ in E.formation(rom, f)))
+    return tuple(sorted(M.monster(e) for e, _, _ in E.formation(rom, f)))
 
 
 _lineups = None
@@ -732,7 +738,8 @@ def seed_party(van, rom, f, party, tables, porter, look):
         pid = M.party(g)
         if pid in mp.rows and E.party_members(mp.rows[pid]) == want:
             return pid
-    return porter().party_for(f, mp.rows[look if look in mp.rows else party])
+    # (a mod's formation past 576 has no PR party of its own to take the look from: the first one's)
+    return porter().party_for(f, mp.rows.get(look if look in mp.rows else party) or mp.rows[1])
 
 
 _map_sets = None
@@ -870,15 +877,16 @@ def port(van, bnw, out_dir, log, tables=None):
             if not any(e["script"] for e in flags[bit]):
                 skipped["monster chest without a PR battle script"] += 1
             continue
-        elif b["type"] == MONSTER and tables is not None and "WC_FLAGS" not in os.environ:
+        elif b["type"] == MONSTER and tables is not None and "WC_FLAGS" not in os.environ and not live_seed():
             # an item / empty chest the mod made a monster-in-a-box (BNW: South Figaro's Earring,
             # Mt. Zozo's Red Cap): each PR copy gets a box script of its own (new_box, below)
             boxes.append((bit, b))
             continue
         else:
-            # an item / empty chest WC made a monster-in-a-box (-chrm): the PR chest has no battle
-            # script to give it (its chests can't start one without one), so it keeps its contents
-            # (a WC seed is ported in game too: its scripts stay the PR's own)
+            # an item / empty chest a seed made a monster-in-a-box (WC's -chrm, Beyond Chaos): the PR
+            # chest has no battle script to give it (its chests can't start one without one), so it
+            # keeps its contents here and the seed's plugin starts the battle (seed_info.monster_chests;
+            # a seed is applied in game, where new script files can't appear: its scripts stay the PR's)
             skipped[f"type {v['type'] if v else 0:#x} -> {b['type']:#x}"] += 1
             continue
         for e in flags[bit]:

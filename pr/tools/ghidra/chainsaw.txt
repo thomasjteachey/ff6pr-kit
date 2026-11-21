@@ -1,0 +1,2 @@
+# Chainsaw: the random pick of ability group 10 (kill 25% / cut 75%) and the act it makes (2026-11-20, bnw-engine)
+BattleFunction46\$\$

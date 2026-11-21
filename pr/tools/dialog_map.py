@@ -27,7 +27,10 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
-import kitpath  # noqa: E402,F401
+try:
+    import kitpath  # noqa: E402,F401
+except ImportError:   # the kit repository alone has none (its tools are already on the path)
+    pass
 import prdata as P  # noqa: E402
 
 JP_ROM_NAME = "Final Fantasy VI (Japan).sfc"
@@ -364,6 +367,35 @@ def build(verbose=True):
         hits = [i for i in range(lo[1], hi[1] + 1) for t in dec[i] if want in skeleton(t)]
         if len(set(hits)) == 1:
             match[k] = (hits[0], 1.0, "short")
+    # 3e. still unplaced (2026-11-20): between two placed neighbours of its scene that are at most 3
+    # dialogues apart, the one clearly best turn there (raw or kana skeleton >= 0.45, a 0.15 margin
+    # over any other turn), not much longer than the line (a short line's kana inside a long turn:
+    # "Speed increased!" in a level-up line)
+    placed_in = collections.defaultdict(list)
+    for k in match:
+        placed_in[scene(k)].append((D.keyorder(k), match[k][0]))
+    for k in story:
+        if k in match:
+            continue
+        here = D.keyorder(k)
+        near = placed_in.get(scene(k), [])
+        lo = max((x for x in near if x[0] < here), default=None)
+        hi = min((x for x in near if x[0] > here), default=None)
+        if lo is None or hi is None or not (0 <= hi[1] - lo[1] <= 3):
+            continue
+        g, gs = grams(lines[k]), grams(skeleton(lines[k]))
+
+        def between_score(t):
+            a = len(g & grams(t)) / len(g)
+            b = len(gs & grams(skeleton(t))) / len(gs) if len(gs) >= 3 else 0.0
+            return max(a, b)
+        scored = sorted(((between_score(t), i, n) for i in range(lo[1], hi[1] + 1) for n, t in enumerate(dec[i])), reverse=True)
+        if not scored:
+            continue
+        top, i, n = scored[0]
+        second = next((s for s, j, m in scored[1:] if (j, m) != (i, n)), 0.0)
+        if top >= 0.45 and top - second >= 0.15 and len(dec[i][n]) <= 2.5 * len(lines[k]) + 8:
+            match[k] = (i, top, "between")
     # 4. turns: each placed line -> the run of its dialogue's turns it covers best
     out = {}
     for k, (d, cov, how) in match.items():

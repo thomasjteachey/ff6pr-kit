@@ -138,12 +138,16 @@ class SpellPorter:
         return slot, False
 
     # --- status groups ----------------------------------------------------------
+    # New group ids come after the table's highest at the time: other porters (port_effects, port_resist) add rows
+    # to the same tables between this porter's calls (port_tools / port_slots call in late), and a counter fixed at
+    # the start handed out their ids again, overwriting their rows (BNW: four armors' wear effects became the MP
+    # heal's and the Jackpot's; the Architecture lead, 2026-11-20). Without a clash the ids are the same as before.
     def new_condition_group(self, conds):
-        gid = self.next_group
-        self.next_group += 1
+        gid = max(self.next_group, max(int(r["group_id"]) for r in self.cg) + 1)
+        self.next_group = gid + 1
         for c in conds:
-            rid = self.next_cg_row
-            self.next_cg_row += 1
+            rid = max(self.next_cg_row, max(self.cg.rows) + 1)
+            self.next_cg_row = rid + 1
             self.cg.rows[rid] = {"id": str(rid), "group_id": str(gid), "condition_id": str(c),
                                  "type_id": "1", "invocation_rate": "0"}
             self.changed["condition_group"].add(rid)
@@ -153,8 +157,8 @@ class SpellPorter:
         key = tuple(tuple(f) for f in funcs)
         if key in self.fg_cache:
             return self.fg_cache[key]
-        gid = self.next_fg
-        self.next_fg += 1
+        gid = max(self.next_fg, max(self.fg.rows) + 1)
+        self.next_fg = gid + 1
         row = {"id": str(gid)}
         for k in (1, 2, 3):
             f = funcs[k - 1] if k <= len(funcs) else [0, 0, 0, 0]
@@ -235,8 +239,16 @@ class SpellPorter:
             if new != row:
                 self.ab.rows[k] = new
                 self.changed["ability"].add(k)
-            renamed = self.profile.rename_all or (b.name or v.name) != v.name
-            self.set_text(k, M.spell(tslot), self.display_name(b.id, name) if renamed else None, self.description(b.id))
+            if 85 <= b.id <= 92:
+                # Bushido's names are its own table's (Beyond Chaos also writes them into the skill
+                # name table's spare slots, for its skill commands: not a rename)
+                renamed = self.profile.rename_all or self.display_name(b.id, name) != self.vanilla_display_name(b.id, v.name)
+            else:
+                renamed = self.profile.rename_all or (b.name or v.name) != v.name
+            shown = self.display_name(b.id, name) if renamed else None
+            if shown and not self.profile.rename_all:
+                shown = self.in_pr_words(b.id, k, shown)
+            self.set_text(k, M.spell(tslot), shown, self.description(b.id))
         self.log(f"physical spells: {self.physical_swaps} damage functions switched Magic <-> Physical by the mod's bit")
         self.log(f"ability: {len(self.changed['ability'])} changed; new function groups "
                  f"{len(self.changed['function_group'])}, new status groups rows {len(self.changed['condition_group'])}")
@@ -261,6 +273,27 @@ class SpellPorter:
         if 85 <= slot <= 92:
             return S.decode_name(self.bnw.b(self.BUSHIDO_NAMES + 12 * (slot - 85), 12))
         return name
+
+    def vanilla_display_name(self, slot, name):
+        if 85 <= slot <= 92:
+            return S.decode_name(self.van.b(self.BUSHIDO_NAMES + 12 * (slot - 85), 12))
+        return name
+
+    def pr_name(self, k):
+        row = self.content_by_ability.get(k)
+        if not row or row["mes_id_name"] in ("None", ""):
+            return ""
+        return re.sub(r"^<IC_[A-Z]+>", "", self.msg.get(row["mes_id_name"], ""))
+
+    def in_pr_words(self, slot, k, shown):
+        """A changed skill name in the PR's words (tools/pr_names.py), None where that's the PR's own."""
+        import pr_names
+        if not hasattr(self, "_name_pairs"):
+            self._name_pairs = [(self.vanilla_display_name(s.id, s.name), self.pr_name(M.spell(s.id)))
+                                for s in self.vsp if M.spell(s.id) is not None]
+        own = self.pr_name(k)
+        text = pr_names.in_pr_words(shown, self.vanilla_display_name(slot, self.vsp[slot].name), own, self._name_pairs)
+        return None if text == own else text
 
     def description(self, slot):
         if not hasattr(self, "_descs"):
@@ -307,6 +340,66 @@ class SpellPorter:
 # --- learning: esper spells, natural magic, Blitz/Bushido levels ------------------
 NATURAL = {"terra": (0x2CE3C0, (1, 19)), "celes": (0x2CE3E0, (7,))}
 BUSHIDO_LV, BLITZ_LV = 0x26F490, 0x26F498
+NATURAL_HOOK = 0x0A182                                  # C0/A182: vanilla's compares, a mod's JSR / JSL
+NATURAL_LEARNER = {"terra": 0xA196, "celes": 0xA1B8}    # C0: each list's learner
+
+
+def natural_pairs(raw):
+    """A natural-magic list (16 (spell, level) pairs, FF = none) -> [(spell, level)], each spell once."""
+    seen, out = set(), []
+    for i in range(0, len(raw) - 1, 2):
+        if raw[i] != 0xFF and raw[i] not in seen:
+            seen.add(raw[i])
+            out.append((raw[i], raw[i + 1]))
+    return out
+
+
+def snes_offset(addr, size):
+    """A HiROM / ExHiROM address -> file offset (as snes_events.file_offset), None past the ROM."""
+    bank, low = addr >> 16, addr & 0xFFFF
+    if size > 0x400000 and 0x40 <= bank < 0x7E:
+        off = 0x400000 + ((bank - 0x40) << 16) + low
+    else:
+        off = ((bank & 0x3F) << 16) + low
+    return off if off < size else None
+
+
+def natural_table(d, off):
+    """A natural-magic routine (at file offset `off`) that teaches from a table per character, as
+    {character: [(spell, level)]}, or None when it isn't that shape. The shape (Beyond Chaos's F0/0C00):
+    CMP #n / BCS first (n characters), then, in it or a subroutine it JSRs to, LDA long,X of both bytes of
+    a pair (spell at A, level at A+1) and LDY #count (pairs per character, else the vanilla lists' 16):
+    character c's pairs at A + c * 2 * count. Spells must be magic (0-53) or FF and levels 1-99 (FF FF =
+    none), else it isn't one."""
+    import re
+    code = bytes(d[off:off + 96])
+    if len(code) < 4 or code[0] != 0xC9 or code[2] != 0xB0:
+        return None
+    chars = code[1]
+    parts = [code]
+    for m in re.finditer(rb"\x20(..)", code, re.S):           # JSR: a subroutine in the routine's bank
+        sub = (off & ~0xFFFF) | m.group(1)[0] | m.group(1)[1] << 8
+        parts.append(bytes(d[sub:sub + 96]))
+    def read(base, count):
+        if base is None or base + chars * 2 * count > len(d):
+            return None
+        table = {}
+        for c in range(chars):
+            raw = bytes(d[base + c * 2 * count:base + (c + 1) * 2 * count])
+            for i in range(0, len(raw), 2):
+                if raw[i] != 0xFF and (raw[i] > 53 or not 1 <= raw[i + 1] <= 99):
+                    return None
+            if natural_pairs(raw):
+                table[c] = natural_pairs(raw)
+        return table
+    for part in parts:         # (a 20 that is an operand gives a bogus "subroutine": its table won't read)
+        longs = {part[i + 1] | part[i + 2] << 8 | part[i + 3] << 16 for i in range(len(part) - 3) if part[i] == 0xBF}
+        for a in sorted(a for a in longs if a + 1 in longs):
+            count = re.search(rb"\xA0([\x01-\x40])", part)
+            table = read(snes_offset(a, len(d)), count.group(1)[0] if count else 16)
+            if table is not None:
+                return table
+    return None
 
 
 class LearningPorter:
@@ -349,13 +442,16 @@ class LearningPorter:
         return rid
 
     @staticmethod
-    def natural_learners(rom):
+    def natural_learners(rom, log=None):
         """Who learns the two natural-magic lists: {"terra": SNES character index or None,
         "celes": ...}. WC moves them in assembly: the routine the JSR at C0/A182 calls compares
         the character (CMP #n) before each list's learner (JSR $A196 = Terra's list, JSR $A1B8 =
-        Celes's); NOPs there = nobody. Vanilla/BNW: Terra 0, Celes 6."""
+        Celes's); NOPs there = nobody. Vanilla/BNW: Terra 0, Celes 6. A JSL there: see
+        natural_jsl (it can add "table": {character: [(spell, level)]})."""
         d = rom.data
         out = {"terra": 0, "celes": 6}
+        if d[NATURAL_HOOK] == 0x22:
+            return LearningPorter.natural_jsl(d, out, log or (lambda msg: None))
         if d[0x0A182] != 0x20:
             return out
         target = d[0x0A183] | d[0x0A184] << 8          # bank C0
@@ -369,6 +465,81 @@ class LearningPorter:
             if cmp_at >= 0 and at - cmp_at <= 6:
                 out[who] = code[cmp_at + 1]
         return out
+
+    @staticmethod
+    def natural_jsl(d, vanilla, log):
+        """C0/A182 holds a JSL: its routine is read as the JSR's (CMP #n before a call to a list's
+        learner, here JSL $C0A196 / $C0A1B8, or JSR in bank C0), or as a table per character
+        (natural_table: Beyond Chaos's JSL $F00C00, its table at F0/0C6C); the vanilla compares the
+        mod left after it (C0/A186 on: CMP #n, BEQ to a learner; NOPs skipped) still teach their list.
+        Neither shape: vanilla's learners, logged."""
+        target = d[NATURAL_HOOK + 1] | d[NATURAL_HOOK + 2] << 8 | d[NATURAL_HOOK + 3] << 16
+        off = snes_offset(target, len(d))
+        if off is None:
+            log(f"  natural magic: C0/A182 JSLs to {target:06X}, past the ROM: vanilla's learners kept")
+            return vanilla
+        code = bytes(d[off:off + 96])
+        out, found = {"terra": None, "celes": None}, False
+        for who, learner in NATURAL_LEARNER.items():
+            calls = [bytes([0x22, learner & 0xFF, learner >> 8, 0xC0])]
+            if target >> 16 == 0xC0:
+                calls.append(bytes([0x20, learner & 0xFF, learner >> 8]))
+            for call in calls:
+                at = code.find(call)
+                if at < 0:
+                    continue
+                found = True
+                cmp_at = code.rfind(b"\xC9", 0, at)
+                out[who] = code[cmp_at + 1] if cmp_at >= 0 and at - cmp_at <= 6 else vanilla[who]
+                break
+        table = natural_table(d, off)
+        if not found and table is None:
+            log(f"  natural magic: C0/A182 JSLs to {target:06X}, a routine the porter can't read: "
+                f"vanilla's learners kept (Terra's list to character 0, Celes's to 6)")
+            return vanilla
+        pc = NATURAL_HOOK + 4
+        while pc < NATURAL_LEARNER["terra"]:
+            if d[pc] == 0xEA:
+                pc += 1
+                continue
+            if d[pc] != 0xC9 or d[pc + 2] != 0xF0:
+                break
+            dest = pc + 4 + (d[pc + 3] ^ 0x80) - 0x80
+            for who, learner in NATURAL_LEARNER.items():
+                if dest == learner and out[who] is None:
+                    out[who] = d[pc + 1]
+            pc += 4
+        if table is not None:
+            out["table"] = table
+            log(f"  natural magic: C0/A182 JSLs to {target:06X}, a table per character: "
+                f"{', '.join(f'character {c} ({len(p)})' for c, p in sorted(table.items())) or 'nobody'}"
+                f"; Terra's list to {out['terra']}, Celes's to {out['celes']}")
+        return out
+
+    def teach_natural_table(self, rows, learners, table, sp):
+        """Natural magic from a table per character (natural_learners' "table"): each character's list on
+        their job (PR job = SNES character + 1; Terra's second job too), a vanilla list added for whoever
+        still learns it (its spells the character has skipped), on the two lists' rows (more copied as
+        needed, leftovers parked)."""
+        lists = {c: list(pairs) for c, pairs in table.items()}
+        for who, (off, jobs) in NATURAL.items():
+            c = learners.get(who)
+            if c is None:
+                continue
+            have = {s for s, _ in lists.get(c, [])}
+            lists.setdefault(c, []).extend(p for p in natural_pairs(self.bnw.b(off, 32)) if p[0] not in have)
+        also = {jobs[0]: tuple(jobs[1:]) for _, jobs in NATURAL.values()}      # Terra: PR jobs 1 and 19
+        want = [(job, lv, spell) for c, pairs in sorted(lists.items()) for job in (c + 1,) + also.get(c + 1, ())
+                for spell, lv in pairs]
+        pool = sorted(rid for _, jobs in NATURAL.values() for job in jobs for rid in rows[("1", job)])
+        while len(pool) < len(want):
+            pool.append(self.new_row(pool[0]))
+        for rid, (job, lv, spell) in zip(pool, want):
+            self.set_row(rid, job_id=job, value1=lv, content_id=self.content_for_spell(spell))
+        for rid in pool[len(want):]:
+            self.neutralize(rid)
+        for c, pairs in sorted(lists.items()):
+            self.log(f"  natural magic, character {c} (job {c + 1}): {', '.join(f'{sp[s].name} {lv}' for s, lv in pairs)}")
 
     def port(self):
         rows = defaultdict(list)
@@ -400,8 +571,11 @@ class LearningPorter:
             self.neutralize(rid)
         # Natural magic (type 1, by level), learned by whoever the mod's assembly picks for each list
         sp = S.spells(self.bnw)
-        learners = self.natural_learners(self.bnw)
-        for who, (off, jobs) in NATURAL.items():
+        learners = self.natural_learners(self.bnw, self.log)
+        table = learners.pop("table", None)
+        if table is not None:
+            self.teach_natural_table(rows, learners, table, sp)
+        for who, (off, jobs) in (NATURAL.items() if table is None else ()):
             t = self.bnw.b(off, 32)
             seen, spells = set(), []
             for i in range(0, 32, 2):

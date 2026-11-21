@@ -1,0 +1,10 @@
+# Cyan's dream without the split (BNW, bnw-dream 2026-11-20): what the Dreamscape's puppet swaps
+# (sc_map_30821_1/_2: "パペット入れ替え：スロット２・３先頭" etc.) do when slots 2/3 are empty
+SystemCall\.Current\$\$ReplaceEntitySlotCommon$
+SystemCall\.Current\$\$ReplaceEntitySlot2Leader$
+SystemCall\.Current\$\$ReplaceEntitySlot3Leader$
+SystemCall\.Current\$\$ReplaceEntitySlot2Slot3Leader$
+SystemCall\.Current\$\$GetLeaderResidentEntityId$
+SystemCall\.Current\$\$ResetReplaceEntity$
+SystemCall\.Current\$\$UndoMemberFromSlot$
+SystemCall\.Current\$\$SaveCharacterCorpsId$

@@ -2,8 +2,21 @@
 import prdata as P
 
 
+# A mod's item slots on other PR rows than the default (port.py sets it from the profile's item
+# identity, tools/item_identity.py; empty for vanilla, BNW, WC and BC). T-Edition rebuilt FF6's item
+# list: its Mythril Sword sits in Valiant Knife's slot and gets the Mythril Sword's row.
+ITEM_OVERRIDES = {}
+
+
 def item(snes_id):
     """SNES item id -> (PR table, PR id). None for 'empty' (0xFF)."""
+    if snes_id in ITEM_OVERRIDES:
+        return ITEM_OVERRIDES[snes_id]
+    return default_item(snes_id)
+
+
+def default_item(snes_id):
+    """The PR row of the vanilla item in SNES slot snes_id (no overrides)."""
     i = snes_id
     if i <= 89:
         return "weapon", i + 2
@@ -28,11 +41,22 @@ def character(snes_id):
     return snes_id + 1
 
 
+# Monsters a port added past the SNES 384 ({SNES monster: PR monster id}; set with a mod image's grown
+# tables by tools/port_monster_ext.register). T-Edition's 384-511 are 1000 + e (the PR's own monster
+# rows end at 611). Empty for vanilla, BNW, WC and BC.
+MONSTER_EXT = {}
+
+
+def monster(snes_id):
+    """SNES monster id -> PR monster id: e + 1 (the PR's rows 1-384 are the SNES's 0-383), or the
+    row a port made for a monster past 384 (MONSTER_EXT)."""
+    return MONSTER_EXT.get(snes_id, snes_id + 1)
+
+
 _content = None
 
 
-def content_id(table, pr_id):
-    """PR content.csv id for an item/weapon/armor (used by shops, drops, chests)."""
+def _content_map():
     global _content
     if _content is None:
         types = {"item": "1", "weapon": "2", "armor": "3"}
@@ -40,8 +64,19 @@ def content_id(table, pr_id):
         for r in P.Table("content"):
             rev[(r["type_id"], int(r["type_value"]))] = int(r["id"])
         _content = (types, rev)
-    types, rev = _content
+    return _content
+
+
+def content_id(table, pr_id):
+    """PR content.csv id for an item/weapon/armor (used by shops, drops, chests)."""
+    types, rev = _content_map()
     return rev[(types[table], pr_id)]
+
+
+def add_content(table, pr_id, cid):
+    """Register a content row the porter made (a new weapon/armor/item row's: item_identity)."""
+    types, rev = _content_map()
+    rev[(types[table], pr_id)] = cid
 
 
 def item_content(snes_id):

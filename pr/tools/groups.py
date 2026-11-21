@@ -61,12 +61,14 @@ class GroupTable:
             return 0
         if members in self.by_members:
             return self.by_members[members]
-        gid = self.next_group
-        self.next_group += 1
+        # ids past the table's highest now, not since this instance was made: other porters may add groups to the
+        # same table meanwhile (port_spells' did; the Architecture lead, 2026-11-20). Same ids without a clash.
+        gid = max(self.next_group, max(int(r["group_id"]) for r in self.t) + 1)
+        self.next_group = gid + 1
         tmpl = template_row or next(iter(self.t))
         for m in sorted(members):
-            rid = self.next_row
-            self.next_row += 1
+            rid = max(self.next_row, max(self.t.rows) + 1)
+            self.next_row = rid + 1
             row = {c: tmpl[c] for c in self.t.columns}
             row["id"], row["group_id"], row[self.member_col] = str(rid), str(gid), str(m[0])
             for c, v in zip(self.extra_cols, m[1:]):

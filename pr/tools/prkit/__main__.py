@@ -125,7 +125,8 @@ def cmd_run(a):
     for kv in a.set or []:
         k, _, v = kv.partition("=")
         settings[k.strip()] = v.strip() or "1"
-    return headless.run(a.game, harness=a.harness, minutes=a.minutes, until=a.until, settings=settings, dry_run=a.dry_run)
+    return headless.run(a.game, harness=a.harness, minutes=a.minutes, until=a.until, settings=settings,
+                        dry_run=a.dry_run, graphics=a.graphics)
 
 
 def main(argv=None):
@@ -176,6 +177,7 @@ def main(argv=None):
     p = sub.add_parser("run")
     p.add_argument("game")
     p.add_argument("--harness", action="store_true", help="listen for tools/game_harness.py commands")
+    p.add_argument("--graphics", action="store_true", help="keep a graphics device (still no window): the harness's shot command")
     p.add_argument("--minutes", type=int, default=30)
     p.add_argument("--until", help="stop when the log matches this regex")
     p.add_argument("--set", action="append", metavar="KEY=VALUE", help="more request lines for the mod")

@@ -1,0 +1,3 @@
+# BNW's Veldt freebies (veldt-freebies.asm: the World of Ruin's start marks the missable World of Balance
+# formations met): how the PR records a party as met for the Veldt and how the Veldt reads it
+BeastFieldEncount\$\$.*

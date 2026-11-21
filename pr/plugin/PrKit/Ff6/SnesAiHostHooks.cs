@@ -197,7 +197,9 @@ namespace PrKit.Ff6
                 // the cells' SNES slots: the battle's own party (its layout), else its look source's
                 f.CellSlots = d != null && (d.PartySlots.TryGetValue(party, out var cs) || d.PartySlots.TryGetValue(src, out cs)) ? cs : null;
                 f.Members = d != null && (d.PartyMembers.TryGetValue(party, out var pm) || d.PartyMembers.TryGetValue(src, out pm)) ? pm : null;
-                if (f.Members != null)
+                // a fight whose PR routine decides who is on screen: its conditions say who's out, not the formation
+                f.PrEntrances = f.Members != null && f.Members.Any(m => m != null && d.PrEntrances.Contains(m[0]));
+                if (f.Members != null && !f.PrEntrances)
                     for (int s = 0; s < f.Members.Length; s++)
                         if (f.Members[s] != null && f.Members[s][2] == 0) f.Hidden.Add(s);   // hidden from the start (shown by its script)
                 if (d != null && f.Formation < 0 && d.Formations.TryGetValue(party, out int form2)) f.Formation = form2;
@@ -208,6 +210,7 @@ namespace PrKit.Ff6
                     if (ed != null) enemies.Add(ed);
                 }
                 foreach (var ed in enemies.OrderBy(x => x.UniqueId)) Join(f, ed);
+                LoadEventBits(f);
                 Log($": party {party} (formation {f.Formation}): " +
                     string.Join(", ", f.Slot.Select(kv => $"slot {kv.Value} = monster {f.SnesId[kv.Key]} (unique {kv.Key})")) +
                     (Verbose ? "; PR scripts " + string.Join(", ", enemies.Select(e => $"{e.GetMonster()?.Id}:{e.GetMonster()?.ScriptId}")) : ""));
@@ -304,7 +307,10 @@ namespace PrKit.Ff6
                         ApplyVars(f, m, a);
                         break;
                     case SnesAiOp.Misc:
-                        ApplyMisc(f, slot, a, units[4 + slot], entries);
+                        ApplyMisc(f, slot, a, units[4 + slot], entries, units);
+                        break;
+                    case SnesAiOp.BattleEvent:
+                        BattleEvent(snesId, a.B1, units[4 + slot]);
                         break;
                     case SnesAiOp.Message:
                         lines.AddRange(LineKeys(a.B1));
@@ -316,6 +322,23 @@ namespace PrKit.Ff6
                         if (Seen.Add($"{a.Op}:{snesId}")) Log($": monster {snesId}: {a} not done yet");
                         break;
                 }
+            }
+            // a hybrid fight: a battle event the PR's battle script plays (the mode it reads was just set)
+            // takes the scene from there, entries and the battle's end included; a monster whose fight the
+            // PR's script ends keeps only its other entries
+            var data = D;
+            if (data != null && entries.Count > 0)
+            {
+                bool scene = data.EventModes.TryGetValue(snesId, out var modes) && acts.Any(x => x.Op == SnesAiOp.BattleEvent && modes.ContainsKey(x.B1));
+                int before = entries.Count;
+                if (scene) entries.Clear();
+                else
+                {
+                    if (data.PrEnds.Contains(snesId)) entries.RemoveAll(x => (x.B2 == 1 || x.B2 == 5) && x.B3 == 0xFF);
+                    // the fight's PR routine decides who is on screen: only "everyone dies like a boss" stays
+                    if (data.PrEntrances.Contains(snesId)) entries.RemoveAll(x => !((x.B2 == 1 || x.B2 == 5) && x.B3 == 0xFF));
+                }
+                if (Verbose && entries.Count != before) Log($": monster {snesId}: {before - entries.Count} entries/ends left to the PR's battle script");
             }
             return q;
         }
@@ -382,6 +405,15 @@ namespace PrKit.Ff6
                     {
                         ApplyEntries(f, slot, snesId, entries);
                         if (entries.Count > 0 && AllGone(f)) q.Insert(0, (EraseAll, null));
+                    }
+                    // a boss held at 0 HP whose own turn ends the battle (BNW's Ifrit and Shiva: "HP <= 0: end
+                    // the battle", FB 02): the erase-all goes through its death as its final attack, as the
+                    // counter path does (a held unit's erase-all as a normal act stages and never finishes, and
+                    // a fight like theirs only ends by its monsters' final attack: the PR's win check skips them)
+                    if (q.Count > 0 && q[0].Item1 == EraseAll && f.AtZero.ContainsKey(uid))
+                    {
+                        EraseThroughDeath(f, me);
+                        q.Clear();
                     }
                 }
             }
@@ -616,6 +648,13 @@ namespace PrKit.Ff6
             try
             {
                 var d = D;
+                // FB 01: an invincible unit takes no damage (the SNES zeroes it): what the hit took goes back
+                var fi = Current;
+                if (Active && fi != null && __0 != null && fi.Invincible.TryGetValue(__0.Pointer, out int keep))
+                {
+                    var pi = __0.BattleUnitDataInfo?.Parameter;
+                    if (pi != null && pi.CurrentHP < keep) pi.CurrentHP = keep;
+                }
                 if (!Active || d == null || !d.Rules.BossDeathByScript || d.BossDeath.Count == 0) return true;
                 var ed = __0?.TryCast<BattleEnemyData>();
                 var p = ed?.BattleUnitDataInfo?.Parameter;
@@ -704,6 +743,28 @@ namespace PrKit.Ff6
             return $"unique {ed.UniqueId}: HP {p.CurrentHP}" + (Current != null && Current.AtZero.ContainsKey(ed.UniqueId) ? " (held at 0 for its script)" : "");
         }
 
+        // tests: every enemy still standing dies the game's way, held bosses too (a test fight that doesn't
+        // end by itself, so a run can go on to the next formation)
+        public static string KillAllForTest(string why)
+        {
+            var bm = BattlePlugManager.Instance();
+            if (bm == null || !bm.IsBattle()) return "not in battle";
+            var f = Current ?? EnsureFight();
+            int n = 0;
+            foreach (var e in bm.GetEnemyUnits())
+            {
+                var ed = e?.TryCast<BattleEnemyData>();
+                var p = ed?.BattleUnitDataInfo?.Parameter;
+                if (ed == null || p == null || (p.CurrentHP <= 0 && !f.AtZero.ContainsKey(ed.UniqueId))) continue;
+                f.Erased.Add(ed.UniqueId);   // no death script of its own
+                f.Hidden.Remove(f.Slot.TryGetValue(ed.UniqueId, out int s) ? s : -1);
+                Kill(f, ed, why);
+                n++;
+            }
+            if (f.HoldEnd) { bm.BattleEndJugment?.SetEnabled(true); f.HoldEnd = false; }
+            return $"{n} enemies killed ({why})";
+        }
+
         // held too long (a script that never handles 0 HP, or no counter came): BNW would wait for good; a
         // stuck fight is worse, so after a minute of battle time the game's death takes over
         const double ZeroHpLimit = 60;
@@ -769,7 +830,8 @@ namespace PrKit.Ff6
                     try { DeathScript(f, ed); }
                     catch (Exception ex) { Hooks.WarnOnce("enemy-ai-death-script", ex); }
                 }
-                if (f.Clock - since > ZeroHpLimit) Kill(f, ed, "held at 0 HP for a minute");
+                bool waits = f.SnesId.TryGetValue(ed.UniqueId, out int zid) && D?.ZeroWait.Contains(zid) == true;
+                if (f.Clock - since > ZeroHpLimit && !waits) Kill(f, ed, "held at 0 HP for a minute");
             }
         }
     }

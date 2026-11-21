@@ -1,0 +1,6 @@
+# Battle Options Enemy ATB: which checks mark an enemy gone, and when
+BattleConditionController\$\$IsWithdrawalCondition$
+BattleConditionController\$\$IsCombatIneffectiveCondition$
+BattleUtility\$\$IsEscape$
+BattleUnitData\$\$get_IsRemove$
+BattleUnitData\$\$set_IsRemove$

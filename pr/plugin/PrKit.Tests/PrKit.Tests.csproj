@@ -20,6 +20,8 @@
     <Compile Include="..\PrKit\*.cs" />
     <!-- the FF6 part that needs no game: the SNES encounter rules (rate tables, rolls, mean steps) -->
     <Compile Include="..\PrKit\Ff6\SnesEncounterRules.cs" />
+    <!-- and which monsters Suplex misses (the SNES's monster flag; SnesSuplex.cs applies it in battle) -->
+    <Compile Include="..\PrKit\Ff6\SnesSuplexRules.cs" />
     <!-- run here: BepInEx's config/logging and Harmony's types (plain .NET; no patching happens) -->
     <Reference Include="$(GameDir)\BepInEx\core\BepInEx.Core.dll" Private="true" />
     <Reference Include="$(GameDir)\BepInEx\core\0Harmony.dll" Private="true" />

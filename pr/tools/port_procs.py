@@ -45,6 +45,7 @@ class ProcPorter:
         self.special_procs = dict(VANILLA_SPECIAL_PROCS)
         self.special_procs.update(getattr(profile, "special_procs", None) or {})
         self.odds = getattr(profile, "proc_odds", None)
+        self.metamorph_monsters = getattr(profile, "metamorph_monsters", False)
         self.ab = tables["ability"]
         self.vab = P.Table("ability")
         self.extra = vanilla_extra()
@@ -180,7 +181,48 @@ class ProcPorter:
             sets.append(f"{g}: {pa} -> {pb} ({n} monsters)")
         if sets:
             self.log(f"metamorph: {'; '.join(sets)}")
+        if self.metamorph_monsters:
+            done += self.metamorph_by_monster(extra)
         return done
+
+    MONSTERS, MONSTER_SIZE, MORPH_BYTE = 0x0F0000, 32, 17
+
+    def metamorph_by_monster(self, extra):
+        """(profile.metamorph_monsters: Beyond Chaos, which re-rolls each monster's metamorph) every monster whose
+        metamorph byte the mod changed (SNES monster byte 17: the set in its low 5 bits, the miss rate in its top 3;
+        rate 7 = never) gets its set's items and the rate's weight: weight_id = rate + 1 (the PR's weights 100, 75,
+        50, 25, 12.5, 6.25, 3.13 % = the SNES's 99 ... 3 %). A monster the mod left keeps the PR's own entry."""
+        import idmap as M
+        lists = extra.get("monster_exchange_item") or []
+        by_id = {e["monster_id"]: e for e in lists}
+        changed = 0
+        for i in range(384):
+            at = self.MONSTERS + self.MONSTER_SIZE * i + self.MORPH_BYTE
+            v, b = self.van.data[at], self.bnw.data[at]
+            if v == b:
+                continue
+            rate, g, mid = b >> 5, b & 0x1F, M.monster(i)
+            if rate == 7 or g >= self.MORPH_SET_COUNT:
+                if mid in by_id:
+                    lists.remove(by_id.pop(mid))
+                    changed += 1
+                continue
+            at = self.MORPH_SETS + 4 * g
+            items = [M.item_content(x) for x in self.bnw.data[at:at + 4]]
+            if None in items:
+                continue
+            e = by_id.get(mid)
+            if e is None:
+                e = by_id[mid] = {"monster_id": mid, "weight_id": rate + 1, "exchange_content_ids": items}
+                lists.append(e)
+            else:
+                e["weight_id"], e["exchange_content_ids"] = rate + 1, items
+            changed += 1
+        lists.sort(key=lambda e: e["monster_id"])
+        extra["monster_exchange_item"] = lists
+        if changed:
+            self.log(f"metamorph: {changed} monsters' sets or odds as the mod's")
+        return changed
 
     def write_extra(self, out_dir, extra):
         group = os.path.join(out_dir, GROUP)

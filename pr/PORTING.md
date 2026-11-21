@@ -13,6 +13,29 @@ when it's awake), then logged here.
 
 | When | Batch | Result | WC | BNW |
 |---|---|---|---|---|
+| 2026-11-20 (T-Edition: music on the kit's player, percent damage, the last character art) | **T-Edition's songs, battle music and fanfares built for the kit's SNES player; the spec's rule 49 as data; every character look converted** (TedPlugin session with bc-music, bc-sprites; reviewed by the lead). `tools/ted_music.py` (run by ted_build): one pack from both drivers (254 songs, the second driver at $1xx; 145 samples, 851 KB) for BepInEx/TEdition/music, bgm rules with T-Edition's battle song per formation (C2/BEDD: formation byte 3, T-Edition's CF/2F70) for 466 parties and its fanfare (CF/B500) for 406, FF6's pause songs, the Extras player's 175 rows; T-Edition's own songs play as PR bgm 1000 + slot (1256 + n for the second driver), which the event translator now emits. Rule 49 (`ted_plugin_data.percent_damage`, run by ted_build): percent damage of current vs max HP from T-Edition's spell flags and power (15 groups changed, 1 cloned; Diabolos and Wave Cannon made percent; Snowball, Mustard Bomb, Kill back to magic damage; the porter's same-name template behind it, to fix in port_spells after the freeze). TedArt.cs loads the monster images and the default looks; bc-sprites added Gogo's Chameleon Robe forms, the Imp, Kappa and Pig looks (Mog's "new pose" is redrawn tiles only). The merged build 0 conflicts, 0 problems, test_mod 50 OK; three tests of other workstreams' in-flight changes failing, sent back. Not heard or seen in game yet. T-Edition ~45% | — | — |
+| 2026-11-20 (T-Edition: character looks and costumes) | **T-Edition's redrawn character looks and all 56 costumes built as PR art** (bc-sprites, reviewed by the lead from its review sheet): `tools/ted_art.py costumes` walks the dressing-room events for each costume's graphic slot (event commands 37/43; costume slots 26-84 in no character order, `data/ted_costume_art.json`), then reads by slot the field sheet (F8/0400, F8/0600), the battle sheet (42/6000; 227 slots have their own), battle colours (FE/F000 by 42/5E00) and the portrait (F8/0A00, F8/0B00 -> 49/0000, 41/5200); 14 characters x (default + 4) = 70 ArtSwap folders (3.5 MB). Hookup: TedPlugin loads the default looks now; the dressing room switches costumes on ArtSwap's named layers after the WC freeze. The user has every mod owner's permission: T-Edition's songs, samples and art ship in the zip (and FF6's sound driver and built-in instruments may). T-Edition ~40% | — | — |
+| 2026-11-20 (T-Edition: the porter's data items; all monster art) | **T-Edition's growth, Relm's magic, commands and relic swaps through the porter; all 226 of its monster images built** (ted-monsters and bc-sprites, reviewed by the lead). `ted_build.py` data rules (ted-monsters): a growth_curve group per party character from 41/DD00 and 41/E320 (groups 101-114, 1386 rows; guests keep the shared curve), Relm's 16 natural-magic rows from EC/E3A0, the commands T-Edition put in vanilla slots (Control = Snowstorm, Health = Pray casting Sunbath, Possess = Spirit casting Bless, Leap = Animal: a random animal summon, ability 9902), Dancing Dagger casting a random dance half the time (ability 9901); `profile_tedition.relic_bit_funcs` maps T-Edition's 8 relic swap bits (its Gem Box had vanilla's Sketch->Control meaning). Plugin code, not data, for Valiant Knife, Reraise/Doom/SOS and Gogo/Umaro's magicite (sent to TedPlugin). Art (bc-sprites, lent by BC): a new kit decoder `tools/snes_sprites_at.py` for T-Edition's relocated sprite tables (CF/1A00, tiles F0/F4/F5, palettes 41/6200; EX's bosses from EX's ROM), `tools/ted_art.py`: 174 new, 52 recolors, 15 swaps, 1 touch-up over 0-539 (76 redrawn in the vanilla range), MonsterImages builds all 226 images and thumbnails from the player's game in 2.6 s; `ted_build` points the monster rows at them. `data/ted_monster_images.json` stays out of the public repo until Tsushiy agrees. Checks: test_mod on the final TEditionPort 50 OK, tests/test_ted* 47 OK, the merged build 0 conflicts, 0 problems. Not run in game: the commands as abilities (Control, Leap), the random dance proc, the art (TedPlugin's load call next). T-Edition ~39% | — | — |
+| 2026-11-20 (T-Edition: Mato's descriptions; a second item bank found) | **Mato's descriptions for the items, spells and Lores T-Edition changed** (the lead). His build's menu tables found from the code that sets them up (items C4/1000 -> 5C, spells E6/F690 -> D8, Lores CF/FF3E -> 55; Blitz CF/FF9E, Bushido CF/FFAE, rages 40/0E00 noted), decoded with his small font's punctuation and brackets (`profile_tedition.mato_descriptions`); a slot keeps the PR's own text where T-Edition left it as FF6 had it (the record but for who equips it and its price; a spell's but for its MP cost): the PR's own text stays on 13 items and 4 Lores, Mato's goes on the rest; the 24 rows item identity made get Mato's text instead of their template's. **Found: T-Edition has 280 items**: 256-279 are a second bank of 24 relics (Black Belt, Dragon Horn, Economizer, Offering, Gem Box, Exp. Egg, the four Fiends' relics...; an inventory slot's quantity bit 7 marks it, 4E/0750), with their own records (ED/AD00) and names; the port does not carry them yet. test_mod on TEditionPort 50 OK; the merged build 0 conflicts, 0 problems. T-Edition ~35% | — | — |
+| 2026-11-20 (BNW Coliseum and Suplex, BNW lead) | **BNW's Coliseum, never ported before (bnw-scenes found it): its 255 matches, the opponents' BNW stats and AI; Suplex missing BNW's can't-be-suplexed monsters.** (1) Matches: the PR builds its table in code (Serial.FF6.Management.ColosseumInfomationData); the new kit piece PrKit/Ff6/SnesColiseum.cs (generalized from WC's WcColiseum, which stays as it is for now) answers GetMonsterId / GetRewardItemId / IsRewardNameUnknown from a mod's rows (tools/seed_info.coliseum; a `hidden=` callback: BNW's reversible_bets.asm made byte 3 the bet's tile and hides at $00, so 1 hidden reward, not 254); BnwPlugin/Coliseum.cs with bnw_data.json "coliseum" (bnw_plugin_data.coliseum), a self-test at startup ("[coliseum] self-test ok"). (2) Opponents: the PR's Coliseum fights its own copies of monsters (500-611; in vanilla each has its regular's stats and differs only in drops, EXP, gil, script, Rage and exit), which the porter never wrote: 104 of 109 kept vanilla's stats. New porter pass port.sync_monster_copies (opt-in, profile_bnw; WC later, the coordinator's call; port.monster_copies maps copy -> regular): 105 copies took BNW's stats, resistances, statuses, flags and looks; bnw-enemy-ai's port_ai opt-in snes_ai_coliseum_copies gives 96 copies their regular's BNW script. (3) Suplex: BNW keeps the SNES check with its own list (84 monsters; vanilla 159); the kit's SnesSuplex with bnw_data.json "no_suplex" (96: the 84 and 12 Coliseum copies), [Battle] DamageRules, a probe self-test. Not shown: BNW's arrow / trade-loop marks beside each bet | offline: two scratch ports (the pass on / off) differ only in monster.csv rows 500-611 (stat, resistance, status and look columns); a third (the refactor + Suplex) only in bnw_data.json "no_suplex"; all five plugins build (Debug), Rules.Tests 34/34; the real port 17:57 (under the lock), test_mod 50/50. In game: queued with bnw-11 (the coliseum and suplex self-test lines) | | ~95% |
+| 2026-11-20 (BNW battle engine and esper leftovers, bnw-engine; handed to the BNW lead) | **BNW's command research rows closed, its engine leftovers ported, "<name> gained an EL" on the victory screen, BNW's join levels; for WC, the SNES's Offering/Genji Glove penalties (kit)** (1) Relic corrections: HardItems' dict rule now per key (`dict:<key>:armor`, accessories only; Rules/BnwData HardList.Key), Pilgrim's Passport x0.75 for any ability-253 wearer. (2) `EngineRules.cs` (new): BNW's elemental share for multi-element attacks (Rules/BattleMath.ElementShare), Mug on BNW's Fight formula with misses on a failed steal, Rage's innate statuses, Blind on Steal / GP Rain / Jump's landing, Chainsaw's kill turned to a cut on death-immune targets, a dual-wield Mug's second strike as Attack; `CommandRules`: Noise Blaster evaded by Stamina; `BattleFormulas`: the back-attack x1.5 is physical only (as the SNES, C2/14AD), Chainsaw and Drill (BNW's Drill_Saw respects row) x0.5 from the back row. Failed Blitz half turn: N/A (the PR's Blitz is a list). (3) `Schematics.cs` (new): Julian's quest on Figaro's WoR soldier (Map_20370 entity 329), Auto Crossbow 225 / never misses after it (EsperStore flags word "BNWF"). (4) Espers: `EsperResultRows.cs` (new): the level-up page opens for a new EL and lists "<name> gained an EL"; harness `bnwel`; disallowed espers unequipped outside battle; EL data across save/load confirmed in the decompile. (5) Join levels: `JoinLevels.cs` + Rules/JoinRules.cs (see "BNW's changed scenes": 13 WoR floors, 15 WoB rejoins kept, Shadow/Setzer averaged, first-join offsets); harness `joinlv`. (6) Kit: `PrKit/Ff6/SnesRelicPenalties.cs` (WC: Offering x0.5 on every physical hit, Genji Glove -25% when NOT dual wielding, config [Battle] GenjiGlove); SNES_PR_DISCREPANCIES rows: back attack (matches), Offering/Genji, join levels. Probe self-tests for all of it in `EngineTests.cs` (FormulaProbe.AddSelfTest) | offline: Rules.Tests 34 passed; runner (headless, saves untouched): engine rounds 2-3: back hit x1.50/x1.00, elements, Mug (14 strikes turned to misses), Blind (Jump 40 plain / 19 blinded, Steal 0 / 28 missed, GP Rain 40 / 15), Chainsaw, dual-wield Mug, grip, back-row cover, Shock cost, Sketch, Mimic, Rage statuses, Offering, EL in the save, Schematics given only with Edgar (180/100 -> 225/255) all ok; X-Magic skipped (the probe battle has no counter module); julian-field and wc snes_rules (Offering x0.49, Genji one weapon x0.77, two x0.98) PASS; queued in bnw-11: the Noise Blaster test (fixed act), el-victory-row-2 (rerun without aikeep: under it endfight's kill paid 0 EXP, so no EP), join-levels (joinlv now recruits its own) | ~99% | 95% |
+| 2026-11-20 (BNW final battle: statue parts vanish, tier 2/3 pieces) | **BNW's statue parts leave the final battle's tower when they die; tiers 2-3 get BNW's background pieces** (the BNW lead: "the broken-statue background pieces BNW swaps in as each tier is beaten"). What BNW does (final_battle.asm TransferDeadGFX, read and rendered in the windowless SNES): the Tier2_* / Tier3_* tiles are copied in when tiers 2 and 3 begin (formation $200 / $201), not after they're beaten: they are BNW's look of those tiers (~930 + ~110 pixels: the middle machinery, the right figure, the tiger's mouth, the goddess); `tools/final_tiers.py` now writes them over its SNES captures (to the core's VRAM, state saved and reloaded so Snes9x's tile cache sees them; the table is profile_bnw's final_tier_pieces), so they are in the tower picture. What changes as a tier is beaten is that BNW's parts are sprites that vanish when they die, where the PR's picture keeps them: each part is now a layer of its own in the recipe ("parts"), and BnwPlugin (BnwMonsterImages.Track, every 10 frames in battle) paints a part that died back to the statue under it in the loaded texture (the picture without parts made from the player's game: PrKit MonsterImages.BuildBase); the picture comes back when the battle ends; harness `tower` | Rules.Tests 34/34 (the tower without its parts differs only under them: 0 pixels outside, >1000 inside); PrKit.Tests 9/9; tests/test_sprites.py OK (nine parts); test_mod 50 OK; Debug builds of all five plugins; recipe id 362ba9939233106c (in mods/); in game: queued with QA (bnw-11, "tower-parts": tier 1 shot, ko 344 = Limbo, shot, endfight, tier 2 shot) | ~99% | ~89% |
+| 2026-11-20 (BNW enemy AI and event mechanics, bnw-enemy-ai) | **Every reachable monster on BNW's own script; BNW's missing fights and their triggers; the event audit's mechanics.** AI: the 10 unsupported scripts run (FB 01/05 invincible, 02/09 end, 06/07 untargetable, 0D hide; F7 events set the PR's battle modes for 11 hybrids); 327 monsters on BNW's scripts, 16 bosses kept with reasons; BNW's renumbered story formations; new fights Kaiser (8410, in a new PR room cloned with tools/snes_rooms.py: BNW's corridor between two Kefka's Tower rooms, its 8 dragon markers lit per fallen dragon), Kefka + 2 Centurions at the Sealed Gate (8377, BNW's lines), the Dream Stooges with Shemp (8346, for bnw-dream); kit host fixes that reach WC too: RecoveryConditionEnemy takes condition ids (it was given types), NotTargeting/NoSelect excluded from targets, a held boss's own "end the battle" turn goes through its death (Ifrit and Shiva never ended), SNES battle event bits carried to PR flags (SnesAiData.EventBits). Events (tools/port_bnw_rewards.py, port_bnw_mechanics.py): 15 reward scripts changed and 11 given BNW's new gifts (Dadaluma fed Dried Meat leaves a Hell Claw, Daryl's Soul, Odin at the Queen, the Floating Continent's restore...), 9 save points, Jidoor's auction closed and Bob's three sales, Shadow unequipped as he leaves, the Veldt freebies; plugin SysCalls BNW:pay / unequip / optimize / veldt_open (the game's own steps, decompiled tools/decomp/unequip, veldt_met); the review rows decided | offline: test_mod MapFiles green on the 16:4x port; Rules.Tests 34/34, WcAi.Tests 62/62, Wc.Tests 0 failures; BNW, WC, T-Edition, BC plugins build; a full scratch port of BNW clean. Headless (runner, bnw-2): parties 436-438, 7441 ended as scripted; 440 stalled (fixed); the rest and the triggers rerun in bnw-11; the event mechanics not yet played | ~99% | ~92% |
+| 2026-11-20 (BNW final battle tower, bestiary thumbnails; the image builder in the kit) | **BNW's final battle statue and its 16 new monster images' bestiary pictures; the image builder is the kit's** (the BNW lead: "the final battle's tier parts ... the bestiary's habitat thumbnails"; the Cross-mod coordinator: "move MonsterImages.cs into the kit"). (1) Tower: the PR draws the final battle's three statue tiers as one picture, MN_FF6_147_C00 (240x456), with vanilla's statue parts painted in (the part monsters are 1x1 empty images): the SNES tier backgrounds ($33/$34/$35, on BG2) stacked, tier 3 at row 1, tier 2 at 153, tier 1 at 305. BNW's final battle hack (bnw 3.0 final_battle.asm, art by Khaos and Ryo_Hazuki) cut its parts out of those backgrounds and draws Limbo, Lust, Gluttony / Wrath, Greed, Heresy, Violence / Fraud, Treachery as sprites. `tools/final_tiers.py` captures both ROMs' tiers in the windowless SNES (`tools/snes_final_tiers.py`: the first New Game battle forced to the tier's formation and background through $11E0/$11E2, Snes9x's layer options hiding the windows, text and sprites) and makes an overlay of only BNW's changes: ~1,200 background pixels (in the PR's colors, a per-tier color map learned where vanilla and the PR agree) and the nine part sprites at their SNES places; the plugin paints it over the player's own picture (an "overlay" recipe entry; profile `sprite_final_tiers`). (2) Bestiary thumbnails (226x226, group `mt_<group>_<asset>`): each recolor's is its base monster's own thumbnail with the same color table, Kaiser's its sprite at 3x on its head; Magicite serves the new groups. (3) `plugin/Rules/MonsterImages.cs` moved to `plugin/PrKit/MonsterImages.cs` (namespace PrKit, game-free; `FromJson(json, property)`) for BC's sprites too; MODDING.md "Monster images". Not ported: the broken-statue background pieces BNW swaps in as the screen scrolls past a beaten tier (the PR's tower picture doesn't change during the fight) | Rules.Tests: 17 images + 16 thumbnails made from this PC's game, pixels = the porter's (sha1), unchanged by the kit move; PrKit.Tests 9/9 (2 new); tests/test_sprites.py 4 OK; Debug builds of BnwPlugin, WcPlugin, BcPlugin, TedPlugin, BattleOptionsPlugin; in game (QA, headless, saves unchanged): harness `resload` loads the made bestiary images and thumbnails the bestiary's own way (book 332 Silver-D, 313 Tonberry; Kaiser's thumbnail) and the tower (240x456); the tier 1 fight (party 472) draws BNW's Gluttony and Lust on the statue (build/sprites/shots/tower_t1.png) | ~99% | ~89% |
+| 2026-11-20 (BNW text, battle UI, event audit) | **BNW's "Fail" / "Null" misses, each Rage's two attacks, BNW's monster names, item names in "Obtained" lines, more of BNW's script; an audit of every scene BNW changed beyond its text; the first scenes ported** (the coordinator's split of "finish the whole BNW port": the Text and Menus rows, then the Events row). (1) `BattleUi.cs`: the PR decides a status per target in AddConditionFunction.Calc / AddConditionMultiFunction.Calc (decompiled tools/decomp/bnw_ui): IsAddable, the serial provider's CheckForceMissCondition (CommandRules' Spirit evasion = BNW's Stamina miss), the target's ConfirmedResistanceCondtionList; a status miss is sorted Fail (evaded) > Null (all resisted) > Miss, and the target's miss popup (BattleUtility.CreateDamageView -> ViewDamageEntity.ViewMiss) gets FAIL/NULL drawn in code in the Miss sprite's style (7-pixel letters, 1-pixel outline; no game art), English only, Config [Battle] InformativeMiss; harness `bnwui miss|show|popup|gau|rages|bars|status`, `gauturn`. (2) Rage descriptions: the PR's 252 Rage abilities' content rows had no description key; port_dances.describe_rages gives each MSG_BNW_RAGE_INF_<n> (BNW's words for its 64 rages from ragedance_descriptions.asm's table in its ROM, bnw_text.rage_descriptions; the rest from their two attacks), shown by the battle list (OwnedAbility.MesIdDescription). (3) Monster names: never ported before (every monster showed the PR's name): tools/port_names.py, opt-in `monster_names` (BNW only; WC's port checked byte-identical), 314 keys, 13 monsters on keys of their own where the PR shares one (Soldier/Recruit, the Mag Roaders, Siegfried/Ziegfried...). (4) Dialogue: a last neighbour-bounded pass in dialog_map (+23 lines, 3508 of 3909 placed); "Obtained Gold Hairpin!" lines get the game's own name for the item the script gives (BNW's Goggles; 32 lines, keys only); BNW-only lines for scenes the port adds (BNW_E0460_01-06, the Sealed Gate, with speakers, in every language: DialogText's added lines); 13 lines on dialogue numbers BNW reused for other scenes keep the PR's text (bnw_dialog.repurposed_dialogues); bnw_dialog.json now made by the porter too (it wipes the mod folder). (5) Cast bars vs the Battle Options mod: the values agree by design; BNW's Stop/Slow/Haste tint now goes through the gauge's CanvasRenderer, so Battle Options' enemy bars (which copy image.color) keep their colour. (6) Event audit (tools/event_diff.py, kit): 195 changed script units, 39 new, 36 removed; table in "BNW's changed scenes beyond its text"; Events row (weight 8) added to the Status table, the total now over 108. (7) Scenes (tools/port_bnw_scenes.py): the Narshe blacksmith forges Apocalypse / Illumina / Wait; 8 lines BNW cut skipped | offline: test_mod 50 OK (new: Dialogue.test_obtained_names, test_rage_descriptions), Rules.Tests 32 passed; runner (headless, saves untouched): "[dialogue] Brave New World: 3188 story lines", the ATB colours seen (Haste green, Slow yellow, Stop red; the gauge white: tinted through its CanvasRenderer), Gau's Rage list reached and BNW's rages listed with their descriptions ("2/3: Cure 2; 1/3: Attack (2x dmg)"), BNW's monster names in the battle (Soldier, Tek Armor); the miss self-test through the game's own status calc: 13 abilities NULL and 16 FAIL across the three monsters, and the popups from that path (SlowX evaded on a Soldier: FAIL; Doom on the Tek Armor, which resists 17 statuses: NULL; the game's MISS beside them); queued: a draining cast bar (Celes casting) and the blacksmith's choice (bnw-castbar, bnw-blacksmith) | ~99% | 89% |
+| 2026-11-20 (T-Edition: EX's boss room built) | **EX's boss room with its 13 super-boss fights is built offline** (ted-ex, reviewed by the lead): EX's monsters as SNES 512-539 (PR 1512-1539), its fights as formations 768-792 (parties 30768-30792) through the porter; the bosses' AI for TedPlugin (`tools/ted_ex_ai.py`: EX's formation changes (F2) as show/hide over one party per fight, its 31 own attacks as abilities 7166-7237, battle lines on free numbers); PR map 780 with the Moogle, two shops and the way back; the Moogle's menu and fights translated from EX's own code with 0 stubs, Omega Weapon added as the 13th; wins set the flags the Collection Room's paintings read. In the merged build: 0 conflicts, 0 problems; tests/test_ted_ex.py 14 OK. In-game check queued with QA. Not ported: EX's battle events; an F2 that carries HP over (Sephiroth's forms, the Ark Angels) gives each form its own HP; six decorations around the Moogle. A kit bug found (SnesAiHost brought later forms in as the wrong monster: SNES id + 1), reported with a fix to the kit lead. T-Edition ~34% | — | — |
+| 2026-11-20 (T-Edition: new monsters and formations) | **The porter carries T-Edition's 94 new monsters and every formation past 576** (ted-monsters, reviewed by the lead; the kit lead has its report). Kit: `ff6snes.EXTENDED` (a mod image's grown tables), `idmap.monster()` (SNES monster e -> PR e + 1, or 1000 + e for monsters a port adds; the PR's own rows end at 611), `port_encounters` reading formations past 576 and their AP past 512, party ids 30000 + 1000k + f for formations from 600 (the 2000 + f / 4000 + 600k + f scheme kept below, which WC's Veldt relies on), two `port_chests` lines, a `port.py` hook, and a new `tools/port_monster_ext.py`: a PR monster row per new monster with T-Edition's stats, Mato's name, drops and steals, elements and statuses, its special (ability 6000 + e) and Sketch group; art: 13 vanilla, 17 recolors, 64 new (a vanilla sprite of the nearest size stands in until the art work). T-Edition's graphics entries found at CF/1A00, its sprite tiles at F0/F4/F5, palettes at 41/6200. A bug fixed in the profile's image build (a slice that shrank the image). Formations 723-726 = parties 30723-30726, for the README's first events. BNW's port byte-identical before/after (742 files); test_mod OK on TEditionPort; the merged build clean. In-game battle requested. T-Edition ~32% | — | — |
+| 2026-11-20 (T-Edition: the new maps built) | **92 of T-Edition's 94 new maps built offline as 106 PR maps** (ted-maps, reviewed by the lead): 58 copies of PR rooms, 34 converted (25 drawn by their entrance events onto blank layout 298), ids 644-749, scripts 629-734, 353 doors, 277 arrival points, all 70 chests (flags 300-369), doors and arrivals on 15 vanilla PR maps; 433 and 435 wait for their looks' vanilla maps (317, 391) to get PR pairs. snes_maps 319 of 416 with a passability check on every pair; snes_rooms collision 98.2% on held-out rooms, stacks matched by the cell's SNES picture; PR and SNES sides drawn as PNGs without the game. `data/ted_maps.json` gives ted-events every room, arrival point, exit, chest, NPC and event tile. The merged build: 0 conflicts, 0 problems; test_snes_maps 15 OK. In-game check of 16 maps queued with QA (ted-maps-1). Not yet: random battles, music and titles for the new maps. T-Edition ~30% | — | — |
+| 2026-11-20 (T-Edition: plugin, second round) | **TedPlugin: 28 of the battle spec's rules, and its test install follows the mods' install rules** (plugin session, reviewed by the lead): Hawk-eye weapons x2 against Float under Fight (the PR's GetHawkEyeCorrectionValue), one dance per command, Gau learning the formation's rages on any win, Mysidian Bunny-type heals unsplit, the Coliseum fighter taking commands (off until seen in game), Shadow never leaving; likely already the PR's: rules 20, 30, 52(c), 53 (to confirm in a run); deferred with reasons: 11, 29, 36, 39, 42, 49, 52(b,d,e,f), 58's Veldt part, 62. `tools/ted_testinstall.py` installs the merged `mods/TEdition` (group folders into Magicite/TEdition, its data and EX's boss AI into BepInEx/TEdition), never writes build.json, and restore removes every test file. 0 build errors, Ted.Tests 21 pass; not run in game yet (QA batch ted-7). T-Edition ~29% | — | — |
+| 2026-11-20 (T-Edition: its plugin and battle rules) | **TedPlugin exists, with 22 of T-Edition's battle rules, its own SNES AI on the kit's interpreter, and a test install** (child session "T-Edition: TedPlugin and its battle rules", reviewed by the lead). `plugin/TedPlugin` (TEdition.PR, GUID ff6mod.tedition; harness `ted`, `tedcheck`, `tedgive`), game-free rules in `plugin/TedRules` with `plugin/Ted.Tests` (21 pass): damage steps (elements averaged, weakness quarters defense, ignore-defense through the defense step, Defend/row/Morph/Shell factors, half damage on flagged monsters, Trance x1.5, percent damage, reflect, drains), statuses (ticks, Stop, espers re-summoned), commands (Steal, Orichalcum, Gil Toss, Interceptor, Dice, the action freeze...): rules 4, 6-10, 15, 17, 21, 27, 28, 36, 38, 40, 41, 43, 44, 46, 50, 54, 55, 60; 45/51 wait for kit options. Monsters run T-Edition's own SNES scripts through the kit's SnesAiHost (profile snes_ai, `ted_ai.json`). `tools/ted_testinstall.py` installs T-Edition alone (the active mod held aside) for the PC test runner. The lead's porter data from the spec: damage cap 32000, Near Fatal at 1/4, Image lost half the time, every weapon's critical rate 8 (ted_build's data rules). Not run in game yet (QA batch ted-5 queued). T-Edition ~28% | — | — |
+| 2026-11-20 (T-Edition: map tables, new maps, one merged folder) | **T-Edition's map tables read and its new maps built; the mod ships as one merged Magicite folder** (child session ted-maps, reviewed by the lead; the lead's build). Map tables from T-Edition's own field code for all 511 slots (properties 4D/0000, layouts 41/0000, NPCs 4D/7CC0, event tiles 4B/0000, exits 4B/9BFE and ED/F480, chests 4B/4000, palettes 4B/6000, graphics 40/0B00), read by generic readers in `tools/snes_maps.py` (T-Edition's addresses in `tools/ted_maps.py`). snes_maps places 319 of 416 SNES maps (was 242: world-map towns through the PR's named entrances, doors in event objects, every pair checked against SNES passability); snes_rooms on held-out vanilla rooms: collision 98.4% (was 88%), exact tile stack 49% (was 20%). First build of the new maps: 94 SNES maps -> 99 PR maps (ids 644-742; 54 copies of PR rooms, 37 converted, 3 pending), 70 chests (treasure flags 300-369 of the PR's 1024); not yet tried in game. `tools/ted_build.py` + the kit's `tools/magicite_merge.py`: the game reads one copy of each package.json and entity file (BNW's copy had hidden the first translated event's scripts), so the porter's output, the maps and the events are merged three-way against the game's files into mods/TEdition (0 conflicts, 0 problems); the porter writes `ted_items.json` (each item slot's row and content id) for the new maps' chests. T-Edition ~25% | — | — |
+| 2026-11-20 (T-Edition: the battle overhaul's spec) | **T-Edition's battle engine read from its code: 63 rules, each with its JP and US addresses and a PR implementation plan** (child session ted-battle, reviewed by the lead; `pr/ted/BATTLE_SPEC.md`, details in `pr/ted/battle_commands.md` and `battle_status.md`). New kit tool `tools/snes_disasm.py`, a 65816 disassembler (M/X widths, recursive tracing with jump tables, ROM-table reads per routine, JP<->US alignment; tested on BNW's vanilla listings and 471 of BNW 3.0's 501 patch blocks); `tools/ted_battle.py` compares T-Edition's battle code with the JP ROM's. Found: elements averaged over an attack's elements and a weakness quarters the target's defense (no x2); ignore-defense goes through the defense step at 0; Defend, back row and Morph cut magic to 170/256; damage cap 32000; criticals 20/256; Near Fatal at 1/4; drains uncapped; reflect not halved; ATB and the status clock freeze during actions (BNW's NatbRules idea, to the kit); monster speed 255-4*speed. Where the docs and the code disagree the code wins: Interceptor blocks 67%, desperation 1/32, Dice /16. Costumes change no stats (the 40/3100 table is dead). EX shares the engine (its tables moved). Data for the porter: growth (41/DD00, 41/E320), Relm's natural magic, constants, Valiant Knife's flag, spell ids. T-Edition ~22% | — | — |
+| 2026-11-20 (T-Edition: SNES events -> PR scripts) | **The kit can read every SNES field event and translate it into a PR script; Mato's dialogue decodes** (child session ted-events, reviewed by the lead). `tools/snes_events.py` (kit): command sizes from the ROM's own command tables, object queues, the world map's vehicle scripts, choices and switches; every script reachable from every map's entrances, tiles and NPCs decodes with 0 unknown opcodes: US 44,210 instructions, JP 44,227, T-Edition 61,146 (its 22 changed commands and its tables in `tools/ted_events.py`; EX: 14 left). `tools/event_translate.py` (kit): ties learned from 694 paired vanilla scenes (443 event bits -> PR flags, 46 songs, 45 sounds; `data/snes_event_maps.json`), then flow, dialogue, flags, puppets, battles, warps, gifts, joins, music and fades as PR ops, the rest `SysCall "SNES:..."` stubs, counted; 12 vanilla scenes checked against the PR's own scripts (dialogue in order 73-88% shared, battles mostly right; warps into the PR's split rooms and story party joins not yet); stubs left: 14% of vanilla's instructions, 21% of T-Edition's new code. Mato's dialogue (`tools/ted_dialog.py`): 3-byte pointer tables at 5C/9CE0 (3,452) and 51/E600 (1,267) plus a 112-word dictionary, not where the 2.9.2 address list said. First T-Edition event: South Figaro's wine old man (the Yellow Globe scene), 0 stubs, in `mods/TEditionEvents` (not wired to its NPC yet; in-game run queued). `tests/test_snes_events.py` 12 OK. T-Edition ~19% | — | — |
+| 2026-11-20 (T-Edition port started) | **T-Edition is a mod of its own; the kit's porter gets item identity and multi-slot drops** (the user, choosing in the lead session: T-Edition and EX as one mod, no ROM needed by players, names TEdition / TedPlugin, repo "create now"). (1) `tools/item_identity.py` (kit): T-Edition rebuilt FF6's item list (110 vanilla items in other slots, weapons in shield and helmet slots, armor in relic slots), so each slot now gets its PR row and look by name and kind: 150 items matched by the PR's name, 14 by the SNES name, 1 by a close spelling; new items take their own row, a freed row (42) or a new row (24 weapons, 92-115: T-Edition has ~115 weapons), with a same-kind template's look (category, battle sprite, effect, equip slot, icon); the porters diff each slot against a vanilla baseline in the mod's item numbering (records permuted; shops, chests, steals/drops, starting equipment and metamorph renumbered), so the 76 items the port used to skip as "type changed" now port. `idmap.ITEM_OVERRIDES`, `prdata.ADDED_ROWS` (rows a port made appear in fresh tables), new text keys `MSG_PORT_*` (test_mod accepts them). (2) Drop slots: a profile's `monster_drop_slots` -> `drop_content_id1..8`, the odds as `game_constants` (T-Edition: MONSTER_DROP_RATE 68/19/8/5, its 174/50/20/12 of 256 as decoded by ted-battle; 211 monsters use slots 3-4). All opt-in: BNW's port byte-identical before/after (scratch folders), `PR_MOD=TEdition` test_mod 50 OK. (3) Public repo github.com/thomasjteachey/ff6pr-t-edition (tools/ted_publish.py; first commit c305d3c, kit 6923a05). (4) Child sessions: ted-events (SNES event -> PR script translator), ted-maps (T-Edition's map tables, the 93 new maps), ted-battle (65816 disassembler, the battle overhaul's spec). T-Edition ~16% (table below) | — | — |
+| 2026-11-20 (BNW monster images) | **BNW's monster sprites in the PR: its recolors and Kaiser, made on the player's machine** (the coordinator's task: "Port Brave New World's monster graphics"). (1) What BNW really changes: `tools/sprite_compare.py` now compares sprites as the SNES draws them (`tools/snes_sprites.py`; cropped to the opaque box, palette slots matched by content): 353 look like vanilla (~50 with a few touched-up pixels in vanilla's colors, e.g. Dahling's pipe smoke), 15 recolors (Retainer, Officer, Banshee, Europa, Callisto, Ganymede, Tonberry, Phantom, Centurion, Silver/Purple/Brown/Gold/Green-D, one unused slot), 2 swaps (Necrosaur = Skull Dragon, Kefka 375 = Kefka), 11 new art (Kaiser, the final battle's nine tier parts, the unused Shemp). The 2026-11-05 "~220 recolors" were palette moves with the same colors. (2) The PR's monster images (`mn_ff6_NNN` bundles, RGBA32) are the SNES sprite's box at the same resolution, redrawn in its 16 colors, so a recolor is a color table: `tools/port_sprites.py` (images mode, profile `sprite_images`) aligns the PR's art of the closest-colored vanilla monster of that shape to the SNES sprite, gives each PR pixel its palette slot, moves it by BNW's change in Lab and keeps one new color per PR color (lossless on all 15). Kaiser ships as BNW's own pixels + palette (from BNW's patch). No PR art ships: bnw_data.json `monster_images` holds color tables. New monster_asset rows 2000+monster (key `{GROUP}_B{monster}`, in the source art's group: its shadow), monster.csv points at them. (3) Player side, no Python: `plugin/Rules/MonsterImages.cs` (game-free; reads the game's own bundles: UnityFS/LZ4, Texture2D RGBA32 from the .resS) from `BnwMonsterImages.cs` in Plugin.Load writes PNG + .spriteData + keys/Export.json into `Magicite/BraveNewWorld/mn_ff6_*/` before Magicite scans (marker `monster_images.txt`; deploy's mirror wipes them, the next start remakes them). Magicite serves new keys in the game's existing groups. (4) Not ported: the final battle's tiers (the PR draws the three statue tiers as one pre-made 240x456 image, MN_FF6_147_C00, its parts are 1x1 empty images: BNW's nine-circles parts would need a new composite), the bestiary's habitat thumbnails (`mt_` groups) of the 16 new images. The touch-ups need nothing: the visible ones (Isis' top, Critic's rider covered, Dahling's pipe smoke) are in the PR's own art already; Kaiser (formation 410) has no PR battle in the port yet, so its image isn't reachable | Rules.Tests "monster images from this PC's game": all 16 made, pixels = the porter's (sha1), ~0.1 s; tests/test_sprites.py 4 OK; contact sheet `tools/sprite_sheet.py` (sent to the user); in game (the PC test runner, headless): "[bnw] monster images: made 16 of 16 from this game in 120 ms" at startup, no Magicite errors; real battles draw the made images (build/sprites/shots/: Silver-D, party 367; Callisto + Ganymede, 2244; Tonberry, 236; Retainer, 427), saves unchanged | ~99% | ~89% |
+| 2026-11-20 (SNES-vs-PR ledger; WC parity) | **SNES-vs-PR engine differences now go to WC; three fixed for WC, one porter bug fixed for every mod** (the user: "if you catch discrepancies between SNES and PR, ... the WC port knows about these and decide whether it needs to fix it on their end"). New `pr/SNES_PR_DISCREPANCIES.md`: each difference, what BNW does, WC's decision and status; every BNW session adds rows and tells the coordinator. Moved into the kit for both mods: `PrKit/Ff6/SnesUmaro.cs` (Umaro's odds per mod table via the GetRand answer, one thrown-ally pick shared by hit and animation, a thrown Mog a sure critical; `RunAct` runs a real act without applying it, for self-tests) and `PrKit/Ff6/SnesHitRates.cs` (the PR's x1.25/x0.75 hit-rate status lists). BNW's UmaroRules/HitRules are thin configs now (and BNW also drops the PR's extra Charm from the x1.25 list). WC (`WcPlugin/WcSnesRules.cs`): vanilla Umaro odds (C2/5269: 158/95; 94/63/95; 62/63/63/63), the Mog-toss critical, Charm out of the x1.25 list; WcTest `check=snes_rules`. Porter: `port_effects.port_rages` only rewrote monsters whose Rages a mod changed, so the rest kept the PR's 25/75 instead of the profile's odds (SNES 50/50 for WC; BNW unaffected, it rewrites all 61 of its Rages). | offline: PrKit.Tests 7, Wc.Tests 0 failures, WcAi.Tests 62/62, Rules.Tests 31; headless BNW probe: hit lists, covered hit, toss ok on the kit code; headless WcTest (seed kittest3 generated + applied, new game): 0 failures, WC odds 63/37 and 38/37/25, Mog toss 40 of 40 criticals; saves unchanged. WC fixes ship in the next WC release | ~99% | 88% |
+| 2026-11-20 (the kit's screenshot command) | **Windowless screenshots on the PC: the kit harness's `shot`** (the user: "take screenshots of the new translation", "use the PC to take screenshots not the deck", then "finish the screenshot command; we'll need that for later"). A run with a graphics device but no window (probe_headless.ps1 -Graphics; new: `kit.py run <game> --harness --graphics`) has no screen, and Unity draws no camera on its own in batch mode (the game's layers read back empty, ScreenCapture gives a blank frame), so `shot <png> [width [height]] [layers]` draws the frame the game's way (FrontRenderTarget): every off-screen camera in depth order into its layer ('Field', 'BirdView', 'Battle', 'Overlay', the effect textures), each layer cleared first (the fade camera only clears depth: it piled up to black), plus a UI camera the game renders by hand (CameraUI: disabled, but its canvases draw through it); then the screen camera (CameraFrontFilter: the composite of the main image and the UI) into one texture; then canvases drawn straight to the screen through a camera of its own that sees only their layers, far from the map (the first version's helper camera saw every layer at the world origin: the field came out as 80-pixel blocks); scaled, PNG. `layers` writes each layer too (with alpha); `shotinfo` lists every camera (disabled ones too), image and root canvas. Docs: MODDING.md, game_harness.py. | headless BNW (-Graphics, 1280x800): the opening's narration over Narshe, the 3D world-map scene with its credits, Wedge's message window (name plate, BNW's line), the control-guide popup over the blurred field, a battle (party 3407: backdrop, the Whelk, command and party windows, HP and ATB bars) all drawn right. Saves unchanged after every run (19 files). Installed: BNW on the PC (from source, with the battle session's 0.23.0 work); the Deck keeps 0.23.0 (an older draft of shot) until the next BNW deploy. Kit not published yet (waits for the battle session's untested kit files) | ~99% | 88% |
+| 2026-11-20 (BNW 0.23.0: battle engine gaps) | **BNW's hit-rate statuses, the covering knight's Evade and Interceptor, a tossed Mog always critical** (the user picked "Battle engine gaps" from what was left). (1) `HitRules.cs`: vanilla's physical hit rate is x1.25 against Blind/Zombie/Muddle/Slow/Rerise targets and x0.75 against Poison/Near Fatal/Seizure/Haste (C2/235B, C2/2372, read off the US ROM); BNW drops Rerise from the first and skips the second. The PR keeps both as static arrays (CalcExecuteFF6.HitRatePlusConditions / HitRateMinusConditions), rewritten once at startup. (2) `CoverRules.cs` (c2.asm HalveEvasion, SkipDogBlock): while a covered act's BattleFunction2.HitCalc runs, the guard's ConfirmedEvasionRate reads halved (BattleMath.CoverEvade, BNW's 8-bit math) and WildFangConditionFunction.CheckDefendInvoke says no. (3) `UmaroRules.cs`: vanilla (C2/16CF) and BNW make a tossed Mog a sure critical; the PR picks the thrown ally only in the animation (ThrowAtActFunction.SelectThrowingTarget), so one pick serves the hit and the animation, and Umaro's critical rate reads 100 for a Mog toss. Decompiled for this: tools/decomp/cover_hit (pattern pr/tools/ghidra/cover_hit.txt). New probe self-tests run real acts the game's way (ParameterActFunctionManagment.GetFunction, Init, FixedTarget, HitCalc; nothing applied); the probe takes "slot=party" (the newest save with 3+ in its party). Plugin 0.23.0, on the PC and the Deck. | offline: Rules.Tests 31 passed (new: CoverEvade), test_mod 48 OK; headless probe battle (save 11): "[hit]" lists as expected (x1.25: Confusion, Temptation, Zombie, Blind, Slow; x0.75: none); covered-hit self-test ok (40 of 40 Attacks on the knight, Evade 26 -> 13, Interceptor skipped 40; uncovered control untouched); toss self-test ok (40 of 40 criticals as Mog, 3 of 40 otherwise, the hit's pick handed to the animation); saves unchanged. Not seen in a real fight with a True Knight or Umaro yet | ~99% | 88% |
 | 2026-11-20 (BNW 0.22.1 released) | **BNW's first GitHub release: v0.22.1, a Pre-release ("First preview")** (the user: "can you make a github release for brave new world"). `tools/package_mod.py bnw`: build/dist/BraveNewWorld-PR.zip, 572 files, 947 KB (the DLL, bnw_data.json, the Magicite folder with bnw_dialog.json; no ROM, no game files). The BNW repo's README (tools/bnw_publish.py) now points players at the Releases page and says how to install; tag v0.22.1 on its commit 0824c33 (kit f28db4d). Notes: what's in, what isn't yet (monster art, ~11% of story lines, two menu changes, no full playthrough), install/remove, credits, the SHA-256. Uploaded through Chrome (948 KB, one file_upload; the form turns into a draft once the asset lands, Publish keeps the tag). | offline: test_mod 48 OK, Rules.Tests 31 passed; the zip's BraveNewWorld.PR.dll = the PC's installed one (5811606b). Public API: v0.22.1 published, prerelease, asset BraveNewWorld-PR.zip 970,539 bytes uploaded; the public download's SHA-256 = the zip (dacda8fe...). | ~99% | 87% |
 | 2026-11-20 (BNW's encounter rates; the kit's SNES encounters) | **BNW's random battles come at BNW's SNES rates; WC's danger counter is the kit's; BNW's Encounters On/Off in Config** (the user: "is BNW mod using the SNES encounter rate?" (no: the PR's ~38 steps everywhere), then chose the Config row). (1) The kit: WcEncounters' hook (the SNES danger counter on the PR's move counter, kept in the save; the roll before the game's own check; the party drawn 1-256 against the set's weights; the re-roll after a battle) is PrKit/Ff6/SnesEncounters.cs with a per-mod SnesEncounterMod (as SnesAiHost/SnesAiMod), and SnesEncounterRules.cs the game-free numbers (C0/C29F, C0/C2BF rate tables by relics x 4 + code, the roll, mean steps; the zone/terrain and set tables a mod's data may carry). WC is a thin config with its tables (WcEncounters.cs): same rates, same results. (2) BNW's ROM (tools/port_encounter_rates.py, bnw_data.json encounters): BNW keeps vanilla's rate tables but rewrote every code: per map 103 normal, 6 low, 8 high, 19 "very high" (all but one are maps BNW doesn't use: pack 0, four empty formations); per world zone and terrain group (WoB/WoR 512 codes: 70 normal, 47 low, 193 high, 202 none: most of the World of Ruin high, many WoB terrains none). The battle roll (C0/C48C) is 4 + random 0-232 (vanilla 0-255): no battle until the danger passes $0500, BNW's "minimum of 10 steps" (a normal dungeon: at least 12 steps, mean 37.8, vanilla 3 and 31.1; a normal world map 7 and 27.0, vanilla 2 and 23.4). The party odds (C0/C258, C0/C3F1: $D0 for $F0) 5/16, 5/16, 3/16, 3/16: the port's 155 random sets weigh 80/80/48/48 (the kit draws on the weights). The PR's world maps keep the SNES's 8x8 zones; a cell's ground (foot_information type, FootInfo.TypeId) gives the SNES terrain group, learned from vanilla (each PR area set is one vanilla pack, found in one group of the cell's zone): the generic tables give WC's codes on all 24,575 battle cells. Other maps by PR monster set (13 not normal: 6 low, 4 high, 3 BNW turned off: Figaro's engine room, the IMTRF's Ifrit/Shiva room, Gogo's room). Left: SNES map 53 (BNW: very high) shares a PR set with two normal maps (sets 142/157: normal); Fanatics' Tower's roof (BNW: off) shares set 266 with L4 (on); 6 maps BNW gave random battles (Figaro's crown room, the Soul Train's rooms, the IMTRF's save room, Gogo's cave, the Ancient Castle's Blue-D room...) have no PR set. (3) The porter: places BNW gives its empty pack 0 (no battles there) had outvoted BNW's real pack, and 15 PR sets kept vanilla's monsters (Narshe's mines, 4 WoB and 8 WoR world sets among them); they no longer vote: 160 sets refilled with BNW's packs (was 144). (4) BNW's encounter relics: the Mystery Egg halves, Dirty Undies stop (bnw_data hard_items; the PR's own checks name vanilla's slots, BNW's Black Belt and old Moogle Charm) while ItemEffects is on. (5) Encounters On/Off (madsiur's asm/encounter.asm, an optional BNW patch, not in BNW 3.0's ROM; the user chose to offer it): a Config row from the kit's new ConfigRows (Battle Options' way: a copy of an On/Off row with a type of our own, after the battle rows), Off = no danger added and no battles; BepInEx Field/RandomEncounters, Field/EncounterRates (off: the PR's own counter). The kit harness has "encounters" (state; cancel on: a battle a step sets up is called off headless). | offline: test_wc + romfree + xref + test_mod + test_prkit OK (5 skipped; new: the kit's rules from the vanilla ROM = WC's tables on every cell, BNW's encounters data, party odds, Narshe's mines), PrKit.Tests 7/7 (new: vanilla's and BNW's rules); WC's ROM-free seeds unchanged (the odds reader falls back to vanilla's without the field code). Headless (no Wow.exe; FF6 not running on the Deck, FFT was): WC `seed=enctest1;preset=moogle cup;newgame=1;check=encounters` 0 failures (zone 10 low: 32.5 steps a battle over 3,000, SNES 33.6; a real step set a battle up); BNW (the kit harness, the Deck's saves in a sandbox; `load` from the title now the in-game load in FF6, the old path stalled): the hook live with BNW's rules (mean 27 / 37.8; roll 4-236), a world-map step at zone 10's grass code 0 (+$C0; WC/vanilla: low, +$60), the Encounters row added after the battle rows beside Battle Options' two. The real save folder byte-identical after both runs (19 files). Not tested in game: a BNW battle from a step, the row's Off, the relics. Installed: WC then BNW on the PC and the Deck (BNW active; plugin, bnw_data.json and the shelved WC plugin match PC = Deck). No WC release (the user: no player-facing change) | ~99% | 82% |
 | 2026-11-20 (BNW dialogue, part 3) | **The rest of the dialogue: choices, narration, letters, espers' lines, more lines placed; the opera stays the PR's** (the user: "finish the dialogue the port"; mid-way: "don't change the maria song please ... it is voiced, so it would be weird if it were different"). bnw_dialog: three text modes: plain, lines (centered narration: BNW's line breaks, the plugin puts <CT> on each), formatted (letters: indents as (FULL_SPACE); BNW's <E$hh> waits as <WAIThh>); choice options (the PR's _c_NN keys after the question) from BNW's <C> options in the question's dialogue when they have as many (131, e.g. "Yes / WTF?"); an esper's "Obtained X magicite!" with BNW's name (the menus show BNW's: Tritoch for Valigarmanda; items stay the PR's: its scripts give their own); the opera: every sung line (♪), Celes's script and the stage's line choice (they quote the lyrics) stay the PR's. dialog_map: character names as one placeholder on both sides (name codes 02-0F kept, (TINA)-style tags), a name alone joins the next turn; a last pass (one clearly best dialogue anywhere, raw or kana skeleton, >= 0.55 with a 0.2 margin: +180); short lines between placed neighbours (+18): 3485 of 3909 story lines placed (89%), 94% agreement with the English. BNW's one-line battle captions (btlSmallCaption: several taunts per entry) don't map to the PR-AI bosses' lines: left as the PR's (BNW-AI monsters already speak BNW's). DialogText.Compose: a page's line breaks in the line's form (the game stores real newlines), <CT> per row on centered lines. Result: BNW 3168 lines, VNW 3164 (219 differ). Status: Text 75% -> 85%, BNW ~87% | test_mod Dialogue 3/3 (no sung line touched, the opening crawl, Obtained Tritoch, a choice); headless start (the user's OK): "[dialogue] Brave New World: 3168 story lines", the opening crawl '<CT>Long ago, the War of the Magi|<CT>reduced the world to a|...<WAITff><AUTO_P>'; saves identical. Installed on the PC (BraveNewWorld.PR.dll 79465f80, bnw_dialog.json 92de2f98); the Deck once it woke (same files) | ~99% | 87% |
@@ -165,22 +188,27 @@ items as they land; P0 first (they affect every or most seeds).
 
 ## Status (update after each milestone)
 
-**Brave New World: ~87% complete** (2026-11-20, plugin v0.22.1: BNW's dialogue in; 82% with the monster AI on the kit's interpreter; was 81% on 2026-11-07). Weighted checklist:
+**Brave New World: ~95% complete** (2026-11-20 evening: Events 40% -> 81% with the cut and review scenes done, the added scenes at 80% and Cyan's dream at 60%; the Enemy AI row at 95% (14.25); earlier the same day: an Events row (weight 8) added after the event audit, the total now points over all 108 weights; before it, plugin v0.23.0: BNW's evade, cover and Mog-toss rules; 87% with v0.22.1's dialogue, 82% with the monster AI on the kit's interpreter; was 81% on 2026-11-07). Weighted checklist:
 weight = rough share of what makes BNW play differently from vanilla, done = judged
 from the Plan at the bottom. "Shared" = how much of that area's work other mods reuse.
 
 | Area | Weight | Done | Points | Shared |
 |---|---:|---:|---:|---|
 | Tooling: extract, porter, tests, plugin framework, PC + Deck install | 5 | 100% | 5.0 | all |
-| Game data: characters, growth, equipment (incl. weapon procs, special effects, relic effects), items, spells, enemies (incl. special attacks), resistances, formations (each on its own background), encounters, the Veldt (the mod's 74 formations), shops (with BNW's new Doma Castle merchant), chests (layout-matched, both copies of shared places, the PR's scripted chests, monster boxes on BNW's own formations, chests BNW moved, item chests it made boxes), Rages | 25 | 100% | 25.0 | all (porter is mod-agnostic) |
-| Enemy AI: BNW's own SNES scripts run in the plugin on the kit's interpreter with BNW's rule changes (2026-11-19): 286 monsters, 16 more compiled, 10 unsupported, 34 bosses keep the PR's AI (their fights are PR battle events), 36 slots BNW emptied; skipped branches and explicit targeting no longer apply; bosses die only through their scripts; each monster's special its own; played headless: the Guardian (six lives, its final erase), Number 024, Rhyhorn, the Whelk's head and shell (11-20, without the PR's intro talk); the rest untested | 15 | 87% | 13.1 | most (the interpreter is the kit's) |
-| Esper system: restrictions, EP/EL, EL bank, equip bonuses, SP bank, displays | 10 | 95% | 9.5 | none (BNW only) |
-| Battle engine: damage formulas (probe-checked), Steal, Regen/Poison/Sap, Reflect, Spirit evasion, turns, Dance, Bushido, GP Rain, Mantra, physical skills, Morph, character-on-character, encounter odds, BNW's SNES encounter rates (the kit's danger counter: BNW's codes, its 4-236 roll, 5/5/3/3 party odds, Mystery Egg / Dirty Undies, the Encounters On/Off Config row; 2026-11-20), Imp, Blind, Steal hit roll, Morph gauge, Tools, nATB (native) + status timers, Slot (reels, no rigging, Jackpot, Bar-Bar-Bar espers), Runic (spells, weapons), Bushido weapons, can't-miss/no-split flags, Umaro odds/powers, Sketch brush rule, the two-handed grip (x1.5, Bushido, Windslash/Aero), Shock (probe-checked), Leap's limits, Mimic not copying a Mimic, one counter per X-Magic, True Knight cover (self-tested), Sketch's Magic for Vigor done; dual wield/Offering, the grip, Shock's HP cost, Mimic, X-Magic, the back-row cover and Sketch untested in a fight; left: BNW's evade tweaks (a covering knight's Evade halved, no Rerise Evade penalty, no status hit bonuses), Interceptor not blocking a covered hit, Umaro tossing Mog as a sure critical (BNW c2.asm: 141 sections) | 25 | 87% | 21.8 | some (probe, vanilla baseline, proc/relic/special/flag porting) |
-| Menus and battle UI: Wait Gauge cast bars + ATB colours (v0.11.0, untested), Scan (free turn, no counterattacks; the PR's Scan lists statuses itself), dance moves in the dance descriptions; BNW's other menu hacks fix SNES screens the PR redrew (status/equip screens, MP costs, Blitz names, spell icons); left: the "Fail" / "Null" miss messages, the Rage menu's attacks (no PR field) | 5 | 60% | 3.0 | none |
-| Text: names and descriptions done; monster battle lines (BNW's, in the AI host); dialogue (2026-11-20): BNW's script on 3168 of the PR's 4195 story lines: field and battle talk, choices, centered narration, letters, espers' "Obtained" lines (tools/dialog_map.py places 89% of lines through the Japanese; tools/bnw_dialog.py), Vanilla New World's as a Config option; left as the PR's: the opera (voiced: the user), unplaced lines (~11%), item messages, the PR-AI bosses' one-line battle taunts; not playtested | 10 | 85% | 8.5 | the line map (any FF6 mod on the US ROM) |
-| Graphics: enemy sprites (2026-11-05, port_sprites: 141 same as vanilla; shape swaps Banshee = Critic, Europa = Fortis, Kefka 375 and Kaiser 311 no longer the Guard placeholder; ~220 BNW recolors and 23 new art need image work, the PR's sprites are pre-drawn) | 2 | 15% | 0.3 | shape swaps (Beyond Chaos: 4 in this seed) |
+| Game data: characters, growth, equipment (incl. weapon procs, special effects, relic effects), items, spells, enemies (incl. special attacks), resistances, formations (each on its own background), encounters, the Veldt (the mod's 74 formations), the Coliseum (2026-11-20: BNW's 255 matches through the kit's SnesColiseum; the PR's Coliseum copies of monsters with BNW's stats and AI), shops (with BNW's new Doma Castle merchant), chests (layout-matched, both copies of shared places, the PR's scripted chests, monster boxes on BNW's own formations, chests BNW moved, item chests it made boxes), Rages | 25 | 100% | 25.0 | all (porter is mod-agnostic) |
+| Enemy AI: BNW's own SNES scripts run in the plugin on the kit's interpreter with BNW's rule changes: every reachable monster (2026-11-20: 327 on BNW's scripts, the 10 unsupported now run: FB 01/02/05/06/07/09/0D, F7 events mapped to the PR's battle modes for hybrids, the PR's entrance routines kept; 16 bosses keep the PR's AI, each with its reason in profile_bnw.snes_ai_keep); BNW's story formations (renumbered bosses), the fights the PR lacks (Kaiser 8410, Kefka + 2 Centurions 8377, the Dream Stooges with Shemp 8346) and their triggers (Kaiser's corridor room, the Sealed Gate); battle event bits carried to the PR's flags (Dadaluma fed Dried Meat: a Hell Claw); bosses die only through their scripts (a held boss's own "end the battle" turn goes through its death); played headless: the Guardian, Number 024, Rhyhorn, the Whelk, Vargas and the parties 437, 438 and 7441 to their ends; Ifrit and Shiva (440) stalled (fixed in the host, rerun queued with the rest of the boss batch) | 15 | 95% | 14.3 | most (the interpreter is the kit's) |
+| Esper system: restrictions, EP/EL, EL bank, equip bonuses, SP bank, displays; EL data across save/load (confirmed in the decompile + self-test), "<name> gained an EL" on the victory screen, old saves' disallowed espers taken off (2026-11-20); left: the touch-screen victory menu (phones only) | 10 | 99% | 9.9 | none (BNW only) |
+| Battle engine: damage formulas (probe-checked), Steal, Regen/Poison/Sap, Reflect, Spirit evasion, turns, Dance, Bushido, GP Rain, Mantra, physical skills, Morph, character-on-character, encounter odds, BNW's SNES encounter rates (the kit's danger counter: BNW's codes, its 4-236 roll, 5/5/3/3 party odds, Mystery Egg / Dirty Undies, the Encounters On/Off Config row; 2026-11-20), Imp, Blind, Steal hit roll, Morph gauge, Tools, nATB (native) + status timers, Slot (reels, no rigging, Jackpot, Bar-Bar-Bar espers), Runic (spells, weapons), Bushido weapons, can't-miss/no-split flags, Umaro odds/powers, Sketch brush rule, the two-handed grip (x1.5, Bushido, Windslash/Aero), Shock (probe-checked), Leap's limits, Mimic not copying a Mimic, one counter per X-Magic, True Knight cover (self-tested), Sketch's Magic for Vigor done; BNW's hit-rate statuses (no x1.25 against Rerise, no x0.75 against Poison/Near Fatal/Seizure/Haste), the covering knight's Evade halved and Interceptor not blocking a covered hit, a tossed Mog always a critical (v0.23.0, 2026-11-20: self-tested through the game's own act flow in a probe battle); the research list closed (2026-11-20, `EngineRules.cs`): BNW's elemental share for multi-element spells, Mug missing on a failed steal, GP Rain blinded at 50, Drill/Chainsaw respecting row, the hit-in-back +50% removed, Rage curing statuses its monster blocks, the PR's accessory lists per correction type (Daryl's Soul as the Offering); dual wield, Offering, the grip, Shock's cost, Sketch, Mimic, the back-row cover, Blind on Jump/Steal/GP Rain self-tested through the game's act flow in the probe battle; then (same day, the user: "do the not done items") Blind on Jump's landing, Noise Blaster's Spirit evasion, Chainsaw's cut on death-immune targets, the dual-wield Mug's second strike as an Attack, X-Magic's one counter through the game's own counter module, Julian's Schematics quest (Auto Crossbow 225, never misses), Mug on BNW's Fight formula with the Offering/two-weapon -25%; left: the chancellor's Schematics hint (BNW c2.asm: 141 sections); Suplex missing BNW's 84 can't-be-suplexed monsters and their Coliseum copies (the kit's SnesSuplex, 2026-11-20) | 25 | 99% | 24.75 | some (probe, vanilla baseline, proc/relic/special/flag porting) |
+| Menus and battle UI: Wait Gauge cast bars + ATB colours (v0.11.0; the colours seen in a headless battle 2026-11-20, tinted through the gauge's CanvasRenderer so the Battle Options mod's enemy bars keep their own), Scan (free turn, no counterattacks; the PR's Scan lists statuses itself), dance moves in the dance descriptions, BNW's "Fail" / "Null" in place of Miss (BattleUi.cs: sorted in the game's status calc, drawn in the Miss sprite's style), each Rage's two attacks in its description (BNW's words for its 64 rages); BNW's other menu hacks fix SNES screens the PR redrew (status/equip screens, MP costs, Blitz names, spell icons); seen in a headless battle 2026-11-20: FAIL/NULL from the game's own status calc, the Rage list with BNW's descriptions, the ATB colours; left: a draining cast bar seen (queued) | 5 | 95% | 4.75 | none |
+| Text: names and descriptions done, BNW's monster names (2026-11-20: never ported before; 314 name keys, 13 monsters a key of their own: tools/port_names.py); monster battle lines (BNW's, in the AI host); dialogue: BNW's script on 3188 of the PR's 4195 story lines (90% of story lines placed through the Japanese: tools/dialog_map.py, tools/bnw_dialog.py), Vanilla New World's as a Config option, the "Obtained X!" lines naming BNW's item or esper (the game's own name key at runtime), BNW-only lines for the scenes the port adds (BNW_<event>_<nn>); left as the PR's: the opera (voiced: the user), ~400 lines with no SNES counterpart (PR-only text: controls hints, the auction's bids, lines the PR wrote anew) or too short to place surely, the one-line taunts of the two bosses still on the PR's AI (BNW rewrote their scripts); not playtested | 10 | 95% | 9.5 | the line map (any FF6 mod on the US ROM) |
+| Graphics: enemy sprites (2026-11-20, compared as the SNES draws them: 15 recolors, 2 shape swaps, 11 new art, ~50 same-color touch-ups; done: the recolors (the PR's art in BNW's colors) and Kaiser (BNW's sprite), made by the plugin from the player's game at first start, the swaps (Necrosaur, Kefka 375), the final battle's statue tower with BNW's nine parts and its tier 2-3 pieces, parts that die leave the tower (in-game check queued, QA bnw-11), the bestiary pictures of the new images; the touch-ups are in the PR's own art already) | 2 | 100% | 2.0 | shape swaps; the image builder (port_sprites images mode + the kit's PrKit/MonsterImages.cs: any FF6 mod's recolors, new art, overlays with monster layers) |
 | Testing and release: full playthrough (the game harness plays headless: new game, first battle, the Whelk, event fights by warp + script, a battle log; 2026-11-07), packaging (one zip per mod, tools/package_mod.py), the first release (v0.22.1, a GitHub Pre-release, 2026-11-20) | 3 | 35% | 1.05 | deploy tooling, the harness |
-| **Total** | **100** | | **87** | |
+| Events: BNW's scenes beyond its text (2026-11-20 audit, tools/event_diff.py; "BNW's changed scenes beyond its text" below): ported: its dialogue, event battles, Julian, Kaiser, the Sealed Gate, Doma's merchant, BNW's join levels; the mechanics (bnw-enemy-ai, 2026-11-20, not yet played): 9 of 11 save points, the event rewards (15 changed, 11 new), the auction house closed and Bob's sales, Shadow unequipped as he leaves, the Veldt freebies, the mechanics review rows decided; the cut scenes and review scenes (bnw-text-ui, 2026-11-20 evening: rechecked with calls followed, most "cuts" were BNW rewriting a scene's start and calling into the rest of vanilla's, no dialogue lost; the real cuts' 13 lines skipped; Mog's Dance tips, Mikhail pointing Edgar to Julian, the Returners' briefing with BNW's lines); the added scenes 80% (bnw-scenes), Cyan's dream 80% (bnw-dream: ported in the porter, "Cyan's dream as BNW's" below; offline tests pass; its headless run dream-1 queued with QA); left: the rest of the added scenes, and all of the above played in game (queued with QA). Sub-rows on the dashboard: rewards/save points/Bob 85% x3, added scenes 80% x3, dream 80% x1, cuts and review 95% x1 | 8 | 84% | 6.7 | the event decoder and translator (kit) |
+| **Total** (weighted: points / 108 weights) | **108** | | **102.9 = 95%** | |
+
+After BNW's release (the BNW lead, agreed with the kit lead / bc-battle, 2026-11-20): BNW's NatbRules onto the kit's SnesActionFreeze; BattleUi.cs's informative misses onto the kit's SnesInformativeMiss (bc-battle's copy; BNW's miss self-test, 13 NULL / 16 FAIL, must pass the same); BNW's Coliseum stays on SnesColiseum (WC moves onto it later, the coordinator's call). Also (the kit lead): bnw_text.py's BNW-only parts (rage_descriptions at C4/A820, FRACTIONS) into a bnw_* module BNW's repo carries; Kaiser's room and the other rooms port_boss_events converts with tools/snes_rooms, whose cell model now matches by SNES picture first (ted-maps), looked at in a run (bnw-11's kaiser_visit.png).
+
+BNW lead hand-over (2026-11-20, 19:50 EST; the PC is the user's from 21:00, nothing restarts until they say). State: plugin 0.24.0 built (Debug), BNW ported 19:15 (the dream door scene as Flash + lines + EncountBoss 8346; the victory screen's "gained an EL" row on ResultSkillController.SetJobProficiencyLevelUpList with EL gainers flagged IsJobProficiencyLevelUp; Coliseum, Suplex, item fixes, Stop block); test_mod 50/50, Rules.Tests 34/34. Waiting on QA: bnw-13 (el-row-4, noise-blaster slot=new, slot 6 A/B) and the bnw-11 rest (dream-1 rerun, scenes, mech + dragon visit, AI fights, tower), then the final regression. Release staged: pr/build/dist/bnw-release-notes-draft.md, BraveNewWorld-nexus.txt (+ card, shots list); order: WC release -> kit publish -> package_mod bnw -> zip check -> PC + Deck -> bnw_publish + push -> GitHub release -> Nexus page kept PRIVATE (the user publishes). Open with the user: regular vs Pre-release for 0.24.0. Known differences for the notes: 2 save points with no PR room, 16 bosses on the PR's AI, ~400 PR-only lines, the Coliseum's bet marks. Children: none (all six archived).
 
 Transfer to other mods: of the 81 points done, ~51 are shared code (incl. the formula probe and its vanilla baseline, stat caps, defense flags) (tooling, porter,
 AI compiler, generic plugin pieces), so ~75% of the work so far carries over. The
@@ -192,9 +220,9 @@ checked 2026-11-04; none tried in game):
 
 | Mod | Done | What's there / missing |
 |---|---:|---|
-| Beyond Chaos (CE 6.1.3, seed 9859608359) | ~56% | its randomized data all ports (commands, espers, items, shops, chests, enemies), sprite shuffle as shapes (4 swaps in this seed); missing its custom commands (assembly), weapon procs, palette/music shuffles |
+| Beyond Chaos (CE 6.1.3) | ~66% (table below; a Divergent paths row added 2026-11-20, 130 weights; re-measured 2026-11-20 by the BC lead: junction effects, the cave modes / `d` / strangejourney and more events now counted, the same rows gave 44%) | 2026-11-20: its own mod, seeds made in game like WC's (plan: "Beyond Chaos port"); its randomized data ports (commands, espers, items, shops, chests, enemies), sprite shuffle as shapes; missing in-game seeds, its custom commands (assembly), item specials, codes, events, sprites, music |
 | Worlds Collide (1.4.3) | ~99% (table below) | in-game seeds with all of the website's options, made and applied without a restart, saves keep their seed (and the Deck gets the PC's seeds); randomized data + its AI, scaling, multipliers, boss/dragon/statue shuffles, the Coliseum and auction; WC's start and travel between worlds; all 62 checks with their character gates; the Track menu; objectives with every result and all 15 quests; the character, command, esper, item, chest, challenge and display options except those listed under "Left in WC" below (none in the main preset); the story's dialogue cut as WC does; no achievements; first playtests on the Deck 2026-11-06 (fixed: the WoR-state start, the unique-command crash) |
-| T-Edition | ~5% | tooling only; needs a Japanese-ROM layout profile (offsets, text encoding, ExHiROM) before anything ports |
+| T-Edition (3.0.7 + EX, Mato's English) | ~49% (table below) | 2026-11-20: a mod of its own ("T-Edition port" below; repo ff6pr-t-edition); the porter reads it through a Japanese-ROM layout profile, its item list by identity (re-slotted and new items on the right rows), its 4 drop slots, full English names from Mato's tables; new-map tools (snes_maps, snes_rooms) and one test room; missing: new monsters/formations/maps, events and pub quests, the battle overhaul (no source), dialogue, music, costumes, menus |
 
 **Worlds Collide, weighted** (2026-11-06; first made 2026-11-05 to replace a running estimate that
 had drifted up):
@@ -239,6 +267,44 @@ playthroughs).
 
 Checks are counted as WC's Track menu counts them (62; before batch 7 the unit was 68 reward
 slots). Each check is about 0.44 points (27 / 62); objectives are 6 points.
+
+**Beyond Chaos, weighted** (2026-11-20, a mod of its own on the kit and WC's base; plan in
+"Beyond Chaos port" below; Normal mode first, the cave modes and `d` later. Re-measured the same day by
+the BC lead against every flag in `plugin/BcPlugin/bc_flags.json` (20 yes, 11 partly, 82 no, 2 n/a): rows
+added for BC's junction effects and the cave modes, more events counted; owners are the BC child sessions):
+
+| Area | Weight | Done | Points | Owner |
+|---|---|---|---|---|
+| Seeds in game: options screen (BC's flags, codes and modes), generator (BC's own code, ROM-free, a seed = BC's exe's), live apply, saves keep their seed (2026-11-20: all but ROM-free and the player's bundle; checked headless in game) | 15 | 90% | 13.5 | bc-seeds |
+| Randomized data through the porter: characters, commands, espers, items, shops, chests, monsters, formations, encounters, Colosseum, Slots, dances, MagiTek; left: the partly-ported data flags (b, g, i, o, t, bsiab), y, alphalores, cursepower, dancingmaduin, fightclub, and WC's plugin features BC's data needs (natural magic, esper bonuses, Coliseum, rages, steal) moved into the kit | 25 | 86% | 21.5 | bc-seeds |
+| Custom commands (`w`): R-/W-/X-/9x commands, combos, R-Limit, R-Chaos, allcombos, nocombos, endless9, replaceeverything, metronome, suplexwrecks, desperation (2026-11-20: all as PR command rows, random ones on the PR's random-ability function, Random Ice seen working in a battle; repeats and combos in the plugin, their battle test pending) | 12 | 85% | 10.2 | bc-battle |
+| Item specials: procs, breaks, relic bits; MBlock; collateraldamage, electricboogaloo, nobreaks, unbreakable, masseffect, darkworld (2026-11-20: the porter carries BC's weapon effects; each "?" item's description says what changed; left: MBlock, 7 armor procs, 3 relic bits, the break codes) | 6 | 80% | 4.8 | bc-battle |
+| Names and explanations in the PR's own words (no SNES abbreviations; 2026-11-20: items, skills and commands in the PR's words, all fitting the game's boxes; a per-seed guide for newcomers, on the BC screen and in game right after the opening's controls tutorial (`BcGuide.cs`: sc_bc_guide on Map_20010 when the field help closes; the game's message window, a Yes/No question then a page a topic); built and offline-tested, its in-game check queued: bc-guide-1; BC's new character names through the porter's new `character_names` option (port_names.port_character_names: MSG_CHAR_NAME_01..14; New Player renames all 14: Terra is "Kei"), its monster names through `monster_names`, both switched on in bc_seed.py by bc-seeds; a "Who's who" guide page ("Kei is Terra (looks like ...)"); left: the Coral key item's rename) | 4 | 90% | 3.6 | BC lead |
+| About 30 small codes that are plugin code (swdtechspeed, norng, playsitself, dearestmolulu, levelcap, mementomori, naturalstats, supernatural, informativemiss, magicnumbers, mpparty, equipanything, espercutegf, l, u, ...) (2026-11-20: the boosts (data), dancelessons, esper bonuses for `e`) | 8 | 90% | 7.2 | bc-battle |
+| Junction effects: espffect, effectmas, effectory, effectster, treaffect, jejentojori (BC's `bcg_junction.py`, ~57 SNES assembly patches, each a battle effect, as plugin code) | 8 | 60% | 4.8 | bc-junction |
+| Light events: worringtriad, r, h, notawaiter, lessfanatical, regionofdoom, mimetime, rushforpower, airship, shadowstays, j, k (on the kit's SNES event translator; 2026-11-20: j, k, lessfanatical, regionofdoom, shadowstays done offline, their in-game test queued) | 8 | 55% | 4.4 | bc-events |
+| Sprites: makeover (characters, its sprite categories, cloneparty, partyparty, quikdraw, kupokupo, bravenudeworld), remonsterate (monsters), palettes (c, p, n), s | 10 | 80% | 8 | bc-sprites |
+| Music: johnnydmad, johnnyachaotic (an SNES sound chip and FF6's driver in the plugin, streamed over the game's track); alasdraco (the opera) later | 10 | 60% | 6 | bc-music |
+| Testing and release (2026-11-20: offline tests, headless runs through the PC test runner; the player's bundle and zip by bc-seeds (2026-11-20: bundled Python, generator/bundle.json, a player install set up in 9.7 s; its in-game check bc-player-1 queued); left: PC + Deck installs, a playthrough of a seed, the release) | 4 | 45% | 1.8 | BC lead |
+| Other modes: ancientcave, speedcave, racecave (BC's `ancient.py`), `d` (random final dungeon, `towerrandomizer.py`, with morefanatical, which BC applies only inside `d`'s tower remap), strangejourney (entrances); scoped 2026-11-20: all three reuse vanilla room layouts (no new map art): strangejourney rewires the PR's own exits (small), `d` clones ~23 rooms into spare map ids and rewires them (medium), the cave modes do that for 300/85/50 rooms plus rest stops and new start/end scripts (largest); order strangejourney, `d`, caves (plan: the lead's notes, bc-lead.md) | 12 | 0% | 0 | BC lead (a bc-modes session when RAM allows) |
+| Divergent paths (thescenarionottaken: PowerPanda's scenario, BC's `tables/divergentedits.txt`: 549 writes, ~504 KB: 144 dialogue lines rewritten, NPC/event tables, ~9 KB of event code, ~303 KB of repacked map tilemaps, the World of Balance map and exits; Terra + Banon via Baren Falls and the Veldt, Sabin + Edgar via Doma and the Phantom Train, Locke + Celes straight to Narshe; needs the kit's snes_rooms/snes_maps for its layouts) | 8 | 0% | 0 | BC lead (later, its own session) |
+| **Total** (weighted: points / 130 weights) | **130** | | **85.80 = ~66%** | |
+
+**T-Edition, weighted** (2026-11-20, a mod of its own with EX's super-bosses in the same game; plan in
+"T-Edition port" below; weights from the feasibility study: events and maps are the bulk):
+
+| Area | Weight | Done | Points |
+|---|---|---|---|
+| Data through the porter: characters, items (by identity: re-slotted, new rows), spells, espers, monsters 0-383, steals and 4-slot drops, formations under 576, encounters, shops, chests on vanilla maps, sketches/rages/dances, monster AI scripts, the 94 new monsters (1000 + e) and every formation past 576, the new monsters' SNES AI, per-character growth, Relm's natural magic, T-Edition's commands (Snowstorm, Pray, Spirit, Animal) and relic swaps, Dancing Dagger's random dance (2026-11-20); left: T-Edition's second item bank (24 relics, ids 256-279: Black Belt, Dragon Horn, Economizer, Gem Box, the Fiends' relics...; found 2026-11-20), the new consumables' effects (stat tabs); not run in game yet | 20 | 85% | 17.0 |
+| Maps: T-Edition's NPC/exit/event tables (read, 2026-11-20), the new maps (92 of 94 built as 106 PR maps: doors, arrivals, all 70 chests; not yet in game; no random battles/music yet), snes_maps coverage 319/416 2026-11-20: PR looks for 72 of the new maps' 112 NPC sprite numbers (303 of 455 placements), 40 need new art | 15 | 45% | 6.75 |
+| Events: ~45 new events, 20 pub quests, changed vanilla scenes, NG+, Cyan's dream battles (2026-11-20: the kit's SNES event decoder and translator; the 884 catalog events split between ted-events (244), ted-ex (314: pub quests + maps 200-415) and ted-maps (326: new maps); built offline: 8 events with 0 stubs, 155 tile and NPC scripts on maps 200-415, 262 scripts on the new maps (455 NPCs, 162 step triggers, 73 entrances; ~30% of their commands still stubs), the pub quests (24 scripts), EX's 13 boss fights; world-aware rooms, NPC matching, new NPCs, a shared flag allocator; T-Edition's songs; none run in game yet) | 20 | 25% | 5.0 |
+| Battle overhaul: 63 rules read from T-Edition's code (the spec, `pr/ted/BATTLE_SPEC.md`); TedPlugin with 28 rules and offline tests, SNES AI on the kit's interpreter, the data rules in the porter (2026-11-20; not run in game yet) 2026-11-20 evening: rule 49 (percent damage, data), rule 35 (Gogo/Umaro magicite), the Coliseum's wagers, boss rewards (empty until the second item bank) | 15 | 55% | 8.25 |
+| Text: names (Mato's full names, done), Mato's dialogue decoded (2026-11-20), descriptions (Mato's for items, spells and Lores T-Edition changed, 2026-11-20; Blitz, Bushido, espers and rages not yet), his lines for new and changed scenes (through the event translator) | 8 | 35% | 2.8 |
+| Music: ~200 songs on the kit's SNES music player (2026-11-20, built offline by the TedPlugin session with bc-music: a pack of 254 songs from both drivers, 145 samples, 851 KB; battle songs for 466 parties and victory fanfares for 406 from T-Edition's own tables; event songs wired by the translator; the Extras music player's 175 rows; not heard in game yet; left: the player reading fanfares, EX's fights, the new maps' and vanilla maps' songs, the Falcon's costume songs) | 7 | 50% | 3.5 |
+| Graphics: new monster art, redrawn sprites, costumes and portraits (on BC's sprite tools; 2026-11-20: all 226 monster images built offline by bc-sprites, the new, recolored and redrawn ones and EX's bosses; the 14 characters' redrawn looks and 56 costumes with their portraits, field and battle frames, as ArtSwap folders; Gogo's 10 Chameleon Robe forms, the Imp (T-Edition's toad), Kappa and Pig looks; none seen in game yet; left: NPC looks on the new maps, the dressing-room hookup and the recolors' palette-slot form after the WC freeze, tilesets/backgrounds only where look-alikes fail) | 5 | 75% | 3.75 |
+| Menus: music player, dressing room, achievements, collection room (2026-11-20: the rooms are maps with events, not menu screens: the event sessions' work; TedPlugin's success-counter SysCalls drafted; the music player's list built; the dressing room's art built; the dressing room's costume switch and save in TedPlugin, live after the WC freeze) | 5 | 25% | 1.25 |
+| Testing and release: offline tests (test_mod, Ted.Tests), the repo, the merged build (`ted_build.py`), the test install (`ted_testinstall.py`), headless checks through the PC test runner, PC + Deck installs, packaging | 5 | 15% | 0.75 |
+| **Total** | **100** | | **~49** |
 
 ### WC without an SNES ROM (the user's goal, 2026-11-06: our own randomizer at parity with WC)
 
@@ -370,6 +436,9 @@ Syldra ~6 s, Battle Options 0.1.0 27 s, Magicite 32 s.
 - Screenshots on the Deck: `gamescopectl screenshot <path>` captures the screen over ssh. A
   Battle Options test run's harness New Game left the field and battles rendering black there
   (the intro rendered; the fade overlay hidden didn't help); in-game shots need a real save.
+- Screenshots on the PC, no window: a -Graphics probe run (or `kit.py run <game> --harness
+  --graphics`) and the harness's `shot <absolute png> [width [height]] [layers]`. Batch mode draws
+  no camera by itself, so shot draws the frame from the game's cameras (2026-11-20 row).
 
 ## Modding kit (any Pixel Remaster; 2026-11-11)
 
@@ -393,6 +462,7 @@ writes `mods/<ModName>/` (Magicite). All converters are mod-agnostic; a profile
 | `bnw` | build/brave-new-world/…FRC.sfc | BNW names everywhere + BNW descriptions (own encoding) | `bnw_data.json` (esper rules); Rage odds 2/3 : 1/3 |
 | `beyond-chaos` | latest build/beyond-chaos/*.sfc | only names/descriptions the seed changed | — |
 | `worlds-collide` | latest build/worlds-collide/*.sfc | same | — (events not portable as data) |
+| `tedition` | build/t-edition/T-Edition 3.0.7 (Mato).sfc (JP ROM; a US-layout image in memory, tools/jp_layout.py) | Mato's full names where they differ from the PR's | item identity, 4 drop slots; writes mods/TEditionPort, which `tools/ted_build.py` merges with the maps' and events' folders into mods/TEdition |
 | `--rom X --name Y` | any US v1.0-based mod | same | — |
 
 `port_bnw.py` is a wrapper for `port.py bnw`. Test any port with
@@ -403,7 +473,8 @@ Beyond Chaos (New Player seed 9859608359) ports with no BC-specific code:
 characters/commands/names, equipment (98 new equip groups), 348 enemies,
 espers, shops, 193 chests, 151 encounter sets. Not portable as data: BC's
 custom commands, sprite/palette/music shuffles, weapon procs.
-T-Edition needs a Japanese-ROM layout profile (different table offsets, JP text
+T-Edition (2026-11-20): `port.py tedition` through `tools/jp_layout.py` + `profile_tedition.py`
+(see "T-Edition feasibility"). Before that: T-Edition needed a Japanese-ROM layout profile (different table offsets, JP text
 encoding, 6 MB ExHiROM relocations) — not started.
 
 ## Setup (done 2026-11-04)
@@ -785,8 +856,21 @@ bnw 3.0/asm/, which wins). Status: [x] done (untested in game unless noted), [ ]
   Flare/Meteor/Ultima/Merton...; Quake ignores MDef without it), so BNW's flag changes
   (e.g. Holy ignores defense in BNW) are **not ported yet**. Meltdown 1350/1524 hit ~8x
   the formula. Go Fish heals a random 0-303.
-- [~] H1 Evade for physical / MBlock for magic: the PR has it (reported, see above).
-  Todo: BNW's extras (Blind, no Rerise penalty, no status bonuses, cover halves Evade).
+- [x] H1 Evade for physical / MBlock for magic: the PR has it (reported, see above). BNW's
+  extras (v0.23.0, 2026-11-20): Blind (BlindRules, earlier); the status hit-rate steps
+  (`HitRules.cs`): vanilla C2/235B gives x1.25 hit rate against Blind/Zombie/Muddle/Slow/Rerise
+  targets, C2/2372 x0.75 against Poison/Near Fatal/Seizure/Haste (read off the US ROM);
+  BNW drops Rerise from the first ("PEA $0004") and skips the second. The PR keeps both lists as
+  static arrays, `CalcExecuteFF6.HitRatePlusConditions` / `HitRateMinusConditions`, read by
+  PhysicalExecution on every hit: the plugin rewrites them once at startup (logged as "[hit]").
+  The covering knight (`CoverRules.cs`, c2.asm HalveEvasion / SkipDogBlock): the PR applies
+  cover in BattleFunction2.FixedTarget (ProtectExtractTarget's only caller, tools/ghidra/callers.py)
+  and runs the act's hits in BattleFunction2.HitCalc (decompiled tools/decomp/cover_hit):
+  GetFightStatus rolls Interceptor there (WildFangConditionFunction.CheckDefendInvoke, 50% vs
+  physical) and PhysicalExecution reads the target's ConfirmedEvasionRate (vtable slot 20,
+  Block = (128 - Evade) * 2). While a covered act's HitCalc runs, the guard's Evade reads
+  halved (BattleMath.CoverEvade: BNW's 8-bit math, Evade / 2, 63 at 128+) and the Interceptor
+  roll says no.
 - [x] H2 Spirit evasion of statuses (`CommandRules.cs`, v0.15.0): StamEvdChk C2/23B2,
   evade if Stamina >= random(128) = (Stamina+1)/128; BNW's 61 Stamina-evadable spells
   (byte 4 bit 4) and 149 monster specials with a status and no "can't dodge" bit
@@ -946,8 +1030,15 @@ bnw 3.0/asm/, which wins). Status: [x] done (untested in game unless noted), [ ]
   Tackle already respects row in the PR (CalcControllerProvider.GetFightStatus ignores row only
   for ability type 602, Blitzes, and machine items) and Blizzard's Blind gets no Stamina check
   (AddConditionFunctionSerial.CheckForceMissCondition has none; the plugin's Spirit evasion
-  leaves Blizzard out). Left: the toss of Mog as a sure critical (C2/16D6; the damage step
-  doesn't know who was thrown).
+  leaves Blizzard out). The toss of Mog as a sure critical (v0.23.0, 2026-11-20): vanilla's own
+  rule (C2/16CF: the thrown ally is character $0A, then "Always Critical"), which BNW keeps
+  (C216D6 also sets "Ignore Dmg Inc", the SNES damage incrementor; not ported). The PR lost it:
+  its toss is a plain function-2 hit and only the animation picks the ally
+  (ThrowAtActFunction.SelectThrowingTarget: random among targetable party members, Umaro too,
+  the same side in a side attack, Umaro himself if none). UmaroRules makes one pick per toss:
+  whichever of the hit (BattleFunction2.HitCalc, the same rule) or the animation runs first
+  picks, the other uses it; while a Mog toss is computed Umaro's critical rate reads 100
+  (PhysicalExecution: critical when rand(99) < rate). Mog = character status 11.
 - [x] Sketch needs a brush (v0.17.0, `CommandWeapons.cs`, config [Battle] ItemEffects). BNW "Brushless
   Sketch" (c2.asm SketchBrshChk/BrushHand: an item whose name starts with the brush icon $E2 in a
   hand; BNW's 4 brushes, content 155-158, bnw_data.json "sketch"). Postfix on
@@ -1034,25 +1125,74 @@ bnw 3.0/asm/, which wins). Status: [x] done (untested in game unless noted), [ ]
   number; here the HP drops a frame after the hits, KO through the condition controller).
   Used by Leo and by Celes with Leo's Crest (Runic -> Shock, relic bit 10.4). Formula probe:
   79 of 79 cases on BNW's numbers; the cost needs a real Shock.
-- [ ] Relic damage corrections, rest (decompiled CalcExecuteCorrection
-  .GetAccessoryPhysicalCorrectionValue(type): 0 Offering x0.5 on Fight, 1 Genji x0.75,
-  2 Atlas x1.25, 3 Gauntlet; 0 = not worn). The game counts only **accessories** from its
-  PhysicalCorrectionAccessoryIds list, but BNW put these bits on weapons: two-hand (byte 12
-  bit 3) on spears/katanas, dual wield (12.4) on daggers/swords, Offering (12.0) on
-  Kagenui/Daryl's Soul. Done since: Offering and dual wield (types 0/1, v0.16.0) and the
-  two-handed grip, which the PR applies to the attack itself, not here (type 3 stays the
-  vanilla Gauntlet's, which BNW doesn't have). HardItems' dict rule (one Atlas bit for all
-  4 keys) is wrong for keys 0/1/3.
-- [ ] From the BNW command research (2026-11-05, see the agent notes below): failed Blitz
-  half turn (no failure path found in the PR), Mug misses when its steal fails, Steal
-  through evasion, Blind hit 50, Tools (Chainsaw 25% kill/ignore Def, Drill, Autocrossbow
-  no split...), Sketch with Relm's Magic for Vigor on physical sketches, Leap rules (done
-  2026-11-07), X-Magic one counter (done), Mimic memory (done), Umaro table, Rage clearing innate statuses, Shock
-  3/4(Lv*Stamina+HP) and self-damage, Morph (no timer; Terra Morphed after Phunbaba;
-  attacker +50%, target x2(255-min(Sta,96))/256+1), Imp attacker x0.5, character on
-  character x0.25, Offering 2 hits -25%, Gauntlet x1.5, back-attack bonus removed, cover
-  halves Evade, nATB, D7 elemental averaging. The probe now measures Imp/Morph/Defend/
-  Safe/Shell and character->character hits (`probe_report.md` "Measured modifiers").
+- [x] Relic damage corrections, rest (v0.23.x, 2026-11-20). CalcExecuteCorrection
+  .GetAccessoryPhysicalCorrectionValue(type) reads one accessory list per type from
+  PhysicalCorrectionAccessoryIds (its .cctor: 0 Offering [114] x0.5, 1 Genji Glove [112] x0.75 when
+  dual wielding, 2 Atlas Armlet/Hero Ring [99, 104] x1.25, 3 Gauntlet [111] x2; only accessory slots
+  count), types 0/1 on Fight (ability type 4) only (decompiled PhysicalExecution). HardItems used to
+  rewrite every key with the Atlas bit's items (keys 0/1/3 then logged "not the expected" and kept
+  vanilla's ids, blank items in BNW). Now one list per key, accessories only
+  (`bnw_plugin_data.HARD_ITEMS` "dict:<key>:armor", `HardList.Key`): 0 = Daryl's Soul (131, BNW's only
+  Offering accessory), 1 = none (dual wield is a weapon property), 2 = BNW's Atlas items, 3 = none (the
+  grip is the attack's own, ConfirmedAttack). RelicRules makes type 0 BNW's x0.75 for any ability-253
+  wearer (an Offering weapon or Daryl's Soul), the game's x0.5 included. Self-test "accessory lists".
+- [x] From the BNW command research (2026-11-05; closed 2026-11-20, bnw-engine session; rules in
+  `EngineRules.cs`, `BattleFormulas.cs`, `CommandRules.cs`, self-tests in `EngineTests.cs`):
+  - failed Blitz half turn: does not apply. BNW (bnw 3.0 halfturn_blitz_stumble.asm, C215A5
+    BlitzSlice): a wrong Blitz input shows "Incorrect Blitz input!" and leaves half a turn. The PR's
+    Blitz (command 15) is list_type 3: a list of the learned Blitzes, picked and run, with no input to
+    get wrong; its "Incorrect blitz command input!" (MSG_SYSTEM_064) has no code reference (string
+    literal scan of GameAssembly.dll). The dance-stumble half turn in that file is commented out in BNW.
+  - Mug misses when its steal fails (Bropedio's "Mug Better", c0.asm MugHelper: steal messages 0-2,
+    nothing to steal included): ported. The PR's Mug is BattleFunction23 (ability 9 "StealAttack":
+    UniqueUpdateParameterProvider works out the hit, then, unless it missed, the steal); CommandRules
+    records each steal's outcome, a BattleFunction23.HitCalc postfix turns the strike of an empty steal
+    into a Miss (no damage, no weapon effect). Only the first strike of a dual-wield Mug mugs (C231AE):
+    the PR's second strike (SerialBattleUtility.CreateContiniousActData, secondlyAttack) copies the
+    act's command and ability, so a prefix makes it a plain Attack. Mug's strike (ability type 608)
+    now gets BNW's Fight formula (it had the PR's vanilla one: BattleFormulas only rescaled types
+    4/15/16) and BNW's -25% for an Offering and for two weapons (PhysDmgJump covers every command
+    below Bushido; the PR applies those corrections to type 4 only).
+  - Steal through evasion: done (v0.16.0). Blind hit 50: Fight and can't-miss weapons (BlindRules),
+    Steal (CommandRules' CoinHelp), GP Rain: ported (the PR's HitCalcGilThrow never misses; BNW's
+    CoinHelp gives a blinded thrower hit rate 50 against Evade: EngineRules on BattleFunction23, which
+    GP Rain also uses), Jump: ported (dn's Blind Jump Fix, c3.asm C3_BlindJump2: the landing can't miss
+    unless the jumper is blinded; the PR's landing, ability 22, has content flag 1 "can't miss", so the
+    self-test saw 40 of 40 blinded landings hit; a BattleFunction2.HitCalc postfix rolls 50 against
+    Evade for a blinded jumper's landing).
+  - Tools: Chainsaw's 25% kill and Drill/Chainsaw ignoring Defense are the game's
+    (IgnoreDefenseItemIds [35, 33]); Drill's Sap (port_tools); Auto Crossbow's no split is the game's
+    own (GetFightStatus: every tool is a "machine": no split damage, no row; vanilla C2/2B5D sets
+    "No Split Damage" too). Ported: Drill and Chainsaw respect row (C22B38 Drill_Saw: x0.5 from the
+    back row; BattleFormulas); Noise Blaster's Muddle evaded by Spirit (c2.asm Noiseblaster: "Stamina
+    Evade"; the act carries the tool, PR item 30, so CommandRules' Spirit evasion checks it); Chainsaw
+    on a death-immune target does its cut instead of a wasted kill (ChainInit; the PR's Chainsaw picks
+    ability 205 KO / 206 cut from group 10 in BattleFunction46.SetRandomAbility and builds the act in
+    CreateAbility, decompiled tools/decomp/chainsaw: a prefix there swaps 205 for 206 when the target
+    resists KO); the Schematics (`Schematics.cs`): BNW's Figaro engineer Julian (SNES map 55 NPC 9, event
+    CB520D) is the PR's soldier on Map_20370 (map 247, Figaro Castle, entity 329); while that map is up
+    after the world's collapse (ScenarioFlag2 41, BNW's event bit 0A4) his talk key is the mod's BNW_JULIAN / BNW_JULIAN_SCHEMATICS, whose text (BNW's
+    captions 1667 and 1654, English) comes from a MessageManager.GetMessage postfix, and fetching the
+    gift text with Edgar in the party sets bit 0 of BNW's flags word in the save (EsperStore "BNWF");
+    with it Auto Crossbow (item 37) reads power 225 and accuracy 255 (BNW: "Power +50%, Accuracy =
+    100%"). Not ported: the chancellor's hint (caption 1652).
+  - Rage clearing innate statuses: the PR's own (RampageConditionFunction.Remove takes the rage's start
+    conditions back off; decompiled tools/decomp/bnw_engine). Ported BNW's other Rage change
+    (C22E17 GauRageStatuses): raging as a monster that blocks a status cures it on Gau (SNES status
+    bytes 1-2), unless his own gear blocked it already (RampageConditionFunction.Start pre/postfix).
+  - Back-attack bonus removed: ported. Vanilla's +50% for a hit in the back (C2/3447) is the PR's
+    PhysicalExecution "後ろ向き補正" x1.5 when CalcInfo.isSideAttack (string scan + decompile);
+    BattleFormulas undoes it (the sure hit stays, as in BNW). The PR has no such step for spells,
+    vanilla does: SNES_PR_DISCREPANCIES.md.
+  - D7 elemental averaging (BNW's "Elemental Share", c2.asm C20BD3 + c0.asm EleModLoop): ported.
+    Per element immune 0 / resistant 1 / normal 2 / weak 4 points, none = no damage, points / 2 vs the
+    number of elements = normal, more = x2, fewer = x0.5, absorb first (BattleMath.ElementShare; 16 BNW
+    spells have 2+ elements). The PR rates elements in CalcExecuteFF6.DamageAppliedResistanceAttribute
+    (returns a ValueTuple: not patched); while it works out a multi-element spell (GetMagicStatus) the
+    target's element table (ConfirmedResistanceAttributeList, slot 33) reads with one element carrying
+    BNW's outcome (BattleMath.ElementView), so the game's own rule gives BNW's.
+  - Done earlier: Sketch's Magic for Vigor, Leap, X-Magic, Mimic, Umaro, Shock, Morph, Imp,
+    character on character, Offering 2 hits -25%, Gauntlet x1.5, cover halving Evade, nATB.
 
 ## Formations, shops, chests
 
@@ -1127,6 +1267,180 @@ with another changed chest.
   written whole, keyed from `vanilla/assetspath/.../AssetsPath.json`
   (map keys look like `Map_20011_1/entity_default`).
 - Enemy slots: BNW renamed/re-statted 288 enemy slots mostly in place (same sprite).
+
+### BNW's changed scenes beyond its text (event audit, 2026-11-20, `tools/event_diff.py`)
+
+`tools/event_diff.py <mod.sfc> --ranges 230000-260000` (kit; on `tools/snes_events.py`): both ROMs'
+field scripts decoded from every map's entrance, event tiles and NPCs, each script and each subroutine
+compared once (calls not inlined, callees paired through their callers; addresses as labels; once with
+and once without dialogue numbers). BNW's added event code is in bank ED (event addresses 0x23xxxx)
+and in freespace in CA-CC; 17 spots still stop the decoder (opcodes 66/BD/C1 and calls into code it
+doesn't reach yet). Against vanilla: 195 script units changed, 39 entries new, 36 removed, 15 text-only.
+By kind (rows = script units or entries; a place listed once per unit):
+
+| Kind | Rows | Where | Status |
+|---|---:|---|---|
+| Dialogue only | 15 | Narshe, Nikeah, Owzer's, Esper Cave, Kefka's Tower... | ported (DialogText) |
+| Event battles (formations; 4 also flip a battle flag: Phantom Train, Zozo, Cultists' Tower, map 119) | 6 | Narshe, Doma, Phantom Train, Zozo, Cultists' Tower | formations ported (port_events); the battle flags not checked |
+| Julian's Schematics (SNES 55), Kaiser after the 8 dragons (304, the tally), the Sealed Gate's Kefka fight + lines | 4+ | Figaro, Kefka's Tower, Sealed Gate | ported (Julian earlier; Kaiser and the Sealed Gate by bnw-enemy-ai, tools/port_boss_events.py) |
+| Doma's new merchant | 1 | Doma Castle 126 | ported (port_merchants) |
+| New save points | 22 (11 places) | Figaro Castle 63, Zozo 225, Zone Eater 276, Yeti's Cave 281, Burning Home 351, Cave on the Veldt 353, Cave to the Sealed Gate 384, Cultists' Tower 369, Ancient Castle 408, Kefka's Tower 337, map 414 | ported 9 (bnw-enemy-ai, tools/port_bnw_mechanics.py: the PR's SavePoint + sparkle pair on the room that draws the cell walkable); Figaro 63's room isn't among the PR maps snes_maps pairs with it, map 414 has no PR room |
+| Event rewards changed (items, espers, gil the scripts give) | 18 | Returners' Hideout (Banon's gifts), Narshe Mines, Figaro Castle 58, South Figaro 15, Mobliz (Phunbaba's magicite), Owzer's hidden items (4), Darill's Tomb, Floating Continent, Cave to the Sealed Gate ("ninja stuff"), Cultists' Tower 368, Ancient Castle (Odin/Raiden), Fenrir (398) | ported (bnw-enemy-ai, tools/port_bnw_rewards.py: 15 PR scripts' GetItem/RemoveItem changed, 11 given BNW's new gifts: 5 Dried Meat after Tritoch's flash, Daryl's Soul, Dadaluma's Hell Claw when fed Dried Meat (his battle bit on a PR flag), the Imperial and Celes optimized on the Floating Continent, the party restored before its escape fight, the Veldt cave's Kagenui swap; Odin's statue gives none, the Queen's gives Odin and takes nothing); the blacksmith is bnw-text-ui's, Leo's Crest bnw-scenes' |
+| The auction house gone; its espers sold by "Bob" (gil_remove + esper_add) | 18 removed + 3 added | Jidoor 200 (the auction's NPCs), Dragon's Neck Cabin 186, Coliseum 413, Cultists' Tower 362 | ported (port_bnw_mechanics): BNW's Jidoor has no exit into the auction house (map 198), so the PR's two town maps lose that door; Bob sells Golem and Zoneseek in the Dragon's Neck Cabin (a new script on its old man) and the Coliseum, Alexandr in the Cultists' Tower, BNW's prices and conditions (plugin SysCall "BNW:pay", flags ScenarioFlag4 0-2) |
+| Join levels (vanilla's 32 `char_level_avg` 77s: BNW turned 13 World of Ruin recruitments into its command 66, level = max(own, 21; Edgar 19, Sabin/Celes 18, Setzer 20; c0.asm Level18/RejoinLvl), removed 15 World of Balance rejoins' (Terra and the IMTRF four, Thamasa after Leo x7, Mog, Locke and Terra after the banquet), kept Shadow's 3 and Setzer's 1; first-join offsets (ED/7CB5) all 0 but Gogo -3 / Umaro +5; the audit's 10 rows were the decoded ones) | 10 | Mt. Zozo (Cyan), Tzen (Sabin), Cultists' Tower (Strago x4), Terra after the IMTRF, the banquet 250/251 (Locke, Terra) + the undecoded rest | ported (bnw-engine): `BnwPlugin/JoinLevels.cs` takes over the PR's `CorrectLevel` (the rule: `Rules/JoinRules.cs`, Rules.Tests); harness `joinlv` checks it through the game's JoinCharacter (run pending) |
+| Leavers unequipped (char_unequip added) | 4 | Baren Falls, Narshe 20/30, map 391 | ported: all are Shadow leaving (Baren Falls 156/391, Narshe 20); the PR's own leave (sc_e_0216, sc_e_0286/_1) is followed by the plugin's "BNW:unequip 4" (the game's OwnedCharacterClient.RemoveAllEquip, as its party-wide SysCalls do: decompiled tools/decomp/unequip); Narshe 30's 24 unequips are the "Unequip anyone?" NPC (not needed: the PR's Equip menu has Remove All) |
+| Scenes added or extended | 11 | Narshe 24 (the blacksmith: forge Apocalypse or Illumina), Imperial Palace 250 (the banquet, x2), Falcon 17 (before Kefka's Tower), Kohlingen 191 (Shadow's fee and a full party), Thamasa 340/344 (Leo's grave, the traveller), South Figaro 81 | ported (2026-11-20; "The added scenes, ported" below): the blacksmith and the fee (bnw-text-ui), Kefka's Tower's barrier, Leo's Crest, the traveller, Shadow's full-party hire, South Figaro's wall (bnw-scenes, `tools/port_bnw_added_scenes.py`); the banquet needs nothing (the PR already asks) |
+| Cyan's dream ("Cyan's Uneventful Dream", PowerPanda): no party split, rescue pieces of Cyan's psyche | ~33 (map 317) | Dreamscape | ported (bnw-dream, tools/port_bnw_dream.py: "Cyan's dream as BNW's" below) |
+| Scenes cut or shortened (lines and moves removed) | 19 | Imperial Camp 117 (x2), South Figaro Cave 150, Figaro Castle 64, Owzer's Mansion 208, Ebot's Rock 405, South Figaro 78 (the cider thief), Cabin 115, map 7, map 340, Jidoor 198 (3 NPCs), Narshe 20 (2 NPCs) | to port where it's story (with the kit's scene skips, as WC cuts scenes); the NPC lines not needed |
+| Party handling in scenes (who joins, leads, stays) | 10 | Doma 120/124, Cabin 116, Floating Continent 393/394, Kefka's Tower 261, Narshe 22 (the Battle for Narshe), Narshe Mines 44, map 7, map 55 | to review: some are BNW's speed-ups |
+| Veldt freebies (a new command at the world's end marks the missable WoB formations met) | 1 | the World of Ruin's start | ported: veldt-freebies.asm's table (45 formations, all on BNW 3.0's Veldt) opened in the PR's world's-end scene (sc_e_0607_7) by the plugin's "BNW:veldt_open", the game's own BeastFieldEncount.EncounterMonsterParty for each one's Veldt party (decompiled tools/decomp/veldt_met) |
+| Lines removed | 8 | Duncan (Dragon's Neck, his cabin), Imperial Observation Post, Thamasa, Narshe 107, maps 8/55/340 | small: skip those lines |
+| Pacing and look (waits and moves turned into nops, palettes, small object changes) | 77 | across the game | not needed: the PR's scenes are its own redraws with their own timing |
+| Tutorials and save-point help (BNW removed the save-point tutorial, the Narshe school's hints) | 4 | Narshe 34, 104-107 | not needed: the PR's own tutorials and save points |
+| Game over goes to the load menu | 1 | map 3 | not needed: the PR's own game over |
+| Other (Magitek Factory's escape: an esper gift and a restore replaced by "NO! BAD PLAYER!", the Coliseum's entry, Kohlingen, Phantom Train, Serpent Trench, the Returners' Hideout, Zozo, Imperial Palace 331...) | 30 | | to review one by one |
+
+Rough size: save points, rewards, the level and unequip rules, Bob and the Veldt freebies are small
+(about a day); the added scenes, Cyan's dream and the story cuts are the bulk (several days);
+the "review" rows decide the rest.
+
+Split (the coordinator, 2026-11-20): bnw-enemy-ai the mechanics (save points, rewards, the auction and
+Bob, the Veldt freebies, leavers unequipped), bnw-engine the joins without level averaging, bnw-text-ui
+the scenes (added, Cyan's dream, cuts) and the review rows. Done by bnw-text-ui so far
+(`tools/port_bnw_scenes.py`, from profile_bnw.extra_data): the Narshe blacksmith (sc_e_0873: Forge
+Apocalypse 121 / Forge Illumina 120 / Wait, BNW's option text, the third option under
+BNW_E0873_00_010_c_03), and 8 lines BNW cut (NPC chatter in Narshe, Jidoor's "This is the Jidoor
+Auction House", Mobliz WoR; the cabin's Empire exchange before Doma: the PR Msg ops jump past them; two
+Jidoor NPCs say their lines from their map entities and keep them); Shadow's hire in Kohlingen costs BNW's 1000 GP (the PR's sc_e_0285 takes RemoveGil [203]: External.Misc.RemoveGil charges the coefficient of the product whose group is the operand, product 562; decompiled tools/decomp/bnw_gil; profile_bnw table_overrides, a new generic port.py option). The text side: a PR line placed on a
+dialogue number BNW reuses in another scene (the auction's lines became the Sealed Gate's, Bob's...)
+keeps the PR's text unless BNW's shares its wording (bnw_dialog.repurposed_dialogues: 13 lines).
+The cut rows rechecked with calls followed (the per-unit diff doesn't inline calls, and BNW often rewrote a scene's start and calls into the rest of vanilla's): not cut, same dialogue restructured: the Imperial Camp (x2), the cider thief (78), map 8, Duncan (127, 128), the Observation Post (377); moved: map 340's two lines (into the Leeroy scene, bnw-scenes'); cut and skipped: Narshe 20 (2), Jidoor 198 (3, two said from entities and kept), Mobliz 340 CB/73FE, the cabin 115 (4), Owzer's 208 (BNW shows none of the five magicite lines; bnw-enemy-ai removes the gift); no PR line to skip: map 55 (0xB68, 0xB6A), Thamasa 349 (0xA16), Jidoor (0xA8B); tutorials (not needed): Narshe 104, 105, 107; mechanics (the party-change prompt on map 7, "ninja stuff"): bnw-enemy-ai's; not readable yet: Figaro Castle 64, South Figaro Cave 150, Ebot's Rock 405 (the decoder stops in BNW's code there; BNW's captions hold rewrites of their lines, so not cut). Review scenes kept by bnw-text-ui: Mog's two Dance tips after his World of Ruin join (BNW_E0778_01/02, sc_e_0778); Mikhail pointing Edgar to Julian (58, BNW CB/5201: "have you spoken with Julian?" unless the Schematics are fetched and the world hasn't collapsed; the PR's script can't read the plugin's flag, so DialogText swaps the text of the chancellor's E1036_00_031_a_01 by Schematics.Have and ScenarioFlag2 41); the Returners' briefing's end (CB/034D: Edgar "Uh, Locke...", Locke "Right.", Sabin "What do you see in that guy?" where vanilla had Sabin's "Guy's got a point": the PR's a_39 and a_40 take BNW's, Locke's inserted; BNW_D016B-D, both copies of sc_e_0062_1/_2). All the review rows are now decided or done.
+
+Hand-over (bnw-text-ui, 2026-11-20, session ended to free RAM; the BNW lead takes these):
+- Pending in game (QA batch bnw-11): the blacksmith's choice (harness: warp 10 1; script sc_e_0873; ~9 presses; shot the
+  3-option box; choose Wait: no item, ScenarioFlag2 161 stays clear) and a draining cast bar (bnwui join 7 2; battle 26;
+  turn 7; down, down, action = Celes's Magic; action, action; `bnwui bars` must say "Celes: waiting, N% left (cast bar)").
+  Waits in harness requests are frames. Gau's Rage and Terra's Magitek have no chant in BNW, so they show no cast bar.
+- Checked offline only: Mog's Dance tips (sc_e_0778), Mikhail's Julian hint (DialogText swaps E1036_00_031_a_01 by
+  Schematics.Have and ScenarioFlag2 41), the Returners' briefing lines (sc_e_0062_1/_2), the 13 cut lines.
+- Not readable yet: Figaro Castle 64, South Figaro Cave 150, Ebot's Rock 405 (the decoder stops in BNW's code there;
+  judged "not cut" from BNW's captions holding rewrites of their lines). Calls into code outside the ranges given to
+  event_diff.rom_for (CA-CC and bank ED) are the likely cause: more ranges would let the decoder reach them.
+- Rage descriptions are one line ("2/3: ...; 1/3: ...") and fit the battle window; not looked at in the field menu's
+  Skills > Rage list. FAIL/NULL are English only (other languages keep the game's Miss sprite).
+- Open question for the kit lead: bnw_text.rage_descriptions (BNW's Rage table at C4/A820) sits in a kit file; it
+  could move to a bnw_* file.
+- Tools: event_diff.py (audit), port_bnw_scenes.py (blacksmith, Mog, briefing, CUT_LINES), bnw_dialog.ADDED_LINES /
+  ADDED_DIALOGUES / EXTRA_OPTIONS / ADDED_SPEAKERS (BNW-only lines), notes for the scenes sessions in the shared notes
+  folder (bnw-scenes-plan.md).
+
+The added scenes, ported (bnw-scenes, 2026-11-20; `tools/port_bnw_added_scenes.py`, called from
+port_boss_events.port with profile `bnw_added_scenes`; BNW's lines are bnw_dialog keys BNW_D<n> and, where the
+speaker changes inside a dialogue, BNW_D<n>_T<nn> per speaker turn (ADDED_TURN_DIALOGUES); new flags
+ScenarioFlag4 8 / 9 from data/snes_event_alloc_bnw.json; scripts 9981-9982). Read with BNW's bank-ED code:
+- Kefka's Tower's barrier: the audit's "Falcon 17" and "Narshe 24" rows are one scene (CA/01A2 -> EE/AF50;
+  the blacksmith NPC only shares the code block; `if 0x127 clear` is FF6's goto). Until the party has Terra's
+  pendant (bit 0x2DB: the Cultists' Tower top's battle, the PR's ScenarioFlag2 168 set by sc_e_0881_1, so
+  nothing gets stuck) Setzer won't fly in: the forcefield, the Warring Triad, the pendant lost with the
+  Blackjack, back to the Falcon (the short version on later tries); with it, "The pendant is glowing!",
+  "We're through!", then the PR's own scene. In the PR's sc_e_0966_3 after its first line, first visit only.
+- Leo's Crest: World of Ruin South Figaro's cider deliveryman (BNW's CB/51FC; bit 0x0A4 = the World of
+  Ruin) trades Celes's cider for "Leo's Spirits"; at Leo's grave in Thamasa (CC/0977) Celes pours it and
+  gets Leo's Crest (SNES item 0xB0, the PR's content 275). The PR's World of Ruin town has no deliveryman:
+  a new NPC with the World of Balance one's look in Map_20361_5; the grave (Map_20460 entity 44) runs
+  sc_bnw_leo_grave. BNW lets the trade repeat, so each trade and visit gives another crest (ported as is).
+- Thamasa's traveller (CB/756E): only his line about the Zone Eater's island; BNW gave the story trip's
+  dialogue numbers to Celes's grave scene (the PR's trip line would have shown her farewell). sc_e_0941.
+- Shadow in Kohlingen (CC/6FEB -> ED/8DC6): a full party is asked too; paid, "Choose 3 characters." and
+  the one-party menu; still four, the fee back. sc_e_0285 (the fee itself: bnw-text-ui's price override).
+- South Figaro (81's entrance, CB/51A5): the cell before the rich man's basement stairs is wall until the
+  Lete River raft (bit 0x19, the PR's ScenarioFlag1 48 from sc_e_0063_1); the first visit can't go down
+  early (Locke's scenario always comes after the raft). Map_20071_8: an invisible blocking object (the
+  PR's own kind) in an entity set its map script shows.
+- The banquet (Imperial Palace 250, CC/85E3 / CC/860D, "550 commands"): BNW's only change is the door's
+  "Are you done talking to the soldiers?" (the unit grew because the banquet became reachable from the
+  tile); the PR already asks it (sc_e_0471 / sc_e_0472). Its char_level_avg removal is bnw-engine's rule.
+- Handed over by bnw-enemy-ai (review rows that are scenes): the Coliseum (413, CB/78C3) without vanilla's
+  Shadow after the Striker match (the PR's code runs sc_e_0750 then: restore and fade-in only); Kefka's
+  Tower's drop outside (331 = Map_30871_12, CB/5252) "Sealed by a mysterious force." until AtmaWeapon
+  there falls (the PR's ScenarioFlag2 223; sc_e_0978); the Falcon's wheel (CB/5230, dialogue 0x6A5) with
+  "Find Doom Gaze" until Bahamut (sc_e_FAoutboard: a third option taking off into the PR's Deathgaze fight,
+  EncountBoss 464, through a new world-map script sc_bnw_find_deathgaze); the Zone Eater's three train
+  conductors leave after knocking the party off once (276; BNW's new_events.asm, bits 0x0EE-0x0F0: scripts
+  9983-9985 and Map_30791_2's map script hiding the ones met). Found on the way: BNW's Coliseum table (all
+  256 wagers changed) isn't ported at all (WC's is, in WcPlugin/WcColiseum.cs); the BNW port still fights
+  vanilla's Coliseum matches.
+
+The review rows, decided (2026-11-20):
+- mechanics, to bnw-enemy-ai: the Blackjack's timers and battles (map 6, CA/F532), the Phantom Train's
+  status toggles (146), the Magitek Factory's "NO! BAD PLAYER!" gate in place of a restore and an esper
+  (272, x2), the Imperial Palace door "Sealed by a mysterious force" (331), the Floating Continent's
+  removed battle (393), the final battle's setup in Kefka's Tower (411, CC/193F), the Coliseum's changed
+  entry (413, CB/78C3), the Zone Eater's exit (276), the raft's status cures (113), the party routine 73
+  scenes share (map 8, CB/2E2B), the unequips at Kefka's Tower 261 and the Floating Continent 393/394;
+- scenes, bnw-text-ui's: Shadow's fee in Kohlingen (191, x2: "enough to feed my dog, 1000 GP"),
+  Mikhail asking Edgar about Julian (58, a new conditional line), Mog's World of Ruin join shortened (44),
+  the Returners' briefing's two added lines (one routine at 109/241/263), Cyan's dream (317, x4);
+- not needed: palette and object tweaks (149, 153, 394 CA/DD1E, 411 CA/055D), party_char vs
+  party_active in Doma (120, 124) and Figaro (55), the Battle for Narshe's setup sped up (22), the
+  "Unequip anyone?" NPC (map 7 CC/3510: the PR's Equip menu has Remove All), Gau's father's house
+  party check (116), Setzer's WoR scene and Zozo's mugger (191 CC/3BF8, 221: their text is ported);
+- not readable yet: the Serpent Trench's two units (175: the decoder stops in BNW's code there).
+
+The mechanics rows, decided by bnw-enemy-ai (2026-11-20, each vanilla/BNW unit diffed):
+- ported: the Floating Continent's "removed battle" (393 CA/DA48) isn't removed: BNW restores the party
+  (CA/CFBD: HP, MP, statuses) before the escape's fight (pack 0x51, the PR's party 452): sc_e_0606 does
+  the same with the PR's rest ops; the unequips added for Shadow's leaves (Baren Falls, Narshe 20);
+- for bnw-scenes (scene changes with lines of their own): the Coliseum's entry (413 CB/78C3: BNW removes
+  vanilla's Shadow recruitment there, the Striker bet and his join: the PR's sc_e_0750), the Imperial
+  Palace door (331: "Sealed by a mysterious force", dialogue 0xFB, until BNW's own bit 0x0E1, which a
+  trigger on the same map sets at CB/524F), the Blackjack's wheel (map 6 CA/F532: its choices reordered,
+  a second menu (dialogue 0x6A5) once bit 0x0E2 is set and 0x0A4 clear, a call ED/8C34 before take-off),
+  the Zone Eater's exit (276: vanilla's way out at CB/8251 is gone from that tile; BNW's counterpart unit
+  is CB/84CD: where its exit went still to be read);
+- not needed: the Magitek Factory's "NO! BAD PLAYER!" (272, x2) and the same line in the final battle's
+  setup (411 CC/193F; its other change only reorders the tiers' switch): BNW's guards on its debug room
+  and a debug path the PR doesn't have; the Phantom Train (146: vanilla's boarding sets the SNES's ghost
+  status 0x0800 on the party, BNW plays a pose instead; the PR's train sets none); the raft (113: BNW's
+  cure clears statuses 0x0840 instead of all: the PR's full cure kept); map 8's party routine (CB/2E2B:
+  the PR merges parties its own way); the unequips at 261, 393 and 394 (vanilla's own, moved within
+  the scene).
+
+### Cyan's dream as BNW's (bnw-dream, 2026-11-20, `tools/port_bnw_dream.py`)
+
+BNW (PowerPanda's "Cyan's Uneventful Dream", bnw 3.0/asm/cyans_uneventful_dream.asm; read with
+snes_events: SNES map 317 and the Doma bed CB/82B1) changes only the Dreamscape and two calls of the bed.
+Vanilla's bed puts the leader, then the next leader, as NPCs at two spots (CB/84FF, CB/854F) and the third
+looks for them; BNW keeps all three together (Cyan still leaves: 3F 02 00) and sets the NPC bits of three
+Cyans, pieces of his psyche (53A-53C, SNES (13,49), (17,46), (27,52)): talked to, each gets up, shakes his
+head and vanishes in a flash (blue, red, green; sound 0x45). The door (46,56) pushes back until all three are
+gone. Three Dream Stooges meet the party on the way ("...you again?", 0x0ACD): a new first one beside the first
+Cyan (NPC (14,49), triggers (13,50)/(14,50), bit 0x188), vanilla's second, vanilla's third with its NPC moved
+to (26,51). The fight is pack 0x5A = BNW's formation 346: Curly, Larry, Moe and Shemp (monster 37, hidden,
+brought in by Larry's and Moe's counters). Nothing after it (the train, Doma, Wrexsoul, the waking) differs.
+
+The PR's dream: the bed sc_e_0895 (map 300, Map_20451_4) moves Cyan to the reserve (MoveReserveCayenne) and
+splits the party (夢のダンジョン：分離 = SeparateCorpsAtDreamscape, tools/decomp/dream) into map 520
+(Map_30821_1 = SNES 317's west; PR objects at SNES + (2, 1), script coordinates + (2, 0)), where the two
+companions lie (ev_e_0897/0899, the slot leaders shown by the map script's puppet swap; ScenarioFlag2
+181/183) and two Stooges wait (ev_e_0896/0898, 180/182); map 521 (Map_30821_2, the door, SNES + (0, 1))
+pushes back until 181 and 183 (ev_e_0900), then the fight (sc_e_0901, party 461; 184). Map 521's script
+swaps the slot 2/3 leaders' puppets in on every entry; with nobody in those slots GetLeaderResidentEntityId
+returns 0, i.e. entity 0 (decompiled: pr/tools/ghidra/dream_puppets.txt -> tools/decomp/dream_puppets).
+
+Ported (from port_boss_events, profile `bnw_dream`; `--inplace` puts it onto an already ported folder):
+- the bed: Cyan to the reserve as before, no split; the three Cyans set present, 181/183 set;
+- map 520: Cyan #1 and Stooge #1 as new entity sets (ev_bnw_dream_cyan1/_stooge1: Cyan NPCs are asset 122,
+  entities 63-65, Cyan #1's touch object 66, Stooge #1's boy 67 and triggers 68/69; scripts 9971
+  sc_bnw_dream_cyan1, 9972 sc_bnw_dream_stooge1); Cyan #2/#3 on the companions' spots (their touch objects
+  55/51 run the Cyans' scripts: the PR's step-aside moves, then the get-up, the flash and the vanish);
+  Stooge #3's boy at BNW's spot; the map script lays the Cyans down ('Fall') and drops the puppet swaps;
+- map 521: the push-back while any Cyan is left, no puppet swap; the fight on party 8346 (bnw-enemy-ai's
+  snes_ai_new_fights {346: 461}: BNW's formation with Shemp on 461's look; 461 while a port lacks it).
+Flags (data/snes_event_alloc_bnw.json): ScenarioFlag4 3-5 = Cyan #1-#3 still there (BNW's polarity),
+6 = Stooge #1 met. The lines are the PR's keys (0x0ACD's E0896_00_520_a_01 for the new Stooge too: the line
+map already shows BNW's text). Harness (BnwPlugin/DreamTest.cs): dreamparty [ids], dreamstate.
+Shemp has BNW's own art (bnw-sprites, 2026-11-20: profile_bnw sprite_new_art). The Stooges' scene at the door (sc_e_0901) dropped vanilla's split-party puppets (entity 0, 9-11: the other groups' leaders, which BNW's no-split dream doesn't have; the scene waited on them for ever: QA bnw-11 dream-1, BNW lead 2026-11-20, port_bnw_dream.SPLIT_PUPPETS); its rerun is bnw-12's.
 
 ## Enemy AI (tools/snes_ai.py, ai_compile.py, port_ai.py)
 
@@ -1309,6 +1623,113 @@ turn; Ultros 300 on its final attack). A hybrid (BNW's compiled AI + the PR's Mo
 same phase) needs the battle event read first (what the count triggers) and a played fight to
 check; not done unattended.
 
+### Every reachable monster on BNW's own script (2026-11-20, the enemy-AI session)
+
+Now 327 monsters run BNW's SNES scripts on the kit's interpreter (was 286 + 16 compiled + 10
+unsupported); nothing is compiled any more (`sc_ai_bnw_NNN` are all shims). What it took:
+- **BNW's formation numbers in the story fights** (`port_ai.event_formations`, profile
+  `snes_ai_event_formations`): the PR's event scripts start their battles by party (vanilla's
+  formation + 1); BNW renumbered its boss formations (Vargas and his bears are 0x142, not 435;
+  the Whelk 0x140; the Guardian 0x18c with two monsters brought in later; Ultros + Chupon 0x16b...).
+  The AI data had given those parties vanilla's number, so FC 1B checks (the Bears' "formation
+  0x142", Phunbaba's 0x182/0x183) never matched and the slots (FC 19, F5 masks) came from a
+  formation of other monsters (by cell order). Each event party now gets the formation BNW's own
+  event calls at that place (port_events' anchored pack entries, kept when the party's monsters
+  are in it; a boss party no pack names gets the one formation holding exactly its monsters;
+  `snes_ai_formations` overrides: 423 = 0x182, the first Phunbaba). The 7000+ parties port_events
+  made for BNW's line-ups (the Cranes' 7441) count as their monsters' fights.
+- **FB misc effects read off the ROM** (C2/1E5E: command $30's table at C2/1F09, the same in BNW):
+  01/05 invincible on/off ($3A3C: C2/13B0 zeroes the damage; the host puts back what a hit took),
+  06/07 targetable/untargetable ($2F46, what CheckTargetsPresent allows: the PR's NotTargeting
+  667, which the interpreter's target filter now honours, with NoSelect 625), 09 the battle's end
+  (as 02), 0D itself hidden (status 4 bit 5: as F5's hide). 03 (Gau joins) only !Gau 370 uses: no
+  PR fight fields it. Crane, the Guardian (273), Nimufu, Clyde, Ultros 360 and the Stooges use them.
+- **Battle events (F7) as the PR's modes** (profile `snes_ai_events`, data `event_modes`): a PR
+  battle script that reads its boss's mode (GetEnemyMode: `EnemyCharacterParameter.CurrentMode`,
+  what the PR AI's ModeSet/ModeCount write; ModeCount = +1, decompiled) plays the scene when
+  BNW's script reaches the SNES event: Vargas 07 -> 1 (Mash joins), 09 -> 3 (Pummel ends it);
+  Lete River Ultros 0a -> 1; Kefka's escape 1d -> 1; the Merchant/Trooper (Locke's disguise)
+  0f/0e -> 1. In that pass the script's own entries and battle end are the PR scene's (dropped).
+  Events with no PR counterpart or played by the PR's script anyway (Tunnel Armor's intro 10,
+  Kefka 298's 20, Ziegfried's 13, the Whelk's 05) are skipped and logged once.
+- **Bosses whose PR battle script is harmless alongside BNW's AI** (profile `snes_ai_hybrid_scripts`,
+  read in `tools/decomp/bosses2`): Soul Train's MagicTrainAnimStart (party pose), Doom Gaze's HP
+  save, Fiend's FiendCounterAttack and Ifrit/Shiva's IfritMoveCheck (both act only on the PR AI's
+  variable 9, which nothing sets now; Shiva's NoSelect from sc_b_2009 is lifted in the battle's
+  first seconds, `start_shows`: BNW shows both from the start), Phunbaba's breath routine (BNW's
+  attack ea = the PR's 371; the PR ends that fight: `pr_ends`). Vargas fights on at 0 HP until
+  Pummel (`zero_hp_wait`: no one-minute limit). Chupon comes in with Ultros 360's F5 (it and
+  Rizopas, `snes_ai_brought_in`).
+- **Fights whose PR routine decides who is on screen** (Chadarnook, Air Force, Number 128,
+  Inferno, the Stooges, Hidon, Chaser, the Piranhas, Ultros 301): their monsters run BNW's
+  scripts in the plugin with their own F5/FB 0D left to the routine (`pr_entrances`, as the
+  compiled hybrids did); "everyone dies like a boss" stays; no start-of-battle hides there; the
+  PR's own off-field conditions (Escape, NoSelectChad, EventFadeOut) count as out for the scripts.
+- Kit fix found on the way (WC too): `EventCommand.RecoveryConditionEnemy` takes a condition's
+  *id*, AddConditionEnemy its *type*; the host lifted F5 hides and FB 0C statuses by type, which
+  removes nothing for types past 111 (NoSelect, Hide, NoSelectChad...). Now by id (master Condition).
+
+New fights (`port_ai.new_fights`, profile `snes_ai_new_fights`): BNW's fights the PR has no party
+for get one (8000 + formation, the look of a template party, no battle routine): 8410 = Kaiser
+(0x19A, BNW's post-game superboss; its opening event 0b skipped) and 8377 = Kefka with two
+Centurions (0x179, where vanilla had only an event battle). Their triggers (`tools/port_boss_events.py`,
+profile `bnw_boss_events`), read with tools/snes_events.py:
+- Kaiser: BNW's dragon tally (CB/5090 -> CC/1F9F, event word 6) says "No dragons left..." at the eighth
+  and sets bit 0x3A3, which shows Kaiser (NPC 0 of map 304 at (82, 33), dragon sprite) in a corridor BNW
+  added to Kefka's Tower (new exits from maps 334/337); his talk (CB/52C5) is the fight, then "Broke the
+  dragon seal! Got the magicite Ragnarok" and the esper (index 15, the PR's content 87). BNW's corridor is
+  map 304's dragon-platform room (layout 315: the room the Yellow and Green Dragons stand in on maps
+  335/354), which vanilla never let anyone into: BNW reroutes the door between maps 334 and 337 through it
+  (334 (29, 36) -> 304 (82, 42), 304 (82, 30), a doorway cut into its back wall -> 337 (8, 29), and the
+  way back), walls up its side alcoves and puts Kaiser on the platform. The PR gets the same room as a new
+  map with the kit's room importer (tools/snes_rooms.py, the T-Edition sessions' shared tooling):
+  `clone_map` of the PR's own drawing of that room (Map_30871_9) as Map_30871_33 (map 806, map script
+  629), BNW's doorway drawn as the PR drew the room's other top-wall doorway, the pillars from
+  snes_rooms' model of BNW's tiles. BNW's 8 dragon markers (statues around the platform, BG2 0x5F, that
+  its entrance shows while each dragon lives and each dragon's tally takes away) are there the PR's way,
+  as Kefka's Tower's floor switches do it (Map_30871_18): four statues where the PR drew vanilla's, four
+  added (Ground 160, Upper 279 of map255), those two tiles given a second frame (map255's cell 1023, which
+  no PR map uses: empty), a TileAnimRegion over each marker (entities 301-308) and the map script cueing
+  a fallen dragon's region to that frame (CueAnim [1]); markers by the dragon whose tally clears them
+  (Brown/Earth 178, Purple/Storm 108, White/Holy 166, Silver/Ice 138, Red 148, Blue 175, Green/Skull 220,
+  Gold/Yellow 225). BNW's tally visit after each dragon (CB/5090 -> CB/4FE5, CC/1F9F; ported 2026-11-20,
+  `port_boss_events.dragon_visits`, profile bnw_dragon_visits): each dragon's after-battle script hands
+  its tally (ChangeScript sc_e_0975) to a trip: its visit flag (ScenarioFlag4 13-20, FlagAlloc 0x2000 +
+  dragon flag), fade out, ChangeMap to the room (point 2) with `sc_bnw_dragon_tally`: the party hidden at
+  (82, 34), fade in, a rumble (SE 187, a shake), that dragon's marker cued off (the room's map script
+  skips a visiting dragon's marker), the tally's own "N dragons left" line, fade out, ChangeMap back with
+  `sc_bnw_dragon_back` in the dragon's room: the party on the dragon's cell (free after the fight; Map_20440's
+  on its after-battle spot (60, 44), BNW's own reload spot there), fade in, and what the after-battle did
+  after a tally call (Map_20440: its line and the autosave). The PR's ChangeMap takes only an entry point
+  (decompiled tools/decomp/changemap), hence the cell by SetPos. Not played yet (QA bnw-visit-1). The PR's doors from Map_30870 (29, 36) and Map_30871_7 (14, 31) lead into it, its own
+  lead on to where those went. Its map script spawns Kaiser (ev_bnw_kaiser: the Yellow Dragon's entity
+  with his script) once all 8 dragon flags (ScenarioFlag2 108, 138, 148, 166, 175, 178, 220, 225) are set
+  and until the seal flag (221); the PR's 9 copies of the tally (sc_e_0975) stop at "No dragons left..."
+  (E0981_00_551_a_01); sc_bnw_kaiser (the PR's dragon talk, EncountBoss 8410) and sc_bnw_kaiser_1 (he's
+  hidden, the seal's effects, a_02, flag 221, GetItem 87). tests/test_mod.py checks the new map's files
+  and lets doors into maps past the game's ids differ from vanilla.
+- Kefka: BNW's Sealed Gate scene (CB/39CA) replaces vanilla's first event battle there with the fight,
+  after six new lines (SNES 0xA60-0xA65); the PR's sc_e_0460_1 (map 40034) takes party 8377 in its first
+  Encount, BNW's lines (bnw-text-ui's BNW_E0460_01..06, DialogText's added lines) before its fade to it.
+
+Still on the PR's AI (16), each with its reason (`profile_bnw.snes_ai_keep`, port_report):
+the final battle's 9 tiers (343-351: the PR's four-round battle event swaps parties, music and
+backgrounds on its own signals); 281 Intangir (its death changes the formation to 0x153, Intangir
+Z; the PR stages that as the same unit rising, KingBehemahInBattle, with its own AI's second
+phase); 302 Ultros at the Esper Cave (Relm joins from the PR AI's own variables and timers; BNW's
+Ultros moves among four slots the PR's party lacks); 359 Soulblazer (the PR's Wrexsoul fight,
+party 463, fields vanilla's line-up: BNW's Wrexsoul is monster 13 in formation 0x15c, not staged
+by the PR's event); 371 (a story scene its battle event plays on its own signal); 276 (BNW's script
+is SNES event 04 + the end: the PR's ability 1414 plays that scene); 64 Chupon, 277 (no PR fight
+fields them). Non-bosses off the plugin: 13 Wrexsoul (only in the PR's vanilla Dark
+Force parties), 366/370/378/379 (no PR fight).
+
+Testing: `BnwPlugin/AiFights.cs` adds harness commands (aikeep on|off: Active mode, auto, party
+at 9999 HP; ko [PR id]: a knockout through the game's death check; aistat; endfight: everyone
+left dies the game's way) and `tools/ai_fights.py` drives many fights in one run; runs go
+through the PC test runner session (harness lists: boot; aikeep on; battle N; until scene
+battle; sleep; ko; aistat; endfight; tofield; ...).
+
 ## Testing (pr/tests/test_mod.py)
 
 No playtesting by driving the user's screen (they asked not to). Offline suite:
@@ -1341,6 +1762,182 @@ gets its own section, `Class$$Method#<rva>` (autobattle2-5.txt: the auto-battle 
 picking, the ATB queue and the executor's stack checks).
 Field offsets in the C (param_1 + 0xd4...) match dump.cs; virtual calls are vtable
 slots. The code is full of debug-log string building; grep past it.
+
+### Test batches (`tools/test_batch.py`, 2026-11-20)
+
+With several porting sessions at once, one "PC test runner" session owns the PC install and every
+headless run; the others send it requests (format in the session notes: mod, what to run, pass/fail
+regexes). `tools/test_batch.py <batch.json>` runs a batch: a pre-flight `dotnet build -c Release` of the
+mod's plugin (a break is reported as file:line to whoever owns the file, nothing is installed), the
+install (`deploy.sh --pc`, or BC's `bc_testinstall.py`), then each launch (probe, harness, WcTest,
+Live, `kit.py run`), refused while `Wow.exe` or the game runs, the save folder checksummed before and
+after; each request passes when all its "pass" regexes match the log or the harness replies and its
+"fail" regex (default `Exception|\[Error`, minus Magicite's OnExportError signature warning) matches
+nothing ("  ~" poll lines of the transcript don't count for fail). Harness requests in one launch run
+in order; steps are harness commands plus `boot`, `tofield` (from the title, the demo, a battle or the
+field to a free field), `killall` (BNW `endfight`, else `enemyhp 1`), `warpfree`, `loadfield`,
+`sleep <s>`, `until <regex> [s] [check <cmd>|logfile] [repeat <cmd>]`; request options `keep_going`,
+`skip_to`; run options `setup`/`undo` (commands around a launch, e.g. a test Magicite folder in and
+out). The install is `deploy.sh` with `DEPLOY_NO_BUILD=1` then one checked `-p:Deploy=true` build (a
+file saved after the pre-flight can't leave a failed build's old DLL installed). After a WC or BC batch
+BNW is put back active. The runner waits for a closing game (~20 s) and holds while Wow.exe runs.
+Logs: `build/test_logs/` (harness transcripts written live); summaries: `build/test_runs.md` (newest
+first); batch files: `build/batches/*.py` generate the JSON; `build/batches/queue.sh` runs the lines of
+`build/batches/queue.txt` in order (edit the file to reorder; never kill the shell mid-batch).
+**Saves load headless at the title** (fixed 2026-11-20, `PrKit/ModSaves.cs` `LoadAtTitle`). Before:
+the in-game load (`GotoLoadSaveData`) does nothing at the title, and the title's path (`LoadAsync`,
+`RestoreSaveData`, `MapLoadProcessor.Start`, `SubSceneLoadingWait(false)`) read the save and stalled;
+~74 s after the title its idle demo played the opening on map 609 (Terra/Biggs/Wedge), which looked like
+a loaded field. Cause (decompiled in `tools/decomp/titleload`, `titleload2`): the title's Load window
+does more than that path. (1) It fades out first, and `SubSceneLoadingWait(false)` switches to the
+field's scene only once `FadeManager.IsStateFadeOut()`; with no fade it waited forever. (2) While it
+waits, its `UpdateWait` runs `MapLoadProcessor.Update()` every frame (the map's load tasks; nothing
+else does before the field exists). With the fade alone the scene switched in ~1 s, then the field
+never got ready (`scene other; map 0`). (3) Its slot read runs `UserDataManager.Initialize()` first
+and `OwnedCharacterClient.UpdateChracterName()` after. `LoadAtTitle` does all of it; the pump is a
+postfix on the title's `Update` for that title only. Kit harness: `load [slot|party] [goto]`. At the
+title this is the title's load; `party` picks the newest save with 3+ in the party, by time (the
+TimeStamps mix formats, "03/15/2022 21:39:57" and "11/16/2026 5:13:15 PM"), and not one on a world map
+(map ids 1, 2, 575) when another will do: twice (18:08, 18:45) a BNW probe self-test loaded the PC's slot
+11 (map 1), started its field battle there, and a second game process appeared; cause still open, an A/B
+with a town save (slot=6) vs a New Game is queued in bnw-13; `goto` is the in-game
+load, for a field. The BNW probe's title step uses `LoadAtTitle` too (`slot=<n>|party`). Measured
+(4 headless BNW runs): `load 6` sent 12 s after the title gave a free field on the save's map 399 in
+3.5 s. `load party` sent 2 s after the title (slot 20: Edgar Lv 66, Terra Lv 46) gave a free field
+on map 112 in ~23 s, because the title was still loading. The New Game `boot` took ~25 s of waiting
+plus the opening, ~1-1.5 min, and its Lv 3 party dies in strong fights. The PC's save folder stayed
+byte-identical. **Save sandbox:** the PC's own saves are 2022 vanilla ones (the user plays on the
+Deck), so runs load copies of the Deck's saves from `build/save_sandbox/deck_20261120` (README
+there; copied read-only over ssh). Point a run at it with `savesandbox=<abs dir>`: the BNW probe's
+key (`probe_headless.ps1 -Extra "harness=1;savesandbox=..."`), or the kit's `prkit_test.request`
+key, read by `ModSaves` for a mod that keeps its own saves. A sandbox equal to the game's own save
+folder is ignored. WcTest's `load=1` uses `ModSaves.LoadAtTitle` too since 19:28 (it had the old
+stalling path, so its loaded-save checks ran in the title demo's field until then: expect them to
+run on the real save now). WcTest has no sandbox key (it reads the PC's shared saves). The kit harness's `state` says "title
+window" on the title (its "scene" says field there, the demo's). A `press` is a 1-frame tap. **WcTest runs one check per launch** (`check=a,b` ends after a's plan).
+**Self-tests only:** `-Extra "slot=party;sweep=0"` skips the 2373-direction formula sweep (and its 5
+game-side Morph NullReferenceExceptions): the probe battle runs BnwRunner's chain (Plugin.cs: Veldt,
+grip, limits, Leap, cover, toss) and every check registered with `FormulaProbe.AddSelfTest(name,
+Func<string>)` (null until it can run, then its line; exceptions logged as FAILED with a stack head),
+then quits (`selftestmax`, default 30 s since 2026-11-20, was 120: a check that answers does so within
+~15 s; it names the checks still waiting). New in-battle checks go in that registry, not the chain.
+probe_headless.ps1 no longer waits a fixed 10 s after "[probe] done". `slot=new`: a New Game at once
+(asked again every 2.5 s while the title is up) and the probe battle on the opening's field, for a run
+that needs no save.
+
+**Runner speed (2026-11-20; the user: "it shouldn't be lasting this long").** Measured before: 250 s per
+request (today's 15 completed batches, 8,508 s for 34 requests: build, install, launches, steps); a
+launch ~30 s to the title, then a fixed 25 s, New Game, the warp: ~90 s before a request's first step.
+- **Warm game.** A harness or kit launch stays up after its run: the runner sends `idle 10` (the kit
+  harness then quits the game by itself after 10 minutes with no client and no command, or at once
+  when Wow.exe starts) and writes `build/test_logs/warm_game.json`. The next harness/kit run with the
+  same kind, `graphics` (a graphics game serves both), `extra`/`set`, installed mod and installed files
+  (plugins + Magicite folders, sizes and times) and enough time left in the launch (`-Minutes` 120 for
+  a warm launch) reuses it: `title` (the field's own sub-scene state GotoTitle behind a fade-out; `MainGame.GotoTitle()`
+  alone did nothing) and its steps from the
+  title, no launch; a run whose first step is `tofield` goes on from where the game is. Anything else
+  (a probe, WcTest, an install that changes files, a run with `setup`/`undo`) stops it first (`quit`,
+  then the process; its launcher removes steam_appid.txt and the lock). `test_batch.py --cool` stops it
+  by hand; `--check` says when one is up. The launcher starts detached (its own hidden console, out of
+  the queue shell's job where Windows allows) so it outlives the batch. A game that dies mid-run, or
+  can't get back to the title, is relaunched for the requests left (twice at most); each request is
+  judged on its own launch's log. Kit harness: any number of clients at once (one thread each), so a
+  second connection is never refused; `newgame` asks the title again every 1.5 s until it takes it
+  (its intro ignores it; the title state, `title window (Select)`, is in `state`); `title`; `idle`.
+- **Boot without fixed sleeps.** `boot` = until the title window, `newgamego` (New Game 12 s after
+  the title appears, not 25: asked in its first seconds the title holds it, its state at NewGame, until
+  its attract demo ~74 s later, live "2 tries, 75.1 s"; the idle title's state is None throughout; a
+  demo that starts first is ended with a press), skipmsg, `newfield` (the new game's own field: a game
+  back at the title still says the last game's map until the new one loads, so a field on another
+  map, or any after 20 s), `warpfree` (speed 4 meanwhile; the first landing is watched 5 s for the
+  opening carrying the party off, then it warps once more), `freefield` (1.5 s of free field). Polls
+  every 0.25 s; transcripts log a reply only when it changed (the frame counter aside). `until ...
+  every <s>` paces the checks and repeats. A run's `"boot": "save"`: `boot` loads the newest save with
+  3+ in its party at the title instead (`load party`, runner-saveload's `LoadAtTitle`; with the run's
+  `extra` `savesandbox=<dir>` the Deck saves' copies). Measured live (PC, 2026-11-20): launch to a free
+  field ~48 s (was ~90); on a kept game, `title` 1.4-3.5 s, title to free field ~26 s, a request of
+  boot + battle + its end 36-42 s (69-71 s with a launch).
+- **Stuck games and flaky battles.** `tofield` in a battle tries once (killall, 90 s of presses): a
+  battle that doesn't end (a boss its script holds at 0 HP, bnw-2) gives the game up and the requests
+  left get a new launch, instead of 3 minutes per request; a request given up so before any of its own
+  steps ran runs again on that launch (bnw-11's scenes-1 failed for its reused game's battle). A game
+  whose run ended in a battle or with a script running isn't kept warm. A broken request (an `until`
+  step, a pass or fail regex that doesn't compile) is set aside when the batch loads ("not run: ..."
+  in test_runs.md; the rest runs); a step or request that throws fails only itself; a run that crashes
+  stops this batch's own games and launchers (never another game) and the batch goes on with its next
+  run (bnw-11, 18:31: one cut regex ended the batch and left its game up). `battle`/`encount` answered with a
+  NullReferenceException (the field a moment after a warp: `FieldController.ScreenShotMainView`) is
+  asked again after 2 s and a free field.
+- **Fast sleeps.** Request option `fast_sleep`: a `sleep N` (N >= 4) ends 1.5 s after the BepInEx log
+  shows a line for one of the request's pass regexes it hadn't matched yet, else after N.
+- **`needs: title`** on a request: its steps run at the title (no New Game or load; `boot`/`tofield`
+  dropped). `field` is the default (the steps' own `boot`). `boot` starts from anywhere (`totitle`
+  first), so a request may begin with it after another one in the same launch.
+- **Test-run speed-ups in the game (2026-11-20, the user: "can we speed up the one test game (like for
+  example skipping the logos at the beginning, etc)"; measured live on the PC with a Debug BNW DLL):**
+  - *Logos:* the kit harness skips the opening logos in a test run only (`Harness.SkipLogosInTestRun`:
+    `Application.isBatchMode`, called from `Harness.Start` and the BNW probe's start; a player's game
+    never; the user had the player-facing skip removed on 2026-11-12). `SceneSplash.OnSplashAnimationFinished`
+    is called once `loadFinished` and `messageIsReady` are set, the logos' own later call dropped. Headless
+    the data load and the logos overlap: 703 -> 496 splash frames, launch to title 38 -> 35 s (one A/B).
+  - *`fast on|off`* (kit harness): Active battles, the battle speed with the largest factor
+    (`BattleUtility.GetBattleSpeedByConfigValue`: 0.5/0.75/1/1.5/2 for 0-4, the default 2), the shortest
+    battle-message time (`Message.battleMessageSpeedTable`: 0.5-1.5 s, index 0), no frame cap
+    (`targetFrameRate` 60 -> -1: a battle ran at ~68 frames a second instead of ~21); `off` puts them back,
+    and nothing is saved. Opt-in, a run's `"fast": true` (else the runner sends `fast off`): on BNW's boss
+    446 it didn't change the boss's turns in 30 s (4 -> 4; acts 7 -> 8), and the fight went differently
+    (the party fell). Never with a request marked `"timing": true`.
+  - *A request's `speed: N`* (1-10, Unity's time scale through the request; the boot's warp keeps it):
+    harness/kit runs only, never with `"timing": true`, and **not on a request with a battle**: at 3x
+    BNW's boss 446 ended at once with no act and nothing defeated (at 1x: 4 boss acts in 30 s). Field and
+    scene tests may try it; nothing has confirmed it there yet.
+- **A second test machine: the user's laptop** (2026-11-20, the user: "also i have this laptop you can test on";
+  memory test-machines.md). `tools/remote_batch.py <batch.json> [--only RUN]` runs a BNW batch's harness runs
+  there, beside the PC's queue: this PC's build into a test copy (`C:\ff6pr-test`, never the user's install),
+  a headless launch through a one-shot scheduled task in the user's session (Steam runs there; SSH is session 0),
+  the harness through an SSH tunnel (PC port 47812), test_batch's own step code, results as `<batch>@laptop`.
+  Steam (offline on the laptop) let it run beside a PC test game. First batch 20:04: boot + battle, PASS, 66 s
+  with a cold launch. Not yet: graphics runs (screenshot paths), setup/undo, other mods, a warm game there, the Deck.
+- Runner options since 20:1x: `"graphics": false` on a run gets a game without a graphics device (a graphics
+  warm game is stopped first), `"fresh": true` a new launch; a relative program in `setup`/`undo`
+  (`.venv/Scripts/python`) is found under pr/; builds wait while `build/batches/quiet.flag` exists and skip the
+  package restore once restored (`--no-restore`); build errors name the file's owner (pr/OWNERS).
+- **Installs.** BNW active with the built DLL, `bnw_data.json`/`bnw_dialog.json` and the Magicite
+  folder the same as the installed ones: nothing deployed (the warm game stays up). Otherwise `deploy.sh`
+  (`DEPLOY_NO_BUILD=1`), then the batch's own pre-flight build is copied in as the csproj's Deploy target
+  would (the DLL; BNW's two data files; WC's `wc_flags.json`) and its md5 checked: no second
+  `-p:Deploy=true` build (11-20 s), and the install is exactly the build the batch checked. WC's bundle and the
+  mod switch skip unchanged work inside `deploy.sh`/`wc_bundle.py` (runner-wc-cache's work).
+- **Pre-flight** (after the build, before any install or launch): the mod's offline suites (BNW:
+  Rules.Tests, `test_mod`; WC: Wc.Tests, WcAi.Tests; BC: Bc.Tests, `test_bc`; T-Edition: Ted.Tests,
+  `test_mod` with PR_MOD=TEdition, `test_snes_events`; PrKit.Tests when the kit's sources changed),
+  three at a time, run only when what they read changed, blocking only on a failure not in their
+  baseline (`build/test_logs/preflight_state.json`: today's failures, e.g. 214 failing cases of BNW's
+  `test_mod`, shrunk as they get fixed); a request's `offline: [commands]` replaces them (each must
+  pass). Then `tools/magicite_check.py` (game-free; `tests/test_magicite_check.py`) on the mod's
+  Magicite folder and any folder a run's `setup` copies in: JSON parses, master tables' ids and texts'
+  keys unique, every asset a map package lists exists (the folder's or the game's), every script beside
+  a package is listed by it (T-Edition's "didn't start (not in this map's list?)"). Before each launch
+  the installed Magicite folders are checked for files two of them ship (BNW's `map_20071` package hid
+  T-Edition's). A failure: nothing installed or launched, "failed (pre-flight)" in test_runs.md, exit 5,
+  counted in the state file (`--preflight BATCH` runs the gate alone).
+- **The queue** (`build/batches/queue4.sh`, `test_batch.py --next`): one mod's turn at a time (BNW, WC,
+  BC, T-Edition; mods with nothing queued skipped; `build/batches/turn.json`): every batch of that mod
+  queued, with no time limit (the user: "undo the 30 minute cap per mod"; a batch of the mod queued during
+  its turn joins it), its install once and its warm game for all of them; within a turn the shortest
+  batch first (a line passed over 3 times gets `#skips=3` and goes next); `--part A-B` (written in a
+  line) runs requests A..B of a batch. Batches run with `--defer-restore` (WC/BC stay installed for their
+  next batch); the empty queue runs `--restore` (BC's test install restored, BNW active). Before each
+  batch queue4.sh waits for `optimizer.lock` to go and for 10 s without a game (queue3.sh's wait), unless
+  the runner's own warm game is the one up. A batch's runs go in its own order (its author puts launches
+  that may stall last). One batch at a time: `build/test_logs/test_batch.lock` (pid; a second
+  `test_batch.py` waits; a holder that's gone, or whose pid is another process's now, is taken over).
+- **Before an install**: while `mods/<Mod>.porting` is held (tools/port.py's lock: its owner's pid alive
+  and started before the lock was taken, port.py's own rule; port.py renames `mods/<Mod>.new` over the
+  folder at the end) or, for BNW, `build/bnw_port.lock`, the install waits (30 min at most); BNW's folder
+  must also have `bnw_data.json` and `port_report.txt` and be still for 3 s. Then no FINAL FANTASY VI.exe, no UnityCrashHandler64.exe and no
+  `BepInEx/probe_run.lock` for 10 s straight (wc-4's mod switch, 17:04: a closing game's files still
+  held). Each summary line names the install: `DLL <md5>, data <hash of the installed Magicite folder>`.
 
 ### Formula probe (in-game, automated; plugin `FormulaProbe.cs`, `tools/probe_check.py`)
 
@@ -1394,7 +1991,8 @@ worked out yet). `load <slot>` from the title follows the title's Load window
 (SaveSlotManager.LoadAsync, then LoadData.RestoreSaveData, MapLoadProcessor.Start, the title's
 SubSceneLoadingWait: decompiled in tools/decomp/load) but stalls before the field appears
 (`scene other`); GotoLoadSaveData is the in-game load and does nothing at the title, so the
-earlier runs that "loaded" a save were in the title demo. One `probe_headless.ps1` run at a
+earlier runs that "loaded" a save were in the title demo (fixed 2026-11-20: the missing fade-out and
+map-load pump, see "Test batches"). One `probe_headless.ps1` run at a
 time: a run finishing removes steam_appid.txt, and a game started meanwhile is relaunched by
 Steam outside the run, without its request (no save block). The script now waits for a run
 still finishing (BepInEx\probe_run.lock), and stops any game started since it began when its
@@ -1493,6 +2091,78 @@ game's own files: WC's are made on the player's machine, "WC without the game's 
 The headless runs check the mod they need is installed (the probe and the harness: BNW;
 `-WcTest` / `-Live`: WC) instead of switching Magicite's folder per run.
 
+**Four mods, one active; tiles; per-mod Deck push (2026-11-20).** Worlds Collide, Brave New
+World, Beyond Chaos and T-Edition all stay installed on the PC and the Deck, exactly one active:
+the others' plugin and Magicite folders wait in `BepInEx/mod-shelf/<Mod>` and
+`mod-shelf/magicite/<Mod>` (T-Edition is Magicite-only until `plugin/TedPlugin` exists). deploy.sh
+`--bnw|--wc` also shelves BC and T-Edition if a tile left one active. `tools/modswitch`:
+`ff6-mod-switch.sh wc|bnw|bc|ted|status [--launch] [--dry-run]` (Deck, `~/.local/share/ff6pr-mods`)
+and `Switch-Ff6Mod.ps1 -Mod wc|bnw|bc|ted|status [-Launch] [-DryRun]` (PC, `%LOCALAPPDATA%\ff6pr-mods`;
+also refuses during a BC test install, `BepInEx\bc_testinstall.json`) move folders only, nothing
+deleted, refused while the game runs; a mod that isn't installed is reported and nothing moves or
+launches. `modswitch/install.sh [--pc|--deck]` makes four Deck library tiles and PC Desktop/Start
+menu shortcuts: "FINAL FANTASY VI - Worlds Collide", "... - Brave New World", "... - Beyond Chaos",
+"... - T-Edition" (art: `make_art.py`, FF6's art with the mod's name). `tools/deck_push.sh
+bnw|wc|bc|ted` copies one mod as it is installed in the PC game (active, shelved, or held by a BC
+test; what the test runner last built and checked) to the Deck, into the state it has there (its
+active copy if active, else its shelf copy; a new mod goes on the shelf): plugin folder, Magicite
+folder, `BepInEx/<Mod>` data except seeds, its cfg where the Deck has none (never BC's: it holds
+this PC's ProjectDir), seeds the Deck lacks (one way, not `*-test`, state.json untouched). No build,
+the PC only read, the Deck's active mod unchanged, refused while FF6 runs on the Deck; files are
+staged on the Deck (`BepInEx/deck_push-staging/<Mod>`) and swapped in only if the PC copy didn't
+change meanwhile. Last line `deck_push: <mod> done (<n> files, plugin md5 <first 8>)` or
+`deck_push: <mod> FAILED: <why>` (exit 1). BC pushes only once its player bundle exists
+(`BepInEx/BeyondChaos/generator/bundle.json`) and T-Edition once its player build does
+(`BepInEx/TEdition/build.json`, the file it writes last); until then both say "... has no
+installable build yet". The PC's switcher applies the same rule (2026-11-20, coordinator): its
+BC and T-Edition shortcuts change nothing until those files exist, since the PC's copies before
+that are the test runner's test installs, which must never stay active.
+
+**Installs skip work already done (2026-11-20).** Every PC install used to redo everything: a WC
+install took 3.5+ min even with nothing changed (`wc_bundle.py` rebuilt the 72 MB generator bundle,
+130-520 s depending on load, then robocopy walked the unchanged trees: generator 6.2 s, baseline
+2.0 s, Magicite 2.4 s), and switching back to BNW mirrored its Magicite folder again (2.3 s of
+robocopy plus a `dotnet build-server shutdown`). Now the PC side of deploy.sh (`--pc`, and the PC
+half of a plain run; `--deck` / `--full` are unchanged) does only what's needed:
+- `tools/wc_bundle.py` builds only when something it's made from changed. A build runs under an
+  audit hook and `sys.monitoring` and records in `build/WorldsCollide/bundle_inputs.json` every
+  file it read or copied (size, time), every folder it listed (time, listing), every function that
+  ran (in its own Python and in the bundle's Python making the vanilla cache) and a listing of what
+  it made. The next run checks that in ~1 s. Nothing changed: "bundle: up to date". A file it only
+  copies (WC's own files, most of the ~65 tool scripts the generator ships), or a module it ran whose
+  change is only in functions or methods that didn't run (port_ai, port_procs, the snes_* and other
+  porter modules other sessions edit all day: the build imports most of them for a constant): that
+  file is copied again with its bytecode, and scripts the generator now imports are copied in ("up
+  to date after copying N changed files again", 1-2 s). Anything else (pr/vanilla, the ROM, the
+  presets, code that ran, module-level code, class bodies, a function's arguments): a full build.
+  A change in a module only the vanilla cache ran makes the cache again (~20 s) and keeps the old
+  one if it comes out the same. `--status` says which it would do, `--force` builds. An input saved
+  while a build runs marks the record stale (the next run builds again). `--check` no longer
+  deletes the bundle's precompiled bytecode (it removed every `__pycache__`, not just its own).
+- `wc_bundle.py --install DATA_DIR MAGICITE_DIR` (deploy.sh): generator/ and baseline/ ->
+  `BepInEx/WorldsCollide`, the Magicite folder -> `Magicite/WorldsCollide`, each compared with
+  what the build made (an os.scandir listing: names, sizes, times; the copies keep the times) and
+  only the differing files copied or deleted (robocopy /MIR if that fails). A seed a test applied
+  in `Magicite/WorldsCollide` is still put back to the baseline (those files differ).
+- `tools/quick_mirror.py SRC DST` (kit tool): the same for BNW's Magicite folder.
+- deploy.sh: `wc_flags.json` is rewritten only when the export differs; `dotnet build-server
+  shutdown` runs only when deploy.sh built something (not with `DEPLOY_NO_BUILD=1`); a switch's
+  folder moves retry for ~10 s and, if one still can't move, the switch puts back what it moved
+  and stops ("can't move ... switch undone, nothing changed", exit 1) instead of leaving half a
+  switch (wc-4's install at 17:04: "mv: cannot move .../Magicite/BraveNewWorld: Permission
+  denied" half a minute after another run's game closed, with BNW's plugin already shelved; the
+  same code runs on the Deck); a PC install waits (up to 15 min, then refuses) while a port holds
+  `mods/<Mod>.porting` (tools/port.py) or, for BNW, `build/bnw_port.lock`.
+Measured on this PC's game, `DEPLOY_NO_BUILD=1 deploy.sh --<mod> --pc` as the test runner runs it
+(18:05): BNW reinstalled with nothing changed 2.7 s before, 0.9 s now; WC installed over BNW 10.1 s
+(the game's WC copy was an older bundle with a seed applied: 2,870 files copied; 4 changed tool
+scripts copied into the bundle first); WC again 3.8 s (1 tool script changed meanwhile); WC -> BNW
+1.0-1.2 s; BNW -> WC with nothing changed 3.1 s. A full bundle build, when one is needed, is
+still 130-520 s (`--status` tells beforehand). The test runner's side (runner-core, from the
+batch after bnw-11): after deploy.sh it copies the batch's own pre-flight build in (DLL + BNW's
+data files / WC's wc_flags.json, md5 checked) instead of a second `-p:Deploy=true` build (11-20 s),
+and waits 3 s instead of 20 for `mods/BraveNewWorld` to settle.
+
 ## Plugin (pr/plugin/BnwPlugin)
 
 `dotnet build -c Release -p:Deploy=true` (game closed) builds `BraveNewWorld.PR.dll`
@@ -1584,8 +2254,11 @@ Esper system (v0.8.4, `EsperHooks.cs`, `EsperMenu.cs`, `EsperList.cs`, `EsperSto
   The game computes stats on several threads (the Deck's log showed a corrupted
   Dictionary in the MaxHp/MaxMp hooks): EsperStore and the one-time log sets are
   locked since v0.8.4.
-  Not yet confirmed: that the list survives save -> load (log says "started BNW
-  esper data in this save" the first time a save gets a block).
+  Save -> load confirmed (2026-11-20, decompiled tools/decomp/bnw_engine): UserDataManager.ToJSON
+  writes the list as `ownedKeyWaordList` (JSON of {"target": [...]} inside the save JSON) and
+  FromJsonAsync clears the list, then reads it back from the save, so a load never keeps the last
+  save's block. Self-test "EL in the save": an EL/EP set in the block reads back from the game's own
+  save text (ToJSON).
 - Stats: spent EL totals + equip bonus added in postfixes on
   `PlayerCharacterParameter.Confirmed*` (MaxHp/MaxMp incl. HP/MP %, Power,
   Agility, Vitality, Magic, Defense, AbilityDefense, EvasionRate,
@@ -1663,10 +2336,15 @@ Shown once the party owns an esper (PR stand-in for BNW's "met Ramuh" bit).
 Geometry and the status screen's texts are logged once. Not yet seen in game; other
 LV displays (party select, save/load, shops) not done.
 
-Esper TODO: SP bank spell buying (data port still uses
-rate = 100/SP passive learning), Alexandr/Ragnarok "+25% output" (PR hard-codes
-Earring/Atlas Armlet by item id: needs a damage-formula hook), EL/EP display,
-"EL gained" battle message, unequip disallowed espers in old saves.
+Esper TODO (all done by 2026-11-20): SP bank spell buying (v0.9.0), Alexandr/Ragnarok "+25% output"
+(RelicRules), EL/EP display (EsperLevelDisplay), the "EL gained" message (`EsperResultRows.cs`: BNW's
+"<name> gained an EL", c2.asm Show_EL / message $46, once per character whose EL went up, as a row of
+the PR's victory screen: KeyInput.ResultSkillController.SetLevelUpList rows made with the game's own
+CreateLevelUpContents and drawn as its sentence rows; IsToAbilityLevelUp shows that page when someone
+gained an EL; the touch menu is the phone's, not done), unequip disallowed espers in old saves
+(EsperHooks.UnequipDisallowed: every 2 s outside battle, an esper the character may not use comes off
+through OwnedCharacterClient.RemoveMagicStone, logged: a vanilla PR save, which BNW's own saves start
+as, can have one).
 
 ## HD-2D plugin (pr/hd2d, pr/plugin/Hd2dPlugin)
 
@@ -2035,6 +2713,360 @@ can be switched to at the title screen; "Play without a seed" = the game's own d
   assembly patches rather than data (bug fixes, challenges, -move, -warp, -scan, -npctips...).
   A seed today = WC's randomized data and AI on the vanilla story.
 
+## Beyond Chaos port (2026-11-20; the user: "i don't want to skip the sprites and music")
+
+Beyond Chaos (CE 6.1.3, MIT, github.com/FF6BeyondChaos/BeyondChaosRandomizer) as a mod of its own,
+played like WC: seeds and flags chosen in the game, made in seconds, applied without a restart.
+Normal mode first; ancientcave / speedcave / racecave and `d` (random final dungeon) later.
+Separate from WC and BNW (own plugin `plugin/BcPlugin`, own Magicite folder `BeyondChaos`, own data
+folder `BepInEx/BeyondChaos`, own saves `ModSaves "BeyondChaos"`, own repo pinned to the kit).
+
+- **Source** (2026-11-20): `mods/beyond-chaos/src` = BC's git at commit 27de07a (main, "Update
+  version to 6.1.3"; the tag CE-6.1.3 is on an earlier commit that lacks four of the release's
+  fixes; the exe in `mods/beyond-chaos/CE-6.1.3` ships no Python). Run as the exe runs it
+  (`sys._MEIPASS` = the source, the working folder holding `custom/` and `remonsterate/` from the
+  release; `tools/bc_run.py`, BC's web mode on buffers): the New Player seed 9859608359 = the exe's
+  ROM byte for byte, 14-16 s on the PC with the ROM. **A seed number gives BC's exe's game**: BC
+  reseeds (`seed + counter`) before each stage, so a ROM-free stand-in only has to keep its own
+  stage's draws.
+- **Generator** (`tools/bc_run.py`, `bc_seed.py`): BC's `randomize()` in process on buffers, then
+  the shared porter, into a seed folder of full tables + text + changed files (as `wc_seed.py`,
+  `wc_live.py`). ROM-free next (as WC: `bc_basedata.py` traces what BC reads, ships the ROM's
+  data tables only; graphics/text/maps/code BC only rewrites get stand-ins).
+- **Kit first**: the seed system (flag model, options screen, generator runner, seed library
+  with live apply and save hooks, data folder, title-menu entry, pad input) and the SNES-parity
+  battle code BC needs as-is (ATB, status ticks/clock, autobattle, encounters, the Veldt) move
+  from `plugin/WcPlugin` into `plugin/PrKit`, opt-in per plugin, WC switched over and kept green.
+  Shared features (natural magic, skills following commands, esper bonuses, Colosseum, rages,
+  steal, exp/gp/mp boosts) after.
+- **New**: custom commands (`w`; BC writes them in assembly, here plugin code); item specials;
+  ~30 codes (nicerpoison, slowerbg don't apply); light events (worringtriad, r, notawaiter,
+  lessfanatical, regionofdoom, mimetime, thescenarionottaken, j, k).
+- **Names**: no SNES abbreviations ("R-Ice", "CleanSw", "BehemothSui?"): BC's naming code is
+  patched at seed time to give full names in the PR's words (its spell, item, esper and monster
+  names; "Random Ice", "Clean Sweep"), limited by each window's pixel width (proportional font;
+  the PR's own translations fit 11-13 characters in the battle command window), not a count.
+- **Sprites** (`makeover`: ~670 SNES 4bpp sheets + 40x40 portraits + palettes -> the PR's 32x32
+  field/battle frames and 40x40 portraits at seed time; also gives WC custom sprites),
+  **monsters** (`remonsterate`: 13,418 PNGs swapped in through a plugin hook), **palettes** (`c`,
+  `p`, `n`: recolouring the PR's RGBA art, built in the kit for BNW's ~220 recolours too).
+- **Music** (`johnnydmad`: ~380 MML songs, ~500 BRR samples): FF6's SNES sound driver can't ship,
+  so the plugin emulates the SNES sound chip and re-implements the driver from the community
+  disassembly, streaming songs in place of the game's track (fades, battle music, resuming
+  after a fight, the volume setting). FF6's own songs in BC's shuffle use the PR's `.mab` files.
+  Checked against `tools/snes_harness.py` on the same seed. Opera (`alasdraco`) later.
+- **Ask before releasing**: the sprites, monster images and samples are from other games (BC
+  ships them openly): ship them in the zip, or fetch BC's release on the player's machine?
+
+Done 2026-11-20 (the first stretch):
+- **The kit's seed system** (`plugin/PrKit/Seeds`, opt-in `<PrKitSeeds>true</PrKitSeeds>`, namespace
+  `PrKit.Seeds`): `Flags.cs` (WC's flag model, now also BC's `name:value` style, special values like
+  "random", conflicts, requirements, child rows, modes), `SeedLibrary.cs` (seeds on disk, live apply with
+  file swaps and cache eviction, the startup apply, the save/load hooks that keep each save's seed; a
+  mod's own rules as callbacks), `SeedGenerator.cs`, `SeedScreen.cs` (the options screen; a mod
+  subclasses it), `PadInput.cs`, `TitleMenuEntry.cs`, `ModDataDir.cs`, `ChestBattles.cs` (chests a seed
+  made monster boxes). Python: `tools/seed_live.py` (managed tables/files, the baseline) and
+  `seed_info.py` (Coliseum, esper bonuses, Runic/Bushido weapons, MagiTek, monster chests), with
+  `wc_live.py` / `wc_seed.py` on them. **WC on it**: WcFlags.cs moved to the kit; WcSeeds, WcGenerator,
+  WcInput, WcTitleMenu and WcDataDir are facades over the kit's classes (same names, same logs);
+  WcScreen (with the Track pages) stays WC's until it moves onto SeedScreen. Checked: WC's baseline and a
+  Moogle Cup seed byte-identical before/after, Wc.Tests 416 strings identical, and the BNW
+  coordinator's headless WC run on the refactored plugin: 0 failures (seed made in game and applied,
+  New Game checks). **The SNES battle rules too** (same day): `PrKit/Ff6/SnesAtb.cs` (ATB fill, command
+  waits, Jump's air time), `SnesStatusTicks.cs` + `SnesStatusClock.cs` (Regen/Sap/Poison on the SNES's
+  clock, the status timers), `SnesAutobattle.cs` (auto-battle with commands the PR knows only as an
+  accessory's), moved by name from WC's WcAtb/WcStatusTicks/WcStatusClock/WcAutobattle; each has `On`,
+  `Testing`, `Tag` and perf hooks a mod sets (WC: `WcParity.cs`; BC: on in a BC game with a seed).
+  WC builds, Wc.Tests identical. Headless on the kit's code (PC test runner): status_ticks passes (Regen and
+  Sap every 8.519 s, Poison every 17.039 s, Haste's Regen 6.39-6.92 s, Poison ticking mid-Jump, nothing
+  while stopped); atb's rates all = the SNES's, its 2.5 s "real fill" read 0.84 of real time on a busy PC
+  (it divided by real seconds; the gauge fills by game time: the check now uses game time, rerun pending);
+  turn_cycle, status_timers, mug_auto, snes_rules queued (WcTest runs one check per launch). Left WC's: WcEncounters (WC's vanilla tables; BC will read its
+  rates from its ROM as BNW does, `port_encounter_rates.py`), WcVeldt (BC's Veldt table already lists
+  every copy of a formation: port_veldt), and the shared features (natural magic, esper bonuses,
+  Coliseum, rages, steal, exp/gp/mp boosts): BC needs those next.
+- **Generator**: `tools/bc_run.py` (BC on buffers, web mode with the console's two path globals set),
+  `bc_seed.py` (`--seed --mode --flags --preset --out [--keep-port]`; ~20 s on the PC, 16 of them BC),
+  `bc_live.py` (BC's baseline: the shared one plus the Veldt's misc asset, which BC's formations
+  change), `bc_bundle.py` (Magicite folder + baseline; no player bundle yet), `bc_flags_export.py`
+  (115 flags, 10 sections, 6 modes, 7 presets; labels in the PR's words, a port status per flag). The
+  porter's `PR_SEED_LIVE=1` (port_chests.live_seed): a live seed adds no files, so chests a seed made
+  monster boxes are left to the plugin (`seed_info.monster_chests`, 21 in the test seed).
+- **Plugin** `plugin/BcPlugin` (BeyondChaos.PR 0.1.0): the title menu's "Beyond Chaos" entry, the
+  options screen (Mode row, numeric seeds as BC's, mode-forbidden flags dimmed), seeds made in game and
+  applied live, saves keep their seed (own save files: ModSaves "BeyondChaos"), monster-box chests,
+  monsters on BC's own SNES AI (the kit's SnesAiHost), harness commands `bc`, `bcgen`, `bcapply`,
+  `bccheck`, `bcscreen`. Headless run (2026-11-20, `tools/bc_testinstall.py install|restore` around it:
+  deploy.sh knows no third game-data mod, so BC goes back to the shelf after a test): seed 9859608359
+  made in game in 26 s and applied live (18,253 rows in 21 tables, 0 failed, 2,413 texts, 473 files;
+  164/164 sampled rows and every file match), vanilla and back, the screen's self-test (11 pages, 112
+  rows, 560 steps) and controller flow, no exceptions, saves blocked. Not run yet: a BC battle.
+- **Names** (`tools/pr_names.py`, in the porter for items and skills): a changed SNES name that is the
+  same thing's SNES name (perhaps cut short, perhaps with BC's "?") gets the PR's name: "BehemothSui?"
+  -> "Behemoth Suit?", "Titanium?" -> "Saucer?", "Fire Knuckl?" -> "Burning Fist?"; BC's Bushido names in
+  the skill table's spare slots are no longer taken for renames (Fang stays Fang). A name of BC's own
+  (Raiden, its monster names) stays. Commands get theirs with the custom commands (BC's meaning of each
+  is recorded at seed time; widths measured in game with the game's font: its font bundles are
+  obfuscated with a fixed keystream, so offline metrics aren't available).
+- **BC's commands** (`tools/bc_commands.py`, `plugin/BcPlugin/BcCommands.cs`): BC's command maker is
+  wrapped where it names each command (`CommandBlock.newname`: no draws, the ROM stays the exe's) to
+  record what each does; each becomes the PR command row of its slot (BC replaces a command for
+  everyone who has it): one skill = a direct command running that ability (as Pray or Shock: no
+  submenu, no MP); a random skill = a new ability on the PR's own random-ability function (46, as
+  Bar-Bar-Bar) with a new random group carrying BC's odds; N times / chain / combo = the first act from
+  the row, the rest queued by the plugin as copies of the player's act (`BattleActExection.
+  SetBattleActData`; a combo's second act gets skill B). Names in the PR's words: the test seed's are
+  Random Dance, Chain Valigarmanda, Magitek Laser + Carbuncle, Tsunami (BC's CleanSw), Arise +
+  Cyclonic, Random Magic, Libra (Scan), Random Ice. Widths: harness `textwidth` measures with the
+  game's own fonts, `tools/bc_names.py` compares each BC name with the widest name the game shows in
+  that list in any of its Latin-script languages. Harness `bccommands`, `bckeep`, `bcuse SLOT CMD` for
+  battle checks. In game (PC test runner, 2026-11-20): all 8 rows as written (`bccommands`, no mismatch);
+  Random Ice used in the opening battle: its ability 7732 (function 46) rolled Absolute Zero (324), which
+  then hit. Repeats and combos: rerun pending (the first battle's monsters died before them). BC's command
+  targeting variants (self, random, everyone) aren't carried (the ability's own targeting is used).
+  Widths: the battle command list's boxes are 256 px at size 32 with best fit (the game's menus shrink a
+  longer text instead of cutting it; even its own French skill names overflow their 215 px box): every
+  name of the test seed fits but Magitek Laser + Carbuncle, shown at 88% (`bc_names.py report`).
+- **ROM-free** (2026-11-20, bc-seeds): a seed is made with no SNES ROM, = BeyondChaos.exe's. Tools:
+  `tools/bc_trace.py` (record: every random draw, by generator and line, and every ROM byte BC reads, by
+  the BC function that read it; whole-ROM copies apart; `diff` stage by stage; `port`: what our porter and
+  post-steps read of both ROMs), `bc_basedata.py` (the shipped data, `data/bc_base.bin`, by category),
+  `bc_romfree.py` (stand-ins), `bc_parity.py` (a seed made on the ROM and ROM-free, folders compared);
+  `bc_seed.py` runs ROM-free wherever there's no ROM (FF6_BC_ROMFREE=1/0 forces it).
+  - What BC reads: 330-370 KB per seed of 82,000-186,000 draws (New Player, Intermediate, Advanced,
+    Chaotic presets traced; 44 reseeded stages each, plus remonsterate's own generator). The earlier
+    "whole ROM" was johnnydmad's and the opera's `fout.read()`, the checksum and the bank-00 mirrors: copies.
+  - Not needed for a single draw (stand-ins, all four presets, every draw equal): character sprites and
+    portraits (makeover copies them), dialogue, location names, the sound program (johnnydmad checks 16
+    bytes of it: BC's own constant put in place), the opening (its transformers re-run; the Magitek
+    palette only through its 32 bytes' brightness classes), game code BC's patches check (validation
+    not enforced, as BC's noverify patches; remonsterate's own in its child process too).
+  - Needed and shipped (215.9 KB, 96.5 KB compressed): data tables 104 KB (as WC's, plus a few tables
+    inside the code banks: encounter rates and roll, battle palette numbers, moulds, portrait pointers,
+    battle songs); palettes 24 KB (BC's recolouring draws per colour hue/brightness class: c, p, makeover);
+    map tables 37 KB (event triggers, NPCs: makeover recolours NPCs by sprite/palette number; entrances);
+    event code 1 KB (bytes BC checks or walks: auction house, dragons, recruits, esper scenes); code 45
+    bytes (bits BC patches, what bc_codes checks); shapes 50 KB: the monster sprites remonsterate keeps,
+    reduced to "blank or one marker pixel" per 8x8 tile (its draws depend on how many different shapes
+    there are, so a retry after "out of stencil slots" happens as on the ROM) — no art.
+    The user's call (asked 2026-11-20 via the lead): ship palettes/maps/events/code as data, or derive.
+  - Fixed on the way: `bc_run.run` returned BC's pre-remonsterate output buffer (remonsterate hands back a
+    new one; the exe writes that one). BC's console exe can't make remonsterate seeds at all (its child
+    re-runs the console's argument parser): remonsterate's exe parity rests on the source.
+  - The porter's `port_sprites` finds a monster's sprite by its graphics pointer for BC
+    (`profile.sprite_identity = "pointer"`), not by 96 bytes of its tiles (no graphics ROM-free).
+  - `bc_seed.py` serializes its port step (`mods/BCSeed.lock`): several generators at once on the dev PC
+    clobbered each other's mods/BCSeed.
+- **Player bundle** (`tools/bc_bundle.py`, modkit.json bc: `package_leave_out`, `package_magicite: false`,
+  `player_setup: bc_gamedata.py`): generator/python (CPython + Pillow), tools/ (the closure of bc_seed and
+  bc_gamedata), bc/ (BC's source at 27de07a, no GUI/tests, its LICENSE), bc_home/ (custom/, remonsterate/),
+  data/bc_base.bin, the recipe (tools/gamedata.py: the kit's, from WC's), bundle.json last.
+  `--dev`: only the baselines and the Magicite folder. BcPlugin runs `bc_gamedata.py setup` first thing
+  (PrKit/Seeds/GameData.cs). BC's art from other games: one setting (`FF6_BC_ASSETS` bundle|release;
+  tools/bc_assets.py fetches the pinned packs BC's own updater installs: BeyondChaosSprites 3.8,
+  BeyondChaosMonsterSprites 3.1, the release's custom/opera, music/samples at 27de07a; every file sha1-checked).
+
+## Findings for other BC sessions
+- In a ROM-free seed BC's output has zeros where BC didn't write and the ROM had graphics, text, code or
+  music. Read BC's choices (wrap at seed time, or its spoiler log), BC's own files, the PR's art. If a
+  tool needs another small vanilla data table, add it to `EXTRA` + `RULES` in tools/bc_basedata.py (or ask
+  bc-seeds), then `tools/bc_basedata.py build`; check with `tools/bc_parity.py`.
+- Told: bc-sprites (portraits from graphics; portrait pointers added), bc-music (song/sample tables;
+  battle-song slots added), bc-events (event bytes from BC's output).
+- **BC's "?" items** (the user: "what does the question mark mean though? ... BC is unparseable", then "? is
+  fine if that's what it means"): `questionablecontent` marks equipment BC's item randomizer changed, and
+  only BC's spoiler log says how. `tools/bc_items.py` writes it into each such item's description in the
+  PR's words, from BC's log (spells cast when used / on a hit / taught, elements, special features) and the
+  seed's PR tables next to the game's: "Behemoth Suit?: Changed: Casts Death when used in battle (and
+  breaks); Defense 92 (was 94); Magic Defense 63 (was 73); Strength +5 (was +6)." (30 items in the test
+  seed; at most ~150 characters, element changes grouped.)
+- **A guide for newcomers** (the user: "if there are many signifiers like this, we need to add a tutorial at
+  the beginning (right after the controls tutorial)", then "explain what Random and Chain means. basically
+  explain everything a new player might not know about beyond chaos"): `tools/bc_guide.py` writes each
+  seed's guide into bc_seed.json, built from its flags and data and only for what the port carries: an
+  opening page, each of the seed's new commands (what it uses, a Random command's skills with their odds,
+  which command it replaced), the command words (Random, Double/Triple, Chain, A + B), shuffled commands,
+  characters, rerolled equipment and the "?", espers, battles, treasure and monster boxes, dances, names,
+  dash, the boosts (23 pages in the test seed). On the Beyond Chaos screen now ("Guide to this seed", a
+  row a topic, its text in the help box; built, not yet seen in game). In the game right after the opening
+  controls tutorial, in the game's own message window: built by the old BC session before it handed over
+  (2026-11-20): the opening's last scene (sc_e_0001_5, map 3) ends in ShowHelpAndExit (the controls
+  tutorial); when that help closes, `BcGuide.cs` starts `sc_bc_guide` (listed in Map_20010's package.json by
+  the baseline, its lines BC_GUIDE_00.. set per seed by `bc_guide.write_in_game`): a Yes/No question, then a
+  "-Title-" page a topic, as the Narshe school's lessons (25 messages for seed 1234567890). Kit:
+  `PrKit/MapScripts.cs` (Current, Busy, MapId, Start) and the harness's `script` on it plus `speed [x]`
+  (Time.timeScale, to fast-forward long scenes in tests). Offline tests pass; in game: bc-guide-1, queued.
+- **Codes that are data** (`tools/bc_codes.py`, run by bc_seed.py on the seed's full tables):
+  `dancelessons` (the PR's off-terrain dance step groups 37-44 lose the stumble, ability 262 at 50; the
+  steps keep their odds between them). `expboost`/`gpboost`/`mpboost` were data all along (BC writes
+  the monsters' EXP and gil and the formations' AP; the porter carries them). Equipment: the porter
+  carries BC's weapon effects (27 in the test seed); left for the plugin: MBlock bonuses (7 weapons),
+  7 armor procs, 3 relic bits.
+- **Tests**: `tests/test_bc.py` (every flag on the screen; every string the screen makes, 348 from
+  `plugin/Bc.Tests`, read by BC's own parser as meant; BC's source = the exe's ROM; BC_SEED_TEST=1: a
+  seed folder's shape), `PR_MOD=BCSeed tests/test_mod.py` after `bc_seed.py --keep-port` (48 run, 0
+  failures).
+- **Light events, how**: the kit's SNES event decoder and SNES -> PR script translator (tools/snes_events.py,
+  event_translate.py, MODDING.md "SNES events -> PR scripts"; owned by the ted-events session) read BC's
+  event patches as they are on its US-layout ROM, so worringtriad / notawaiter / lessfanatical etc. start
+  from translated scripts, with the translator's `SysCall "SNES:..."` stubs left for the plugin.
+- **Next**: the parity battle code into the kit (BC needs it as WC does), BC's custom commands (`w`)
+  with full names, item specials, the small codes, ROM-free + the player's bundle (ask about shipping
+  BC's sprites/images/samples first), then sprites and music.
+
+**Workstreams** (2026-11-20, the BC lead session, started by the BNW coordinator; at most 4 BC children at
+once; owners in the BC table under Status; the lead's notes, with each child's files, are `bc-lead.md` in the
+shared side-session notes folder; children keep their findings in `bc-<name>.md` there and the lead merges them
+here):
+- **bc-seeds**: the ROM-free generator (BC's data tables only, stand-ins where BC only rewrites, a parity
+  check per stage), the player setup and bundle (bundled Python, game-file copies made on the player's
+  machine, `kit.py package bc`), the data flags still partly or not ported, WC's plugin features BC's data
+  needs moved into the kit.
+- **bc-battle**: custom commands in battle (repeats, combos, targeting, the command-maker codes), item
+  specials and break codes, the small codes that are plugin code, then the junction effects; a BC self-test
+  registry so one headless battle checks many.
+- **bc-sprites**: makeover (BC's SNES sheets to the PR's field/battle frames and portraits, a pose map any
+  FF6 mod can use), remonsterate (BC's monster images on the PR's monster image keys), palettes (`c`, `p`, `n`).
+- **bc-events** (started from a card by the user, 2026-11-20, after the user lifted the child cap): BC's light events on the kit's SNES event translator.
+- **bc-junction** (started the same way): BC's junction effects (6 flags, ~57 SNES patches), moved off
+  bc-battle so they run in parallel.
+- **bc-music**: the kit's SNES sound player (`PrKit/Snes`: an S-DSP and FF6's driver re-implemented, PCM
+  streamed in place of the game's track; T-Edition's songs will use it), BC's songs per seed.
+- **The lead**: the plan, this table and the progress page, integration; the guide in game after the controls
+  tutorial; light events; testing and release; the cave modes, `d` and strangejourney after Normal mode.
+- **The user's answers** (2026-11-20): BC's art and samples from other games (custom/ sprites, remonsterate/, music/ with
+  its samples) ship in the player's zip ("i've gotten permissions from every mod owner so you can go ahead and bundle
+  any art/assets/music"); the generator's data file ships the ROM's data tables plus ~62 KB of palettes, map tables and
+  event bytes ("yes you can ship the 62kb"). Never shipped: the SNES ROM, any other SNES data, the PR's own files. FF6's SNES sound driver and its built-in instrument samples may ship (the user: "i have permission for the SNES sound drive and build-in instrument sounds").
+- **Codes with no meaning in the PR** (2026-11-20, bc-battle's list, the lead agreed; shown as n/a with the reason on
+  the BC screen): sketch (an SNES memory-corruption glitch), relicmyhat (the PR's equipment and shop screens already do
+  it), tastetherainbow (SNES aura palette cycling), removeflashing (SNES animation-script bytes; the PR's effects are its
+  own, as with WC's left-out battle flashes), and `b`'s SNES-only fixes (the random-table shuffle, X-Zone/Runic hide, Imp
+  skimp, Gogo portrait, item-return buffer, Flyaway, death abuse; `b`'s data parts are carried). equipanything is "partly" (2026-11-20, bc-battle's BcEquipAnything: in a BC game with the code, head, body and relic
+  armor can be held in a hand, as the PR's shields are; left out: consumables in a hand (the PR's equip lists hold only
+  weapons and armor), "anyone may hold it" (the PR's job check doesn't know the slot), an armor read as a weapon). Re-homed: morefanatical to the `d` row, thescenarionottaken to its own row, espercutegf to bc-junction.
+
+## T-Edition feasibility (2026-11-20)
+
+Mato's English build (3.0.7 A7 r1, `build/t-edition/T-Edition 3.0.7 (Mato).sfc`, 6 MB ExHiROM on
+the JP v1.0 ROM). Scoping only; no release planned yet.
+
+**The porter reads it** (`tools/jp_layout.py` + `tools/profile_tedition.py`, `port.py tedition` ->
+`mods/TEdition`, `test_mod` green). The JP ROM keeps nearly every data table at the US address
+(checked table by table); only the espers (JP E6/F567, where the US ROM put its longer spell names)
+and formation AP (D0/FE00) sit elsewhere, and names are kana fields. T-Edition then moved most tables
+(found from the long loads in its code): items ED/8F00, monsters 57/3E00 (512 slots), steals/drops
+41/EA00 (8 bytes: 2 steals, 4 drop slots at 174/50/20/12 of 256), formations CF/5900 (768), formation flags
+CF/2400, sketches CF/1200, rages CF/1600, map properties 4D/0000 (512 maps), chests ED/8584 + 4B/4000,
+AP F3/F000, AI FF/F300 + 5F/58F0 (30 KB, twice the US space: read past 3 MB through a hook on
+`snes_ai.script`), layouts 41/0000. `jp_layout.build_us_image` writes every record T-Edition changed
+into a US-layout image held in memory (nothing written to disk); records it left alone read as the
+US ROM's. Mato's text: A-Z 20-39, a-z 3A-53; his build keeps full-length tables between ASCII
+`****LABEL****` markers (LONG ITEMS, ENEMY NAMES LONG, LONG MAGIC NAMES, LONG ATTK NAMES = spells
+54-255...), so the port gets full names ("Thief's Knife", not "Thief"), not the 8-letter menu ones.
+
+**What ports for free** (no T-Edition code but the layout profile): ~75% of the data records
+T-Edition changed (~3,300 of ~4,360): characters (50), items' data (251), spells/lores (234, each with
+the PR look of the same-named spell: the spell porter's templates follow T-Edition's re-slotting),
+espers (27, 181 learning rows), monsters (381), steals/drops (291, the 4 drop slots folded to 2),
+formations (293), the Veldt, AP, shops (82 matched, 524 rows), sketches (384), rages (158), dances,
+natural magic, 190 chests in 117 PR maps, encounters (306 new parties), monster AI (263 compiled + 42
+bosses). Not: 94 new monsters (slots 384-511) and the 221 formations using them or numbered 576-767
+(the porter's tables stop at 384/576; the PR needs new monster rows and art); 125 event packs on
+those; 93 new maps and their 70 chests; T-Edition re-slotted items: 97 of its 256 item slots hold
+another vanilla item (Mythril Sword in Valiant Knife's slot), so the data lands on a PR row with the
+wrong look (the porter needs an item step like the spells' templates); per-character HP/MP growth;
+16 redrawn monster sprites; ~25 relic bits and everything else in assembly. Names: items 110 and
+spells 87 new or renamed, monsters 121.
+
+**New maps**: kit infrastructure built for it (MODDING.md "SNES maps and places"): `tools/snes_maps.py`
+(SNES map -> PR map(s) with tile offsets; 242 of 416 SNES maps placed from chests, exits and tile
+agreement) and `tools/snes_rooms.py` (SNES tile -> PR tile stack + collision, learned from vanilla
+rooms with the same graphics; a new map's files, package entry and master rows). T-Edition's 93 new
+map slots are mostly copies of vanilla layouts with new events (layout 298 alone is used by ~25), plus
+about ten new layouts (381-390). Test room: map 431 ($1AF, 16x16, new layouts 383/384, the Veldt
+cave's graphics) -> Map_30761_6 (PR map 806, script 629): every cell has a PR tile, collision gives a
+cave chamber with its doorway; on held-out Veldt cave rooms the learned collision is 88% right, the
+exact tile stack 20% (the PR varies its decoration). In game: see the next paragraph.
+
+**In game** (PC test runner, 2026-11-20 14:03, BNW active + the test folder; shots in
+build/t-edition/shots): a new map id works through Magicite alone: `warp 806 1` loaded Map_30761_6
+within a second and it renders (new_room.png: the cave chamber in the PR's own Veldt cave art, the
+character at its doorway, the minimap drawn from the new map; a few cells along the lower walls black
+or patchy where the learned stack is off). One step down onto its door fired the `GotoMap` and moved to
+map 488 (Map_30761_1). Nothing beyond text assets was needed: tilemap/collision/entity JSON in an
+existing group (its atlas), that group's `package.json` with the new map listed, `map.csv` and
+`map_script.csv` rows, an empty map script. Right after arriving in 488 the game was back at the title;
+the runner then found the harness's `load` had not loaded the save (the field was the title's idle
+demo, which a map change ends), so that drop is probably the demo's, not the door's. **Confirmed
+2026-11-20 15:19** (ted-newmap-diag, the runner's boot now a New Game warped to a free field, since no
+save loads headless): 488 loads at its own entrance and at the arrival point added for the new room; the
+party walked from 806 through its door into 488 and stayed there (8 s, no title), then walked back into
+806 (shots diag_*.png). A new map id, its door and the way back all work through Magicite alone.
+
+**Effort, revised**: still about 2-3x the WC port, now ~2.5x with the bulk clearer. Data is mostly
+there (left: item identity, new monsters/formations with art via BC's monster-art hook, drops, growth,
+costumes). Maps are a known per-room cost with the tools above, plus T-Edition's NPC/exit/event tables
+(relocated like the rest). The bulk is events (~45 new events, 20 pub quests, changed vanilla scenes,
+Cyan's dream battles: SNES event scripts rewritten as PR scripts by hand, as WC's 62 checks were) and
+the battle overhaul (~40 listed rule changes with no asm source: reverse-engineered from T-Edition's
+C2 changes and expansion code, then plugin code). Music (~200 songs) and costumes/portraits ride on
+the Beyond Chaos SNES music player and sprite conversion. A generic SNES event script -> PR script
+translator would cut the event work most, for T-Edition, BC's light events and BNW alike.
+
+## T-Edition port (2026-11-20, lead session "FF6 T-Edition Pixel Remaster port")
+
+Decided with the user: **one mod** for T-Edition and EX (EX's super-bosses, reached through the Mog
+House door after Ultima, in the same game: no save swap); **players need no ROM** (the user: "why do the
+players need their own ROM? (they don't for WC now)"): like BNW, the mod ships T-Edition's ported data,
+and copies of the game's own files are made on the player's machine. **T-Edition's own songs and art
+ship in the zip** (the user, 2026-11-20: permission from every mod's owner, "go ahead and bundle any
+art/assets/music"): song pack (its own songs and samples), monster art, costumes and portraits are built
+from T-Edition's ROM on the developer's PC and carried as the mod's data. FF6's SNES sound driver and built-in
+instrument samples may ship too (the user has that permission); the SNES ROM, other SNES data and the PR's
+files never do. The public repository still holds back data with PR colour values. Names: Magicite and data folder `TEdition`, plugin `plugin/TedPlugin`,
+saves `ModSaves "TEdition"`, public repo github.com/thomasjteachey/ff6pr-t-edition (`tools/ted_publish.py`:
+T-Edition's tools listed one by one, so a workstream's files join once reviewed; the kit as `kit/`).
+
+Workstreams (child sessions, notes in the lead's side-session folder): **ted-events** (`snes_events.py`,
+`event_translate.py`: SNES field event code decoded for the US, JP and T-Edition ROMs and translated into
+PR scripts, validated on vanilla scenes the PR has; Mato's dialogue), **ted-maps** (`snes_maps.py`,
+`snes_rooms.py`, `ted_maps.py`: T-Edition's relocated NPC/exit/event tables, coverage, tile accuracy, the
+93 new maps into `mods/TEditionMaps` + `data/ted_maps.json`), **ted-battle** (`snes_disasm.py`, a 65816
+disassembler for the kit; `ted_battle.py`: T-Edition's battle code against the JP ROM's; the spec of each
+rule change). The lead: the porter, `plugin/TedPlugin`, the build that merges the workstreams' folders.
+
+**Item identity** (`tools/item_identity.py`, kit; a profile's `item_identity = True`): T-Edition's item
+list is rebuilt, not renamed: 97 of its slots hold another vanilla item, and many changed kind (Marvelous
+Cheer, a weapon, in Aegis Shield's slot; White Robe, body armor, in Goggles'). Each slot gets an identity
+(the vanilla item of the same kind and name: the PR's name, the SNES name, or one clearly closest
+spelling), a row (the identity's; a new item its own slot's row when free and of its table, else the
+freed row whose vanilla item looks most like it, else a new row) and a template (the identity, or the
+vanilla item of the same kind and icon with the closest power; the mod's icon bytes are mapped to the
+US ROM's from the identities). The row takes the template's look (`LOOK`: weapon category, battle sprite
+and effect, guard icon; an armor row the equip slot of the mod's kind). `idmap.ITEM_OVERRIDES` holds the
+rows that aren't idmap's default, and port.py hands the porters a vanilla baseline in the mod's item
+numbering (in memory): each slot's record and name are those of the vanilla item its row held (a new row:
+its template's), and vanilla's item references (shops, chests, steals and drops, starting equipment,
+metamorph) name the slot that has that item's row, so every slot-by-slot diff writes exactly what differs.
+New rows (copies of their template's row) get content rows and `MSG_PORT_<TABLE>_NAME/INF_<id>` keys and
+are registered in `prdata.ADDED_ROWS`, so porters reading a fresh table find them. T-Edition: 255 items,
+150 + 14 + 1 identities, 24 new weapon rows (92-115), 42 freed rows reused. Left: Mato's descriptions for
+new items (a new row shows its template's), the PR's handling of weapon ids past 91 in game (not run yet),
+what the stat tabs and T-Edition's other new consumables do (plugin).
+
+**Build** (`tools/ted_build.py [--no-port] [--test]`, 2026-11-20): T-Edition ships one Magicite folder, because the game reads one copy of each map package and entity file: in the first in-game event test BNW's copy of map_20071's package.json hid the translated scripts, and T-Edition's own workstreams touch the same files (the porter's chests and the new maps' objects in six entity files, three packages). The porter writes `mods/TEditionPort` (profile `out`); the build makes `mods/TEdition` from it and merges `mods/TEditionMaps` and `mods/TEditionEvents` in with the kit's three-way merge (`tools/magicite_merge.py`), then runs the kit's Magicite check; `--test` runs test_mod on the porter's output. First build: 445 files copied, 59 merged, 0 conflicts, 0 problems. `mods/TEdition` is what is installed (StreamingAssets/Magicite/TEdition) and packaged; the workstreams' folders never are.
+
+**EX** (study by the child session ted-ex, 2026-11-20; `pr/ted/EX_PLAN.md`, catalog `tools/ted_ex.py` -> build/t-edition/ex/): EX's own content is small: one boss room (SNES map 471) behind a door in the Mog House (467), where a Moogle starts 12 super-boss fights (Cloud of Darkness, Golbez, Zeromus, Exdeath, Sephiroth, Ultimecia, Chaos, Mateus, Kam'lanaut and Eald'narche, the Ark Angels, Kuja, Seymour), each win setting one event bit that 3.0.7's Collection Room reads; no new items, no new music, ~31 attacks of its own. EX wrote its bosses over T-Edition's formations 0-23 and monsters 256-282 and stripped its dialogue and drop tables, which is where its garbage random battles, flame-NPC crashes and blank text boxes come from; the merged mod gives EX's content its own ids instead (proposed: monsters 512-539 -> PR 1512-1539, formations 768-792, parties 30768+, abilities 7000+, boss room map 512, shops 128/129), so none of that is replicated. The Dragon's Den (old T-Edition's dungeon, maps 417-432) has no way in from EX; its only boss 3.0.7 lacks is Omega Weapon. **Decided with the user (2026-11-20, "Yes, as recommended")**: port the boss room and its 12 fights, add Omega Weapon as a 13th choice with Mato's optional reward (steal Megalixir, drop the Omega Weapon item), leave the Dragon's Den out. ted-ex implements it as its own workstream folder, mods/TEditionEX, merged by ted_build (built the same day: see the Live progress row "EX's boss room built").
+
+**Drop slots**: a profile's `monster_drop_slots(e)` (SNES item ids in odds order) -> `drop_content_id1..8`;
+the PR picks a drop slot by the game-wide `MONSTER_DROP_RATE_1..8` (game_constant_int 200-207; vanilla
+88/12), which T-Edition's `game_constants` set to its 68/19/8/5 (T-Edition: one roll 0-255 per monster that
+ends the battle dead, 174/50/20/12; a picked empty slot drops nothing; for monsters 32+ the roll reads past
+its RNG table, a bug that skews their odds: the intended odds are ported). Not yet checked in the PR's code:
+what it does when the slot it picks is empty. The PR's own monster rows
+(385-611) keep two slots, so their odds become 68/20.
+
 ## Plan
 
 1. [x] Install BepInEx + Magicite, extract vanilla PR data
@@ -2054,13 +3086,13 @@ can be switched to at the title screen; "Play without a seed" = the game's own d
        relic→consumable conversions (188/208/209 are dead slots in BNW, 189 = the
        inert Gum Pod; PR still has the vanilla relics in those armor rows), 13 BNW
        chests that were empty in vanilla,
-       enemy sprites (2026-11-05, `tools/sprite_compare.py`: SNES monster graphics entries
-       D2/7000 compared by content (first 96 bytes of tiles at E9/7000 + palette colors at
-       D2/7820; BNW shifted most pointers by 64 bytes, so raw pointers don't compare): 141 look
-       exactly like vanilla, ~220 have vanilla shapes in BNW colors (some on another monster's
-       shape, e.g. 26 Banshee = Critic's), 23 are new art (dragons, Dahling, the Wrexsoul and
-       Kefka towers' parts...). The PR's monster_asset_id points at pre-drawn images, so only a
-       shape swap is possible as data (wrong colors); recolors/new art need image work)
+       enemy sprites (done 2026-11-20 but the final battle's tiers, see "BNW monster images" in
+       Live progress: `tools/sprite_compare.py` compares the sprites as the SNES draws them
+       (cropped, palette slots matched by content; the 2026-11-05 count of "~220 recolors" came
+       from comparing palette slot numbers, which BNW moved without changing colors): 353 look
+       like vanilla (~50 of them with a few touched-up pixels in vanilla's colors), 15 recolors,
+       2 shape swaps, 11 new art. The recolors and Kaiser are images the plugin makes from the
+       player's game at first start (port_sprites images mode, plugin/Rules/MonsterImages.cs))
 5. [~] Port: enemy AI — 271 regular enemies + 49 bosses (24 hybrids, untested)
        on BNW's AI; todo = the other 39 bosses (entrances/exits, events, per-boss PR routines), targeting,
        battle messages

@@ -47,8 +47,28 @@ VANILLA_SPECIALS = {
     11: {"prog": "ADD_MAGIC"},
     13: {"prog": "SWORD_THAT_CUTS_IRON", "funcs": {(23, 0, 0, 0)}},
 }
-# weapon byte 26: high nibble = MBlock +10/20/30/50 (an equip ability), low nibble = evade/10
+# weapon byte 26: high nibble = MBlock, low nibble = Evade, both steps of ff6snes.EVADE_STEPS (nibbles
+# 1-5 = +10..+50, 6-10 = -10..-50; port.py writes the same signed Evade). MBlock +10/20/30/50 is the
+# PR's equip ability (function 62, abilities 256-259), as vanilla's weapons have it; the other steps
+# (+40, the negatives) are wear function 67 "MBlock + value1", the effect those abilities run (their
+# menu_function_group_id 103-106 = (67, 10/20/30/50, 0, 0) in vanilla).
 WEAPON_MBLOCK = {1: (62, 256, 0, 0), 2: (62, 257, 0, 0), 3: (62, 258, 0, 0), 5: (62, 259, 0, 0)}
+MBLOCK_FUNC = 67
+
+
+def evade_step(nibble):
+    """An Evade / MBlock nibble -> percent (ff6snes.EVADE_STEPS; past its end 0, as ff6snes.Item)."""
+    return S.EVADE_STEPS[nibble] if nibble < len(S.EVADE_STEPS) else 0
+
+
+def weapon_mblock(nibble):
+    """A weapon's MBlock nibble -> its wear function, or None (no MBlock, or not a step)."""
+    if nibble in WEAPON_MBLOCK:
+        return WEAPON_MBLOCK[nibble]
+    value = evade_step(nibble)
+    return (MBLOCK_FUNC, value, 0, 0) if value else None
+
+
 # relic bits the PR expresses as wear conditions (armor and weapons): Sniper Sight, Black
 # Belt counter, True Knight cover, SOS Shell, SOS Safe (checked against vanilla armor)
 CONDITION_BITS = {(11, 4): 49, (12, 1): 48, (12, 6): 29, (13, 0): 46, (13, 1): 47}
@@ -202,10 +222,11 @@ class EffectPorter:
         funcs = set(sp.get("funcs", ())) | self.relic_funcs(raw, count)
         mblock = raw[26] >> 4
         if mblock:
-            if mblock in WEAPON_MBLOCK:
-                funcs.add(WEAPON_MBLOCK[mblock])
+            f = weapon_mblock(mblock)
+            if f:
+                funcs.add(f)
             else:
-                self.unknown[f"weapon MBlock +{mblock * 10}"] += 1
+                self.unknown[f"weapon MBlock nibble {mblock}"] += 1
         prog = sp.get("prog")
         if raw[18] & 0x40:
             if prog and prog != "ADD_MAGIC":
@@ -217,7 +238,7 @@ class EffectPorter:
             "process_prog": prog or "None",
             "additional_condition_group_id": str(sp.get("hit_condition", 0)),
             "effective_species": str(sp.get("species", 0)),
-            "evasion_rate": str((raw[26] & 15) * 10),
+            "evasion_rate": str(evade_step(raw[26] & 15)),
         }
 
     def actual(self, row):
@@ -311,10 +332,43 @@ def port_rages(van, bnw, tables, log, odds=(67, 33)):
             return port_specials.special_of(van, bnw, e, 1)   # the monster's own special
         return M.spell(x)
 
+    def split(total, weights):
+        # total spread over the rows in the PR's own proportions (sums exactly)
+        s = sum(weights)
+        if s <= 0:
+            weights, s = [1] * len(weights), len(weights)
+        parts = [total * w // s for w in weights]
+        parts[0] += total - sum(parts)
+        return parts
+
     changed, skipped = set(), Counter()
+    odds_only = 0
     for e in range(256):
         v, b = van.data[RAGES + 2 * e:RAGES + 2 * e + 2], bnw.data[RAGES + 2 * e:RAGES + 2 * e + 2]
         if v == b:
+            # the mod kept this monster's two attacks: the PR's rows stay (its ability ids,
+            # some with the special split over two copies, 25/38/37), only the odds change.
+            # The PR runs every Rage at 25% the first attack, 75% the second; the SNES at
+            # half each (2026-11-20, SNES_PR_DISCREPANCIES.md), so the mod's odds go on all.
+            if 0xFF in (v[0], v[1]):
+                continue
+            g = int(mo[e + 1]["rage_ability_random_group_id"])
+            ids = sorted(rows.get(g, []))
+            a1 = ability(e, v[0])
+            first = [rid for rid in ids if int(arg[rid]["ability_id"]) == a1]
+            rest = [rid for rid in ids if rid not in first]
+            if not first or not rest:
+                skipped["kept attacks: no first/second rows"] += 1
+                continue
+            plan = dict(zip(first, split(odds[0], [int(arg[r]["invocation_rate"]) for r in first])))
+            plan.update(zip(rest, split(odds[1], [int(arg[r]["invocation_rate"]) for r in rest])))
+            for rid, rate in plan.items():
+                row = arg[rid]
+                new = dict(row, invocation_rate=str(rate))
+                if new != row:
+                    arg.rows[rid] = new
+                    changed.add(rid)
+                    odds_only += 1
             continue
         if 0xFF in (b[0], b[1]):
             skipped["not a Rage in BNW"] += 1
@@ -332,5 +386,5 @@ def port_rages(van, bnw, tables, log, odds=(67, 33)):
             if new != row:
                 arg.rows[rid] = new
                 changed.add(rid)
-    log(f"rages: {len(changed)} rows changed; skipped {dict(skipped)}")
+    log(f"rages: {len(changed)} rows changed ({odds_only} only their odds, to {odds[0]}/{odds[1]}); skipped {dict(skipped)}")
     return {"ability_random_group": changed}
