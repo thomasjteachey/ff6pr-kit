@@ -1177,7 +1177,8 @@ def _main(profile):
         changed.setdefault(name, set()).update(ids)
     import port_veldt   # the Veldt's formations: after the encounters, whose parties it fights
     for name, ids in port_veldt.port(van, bnw, tables, encounters, OUT, log,
-                                     all_formations=getattr(profile, "veldt_all_formations", False)).items():
+                                     all_formations=getattr(profile, "veldt_all_formations", False),
+                                     rage_first=getattr(profile, "veldt_rage_first", False)).items():
         changed.setdefault(name, set()).update(ids)
     if getattr(profile, "event_fights", False):
         import port_events   # BNW's own story fights (its packs' formations), after the chests' boxes

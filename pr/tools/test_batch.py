@@ -779,6 +779,7 @@ class Harness:
         self.s.settimeout(timeout)
         self.f = self.s.makefile("r", encoding="utf-8", newline="\n")
         self.other_since, self.other_key = None, None
+        self.watch = False   # set while the runner itself navigates (run_steps: boot and tofield steps; totitle)
 
     def ask(self, line):
         self.s.sendall((line + "\n").encode("utf-8"))
@@ -791,6 +792,9 @@ class Harness:
         return r
 
     def watch_stuck(self, r):
+        if not getattr(self, "watch", True):
+            self.other_since = self.other_key = None
+            return
         m = re.search(r"scene (\w+); map (\d+);", r)
         if not m or m.group(1) != "other" or "MainGame" not in r or "title window" in r:
             self.other_since = self.other_key = None
@@ -822,7 +826,7 @@ UNTIL = re.compile(r"^until\s+(?P<re>.+?)(?:\s+(?P<t>\d+))?(?:\s+check\s+(?P<chk
 # (the title screen's idle demo runs on a field: "state" says "title window" while the title is up)
 # Since 2026-11-20 (speed): "newgamego" asks from the moment the title is up (no fixed 25 s), "warpfree" watches
 # the opening carry the party off instead of sleeping, "freefield" wants 1.5 s of free field.
-FREE_RX = r"scene field(?!.*title window)(?!.*; script )"
+FREE_RX = r"scene field(?!.*title window)(?!.*; script (?!sc_[mM]ap_))"  # (QA 06:5x) a map's own script (sc_map_*) lives while the player walks: not busy (kit lead)
 FREE_FIELD = rf"until {FREE_RX} 120"   # (kept for batch files that name it)
 QUIET_MAP = (112, 1)
 # a battle ended and the party back on the quiet map, settled (after a battle the New Game's opening can
@@ -942,6 +946,13 @@ def to_title(h, transcript):
         transcript.append(f"  ~ landed: {r[:200]}")
         if "title window" in r:
             return True, None
+    if "map 609;" in r and "title window" not in r:
+        # the title's idle demo (the opening on map 609): a press ends it. A real New Game's opening is on map 609 too:
+        # no title comes then, and "title" below takes it back
+        ok, _ = run_step(h, "until title window 15 every 1 repeat press action", transcript)
+        if ok:
+            return True, None
+        r = h.ask("state")
     if "scene battle" in r:
         for st in ("killall", "until scene field 90 repeat press action"):
             ok, fail = run_step(h, st, transcript)
@@ -1049,12 +1060,25 @@ def warp_free(h, transcript, ctx=None):
     first landing (2026-11-20 transcripts: within 4 s): watched 5 s, then 2 s after a pull. At speed 4 meanwhile
     (the opening's and the map's arrival scripts), speed 1 after."""
     m, p = QUIET_MAP
+    r0 = h.ask("state")
+    if "scene field" in r0 and "map 609;" in r0 and "; script " not in r0 and "title window" not in r0:
+        t0 = time.time()
+        while time.time() - t0 < 20:
+            r0 = h.ask("state")
+            if "scene field" in r0 and map_of(r0) not in (609, -1):
+                transcript.append(f"  ~ warpfree: the opening's own map change landed first (map {map_of(r0)}, "
+                                  f"{time.time() - t0:.1f} s)")
+                break
+            time.sleep(POLL)
+        else:
+            transcript.append("  ~ warpfree: no map change from 609 in 20 s: warping")
     sped = False
     try:
         r = h.ask("speed 4")
         sped = r.startswith("time scale")
         transcript.append(f"> speed 4\n{r}")
         pulled = False
+        ends = []   # where each failed try ended: (map, the script running there)
         for attempt in range(5):
             before = map_of(h.ask("state"))
             ok, fail = run_step(h, f"warp {m} {p}", transcript)
@@ -1062,7 +1086,7 @@ def warp_free(h, transcript, ctx=None):
                 # on the quiet map already (or a stale reading): the warp must show (a load, a script) first
                 run_step(h, r"until scene other|; script  10", transcript)
             if ok:
-                ok, fail = run_step(h, rf"until scene field; map {m};(?!.*; script ) 40", transcript)
+                ok, fail = run_step(h, rf"until scene field; map {m};(?!.*; script (?!sc_[mM]ap_)) 40", transcript)
             if ok:
                 stay, r = watch_map(h, m, 2 if pulled else 5, transcript)
                 if stay:
@@ -1072,7 +1096,16 @@ def warp_free(h, transcript, ctx=None):
             else:
                 transcript.append(f"  warp try {attempt + 1}: {fail}")
                 time.sleep(1)
-        return False, f"couldn't settle on map {m} (5 warps)"
+            now = h.ask("state")
+            sc = re.search(r"; script (\S+)", now)
+            ends.append((map_of(now), sc.group(1) if sc else None))
+            last = ends[-3:]
+            if len(last) == 3 and len({e[0] for e in last}) == 1 and last[0][0] not in (None, -1, m):
+                scripts = sorted({e[1] for e in last if e[1]})
+                return False, (f"the party is pulled back to map {last[0][0]} after every warp to map {m} ({len(ends)} tries"
+                               f"{'; script ' + ', '.join(scripts) if scripts else ''}): something there re-fires "
+                               f"(the opening pulls once)")
+        return False, f"couldn't settle on map {m} (5 warps; they ended on maps {[e[0] for e in ends]})"
     finally:
         if sped:
             back = f"speed {(ctx or {}).get('speed', 1):g}"   # the request's own speed (1 unless it asked for more)
@@ -1147,6 +1180,7 @@ def run_steps(h, steps, transcript, keep_going=False, skip_to=None, ctx=None):
             transcript.append(f"  STEP FAILED: {fail}")
             failures.append(fail)
             break
+        h.watch = boot_step or st == "tofield"
         if st == "tofield":
             ins = to_field(h, transcript, boot)
             expanded[i:i] = ins
@@ -1176,7 +1210,9 @@ def run_steps(h, steps, transcript, keep_going=False, skip_to=None, ctx=None):
                 i = nxt
                 continue
             if not keep_going:
+                h.watch = False
                 return False, fail
+    h.watch = False
     return (not failures), ("; ".join(failures) if failures else None)
 
 
@@ -1219,14 +1255,21 @@ def run_step(h, st, transcript, ctx=None):
         return new_field(h, transcript, ctx)
     if st == "titlesettle":
         # TITLE_SETTLE s since the title window appeared (a load or New Game asked earlier waits or stalls)
-        t0, seen = time.time(), None
+        t0, seen, pressed = time.time(), None, 0.0
         while time.time() - t0 < 120:
-            if "title window" in h.ask("state"):
+            r = h.ask("state")
+            if "title window" in r:
                 seen = seen or time.time()
                 if time.time() - seen >= TITLE_SETTLE:
                     return True, None
             else:
                 seen = None
+                if "map 609;" in r and time.time() - pressed >= 1.0:
+                    # the title's idle demo hides the title: a press ends it (bc-9, 11-21)
+                    if not pressed:
+                        transcript.append("  ~ titlesettle: the title's demo is playing: pressing to end it")
+                    h.ask("press action")
+                    pressed = time.time()
             time.sleep(POLL)
         return False, "no title window to wait at (120 s)"
     if st == "totitle":
@@ -1304,11 +1347,17 @@ def run_step(h, st, transcript, ctx=None):
             if time.time() > end:
                 return False, f"'{st}' timed out (last state: {r[:300]})"
             if rep:
+                battle_wait = "scene battle" in m["re"] and rep.split()[0] == "press"
+                if battle_wait and ("scene other" in r or "scene battle" in r):
+                    time.sleep(POLL)   # the hand-over to the battle: no press now
+                    continue
                 rr = h.ask(rep)
                 if rr.startswith("error"):
                     return False, f"'{rep}': {rr}"
                 if m["ev"]:
                     time.sleep(float(m["ev"]))   # "every <s>": the pace of the repeats (e.g. a press every 2 s)
+                elif battle_wait:
+                    time.sleep(1.0)
             else:
                 time.sleep(float(m["ev"]) if m["ev"] else POLL)
     r = h.ask(st)
@@ -1590,9 +1639,16 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
     def close_part(log_from):
         text = read_log(log_from)
         log_parts.append(text)
-        for rid in in_launch:
+        for rid in in_launch:      # requests cut off by a crash or a lost game: the whole launch's part (its crash lines)
             req_logs[rid] = text
         in_launch.clear()
+
+    def own_log(rid, start):
+        """a request that ended normally: its own slice of the log (start to now; 0.3 s for the log's last lines)"""
+        time.sleep(0.3)
+        req_logs[rid] = read_log(start)
+        if rid in in_launch:
+            in_launch.remove(rid)
 
     w, proc = reuse, None
     i, relaunches, prev_pid = 0, 0, None
@@ -1655,7 +1711,9 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
                 idle_ok = not r.startswith("error")
             # a reused game: back to the title first (as a launch starts), unless the run goes on from where it is
             if not cold and i < len(reqs) and first_step(reqs[i]) != "tofield" and reqs[i].get("needs") != "title":
+                h.watch = True
                 ok, fail = to_title(h, transcript)
+                h.watch = False
                 if not ok:
                     transcript.append(f"  the warm game: {fail}: a new launch instead")
                     h.close()
@@ -1713,6 +1771,7 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
                     step_results[req.get("id")] = fail
                     transcript.append(f"--- {req.get('id')}: FAILED: {fail} ({int(time.time() - rt)} s)")
                     segments[req.get("id")] = "\n".join(transcript[seg_start:])
+                    own_log(req.get("id"), ctx["log_pos"])
                     continue
                 ok, fail = False, f"connection: the game was given up: {e}"
                 transcript.append(f"  {e}: this game is given up")
@@ -1727,6 +1786,8 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
             step_results[req.get("id")] = fail
             transcript.append(f"--- {req.get('id')}: {'steps ok' if ok else 'FAILED: ' + fail} ({int(time.time() - rt)} s)")
             segments[req.get("id")] = "\n".join(transcript[seg_start:])
+            if not (fail and fail.startswith("connection")):
+                own_log(req.get("id"), ctx["log_pos"])
             if fail and fail.startswith("connection"):
                 crashed = True
                 break
@@ -1815,8 +1876,13 @@ def launch_inner(run, stamp, before, reuse, opts=None):
     saves = "unchanged" if before == after else "CHANGED: " + ", ".join(
         sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k)))
     # each request: its launch's log (the run's), the launcher output, and its own part of the harness transcript
+    multi = len(run.get("requests", [])) > 1
+
+    def launcher_part(r):
+        f = str(step_results.get(r.get("id")) or "")
+        return launcher_out if not multi or f.startswith(("connection", "no harness", "no new launch", "runner error")) else ""
     results = [evaluate(r, req_logs.get(r.get("id"), log) + "\n" + segments.get(r.get("id"), trans if not segments else "") + "\n" +
-                        launcher_out, step_results.get(r.get("id"))) for r in run.get("requests", [])]
+                        launcher_part(r), step_results.get(r.get("id"))) for r in run.get("requests", [])]
     first = launcher_out.strip().splitlines()[:1] or ([f"warm game (pid {(warm_load() or {}).get('pid')})"] if "kept warm" in notes else [])
     return {"run": run["name"], "kind": run["kind"], "seconds": secs, "saves": saves, "log": log_copy,
             "launcher": first, "notes": notes, "results": results}
@@ -1898,10 +1964,11 @@ SUITES = {
     "bnw": ["dotnet Rules.Tests", "py BraveNewWorld test_mod"],
     "wc": ["dotnet Wc.Tests", "dotnet WcAi.Tests"],
     "bc": ["dotnet Bc.Tests", "py - test_bc"],
-    "ted": ["dotnet Ted.Tests", "py TEdition test_mod", "py - test_snes_events"],
+    "ted": ["dotnet Ted.Tests", "py TEditionPort test_mod", "py - test_snes_events"],
 }
 PRKIT_SUITE = "dotnet PrKit.Tests"      # also, when the kit's sources changed since its last run
-MAGICITE_SRC = {"bnw": ["mods/BraveNewWorld"], "bc": ["mods/BeyondChaos"], "wc": [], "ted": []}
+MAGICITE_SRC = {"bnw": ["mods/BraveNewWorld"], "bc": ["mods/BeyondChaos"], "wc": [], "ted": ["mods/TEdition"]}
+MAGICITE_REPORT_ONLY = {"ted"}   # its findings are listed, the batch still runs
 BUILD_DIRS = ("__pycache__", "bin", "obj", ".git")
 
 
@@ -2047,8 +2114,14 @@ def preflight(batch, quiet=False):
         c = magicite_check.check(folders)
         line = f"magicite check ({', '.join(os.path.relpath(f, PR) for f in folders)}): " + \
                ("ok" if not c.errors else f"{len(c.errors)} errors: " + "; ".join(c.errors[:4]))
+        clean_once = st.setdefault("magicite_clean", {})
+        if not c.errors:
+            clean_once[key] = clean_once.get(key) or time.strftime("%Y-%m-%d %H:%M")
+        report_only = key in MAGICITE_REPORT_ONLY and not clean_once.get(key)
+        if c.errors and report_only:
+            line += " (reported only until this mod's first clean check; blocking from then on)"
         lines.append(line)
-        if c.errors:
+        if c.errors and not report_only:
             blocking.append(line)
     save_preflight_state(st)
     secs = time.time() - t

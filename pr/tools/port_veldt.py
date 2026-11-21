@@ -24,6 +24,23 @@ import prdata as P
 GROUP, KEY = "misc", "serial_misc_assets"
 ASSET = "Assets/GameAssets/Serial/Data/Misc/serial_misc_assets"
 FLAGS = 0xF5900    # SNES formation flags, 4 bytes each; byte 3 bit 1: not on the Veldt
+# The PR's open flags hold this many entries (BeastFieldEncount.TableElementMaxSize). Every battle opens its party's
+# entry (BeastFieldEncount.EncounterMonsterParty, from EncountBoss too), so a flag_index past it throws in that
+# battle: Beyond Chaos's 508-entry Veldt put Vargas at 434 (bc-9, 2026-11-21). Vanilla uses 0-371.
+FLAG_SLOTS = 400
+
+
+def cap_formations(mod_formations, vanilla_formations, limit=FLAG_SLOTS, rages=None):
+    """(kept, dropped): at most `limit` of the mod's Veldt formations, in ID order: vanilla's Veldt formations first
+    (the ones a player meets on the Veldt in any game), then the mod's others by ID. rages: the formations that teach a
+    Rage (a monster below 256), kept before any that don't (the profile's veldt_rage_first: T-Edition)."""
+    if len(mod_formations) <= limit:
+        return list(mod_formations), []
+    van = set(vanilla_formations)
+    rage = set(mod_formations) if rages is None else set(rages)
+    order = sorted(mod_formations, key=lambda f: (f not in rage, f not in van, f))
+    keep = set(order[:limit])
+    return [f for f in mod_formations if f in keep], [f for f in mod_formations if f not in keep]
 
 
 def monsters(rom, f):
@@ -36,15 +53,21 @@ def veldt_formations(rom, all_formations=False):
     return [f for f in range(512) if (all_formations or not (rom.data[FLAGS + 4 * f + 3] & 0x02)) and monsters(rom, f)]
 
 
-def port(van, mod, tables, encounters, out_dir, log, all_formations=False):
+def port(van, mod, tables, encounters, out_dir, log, all_formations=False, rage_first=False):
     """Write the mod's Veldt table; returns {"monster_party": parties made here}. all_formations: the profile's
-    veldt_all_formations (the mod's Veldt ignores the formation flag)."""
+    veldt_all_formations (the mod's Veldt ignores the formation flag); rage_first: veldt_rage_first (past the PR's
+    400 entries, formations with a monster below 256, which teach a Rage, are kept first)."""
     if "WC_FLAGS" in os.environ:
         return {}
     vf, mf = veldt_formations(van), veldt_formations(mod, all_formations)
     if vf == mf and all(monsters(van, f) == monsters(mod, f) for f in mf):
         log("veldt: the mod's Veldt is vanilla's")
         return {}
+    mf, dropped = cap_formations(mf, vf, rages=[f for f in mf if any(m < 256 for m in monsters(mod, f))] if rage_first else None)
+    if dropped:
+        order = "Rage formations first, vanilla's first among each, then by ID" if rage_first else "vanilla's first, then by ID"
+        log(f"veldt: {len(dropped)} formations left off: the PR holds {FLAG_SLOTS} Veldt entries ({order}); "
+            f"dropped {', '.join(f'{f:#x}' for f in dropped[:12])}{' ...' if len(dropped) > 12 else ''}")
     mp = tables.setdefault("monster_party", P.Table("monster_party"))
     src = os.path.join(P.VANILLA, GROUP, *ASSET.split("/")) + ".json"
     doc = json.load(open(src, encoding="utf-8"))

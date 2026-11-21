@@ -844,7 +844,7 @@ class Translator:
                           comment=f"SNES scratch bit {a['bit'][0]:03X}")], "scratch")
         if n in ("bit_set", "bit_clear") and a["bit"][0] in CHAR_BITS:
             return ok(self.char_bit(*a["bit"]), "character")
-        if n in ("bit_set", "bit_clear") and a["bit"][0] in ENGINE_BITS:
+        if n in ("bit_set", "bit_clear") and a["bit"][0] in ENGINE_BITS and a["bit"][0] not in self.story_engine_bits:
             return self.left(ins, "engine bit")
         if n in ("bit_set", "bit_clear"):
             cat, idx = self.flag(a["bit"][0])
@@ -1103,7 +1103,7 @@ class Translator:
             if b == GIL_SHORT:
                 tests.append(("MapLocalVariable", 0, 0 if want else 1))
                 continue
-            if b in ENGINE_BITS:
+            if b in ENGINE_BITS and b not in self.story_engine_bits:
                 self.stubs["flow"] += 1
                 self.report[("flow", "stub:case_bit" if b < 0x1B0 else "stub:engine_bit")] += 1
                 tests.append(None)
@@ -1192,6 +1192,9 @@ class Translator:
 
     # a mod's own song commands (T-Edition: 76, 9E, 9F on its second sound driver): played like F0/EF/F1
     song_commands = frozenset()
+    # bits in the engine's range (1B0-1CF) a mod uses as story flags (vanilla's events never touch them; T-Edition's
+    # costume unlocks and dream chapters): set, cleared and tested as flags (self.flag) instead of left as engine bits
+    story_engine_bits = frozenset()
 
     def song_bgm(self, song, command):
         """An SNES song number (as `command` plays it) -> the PR's bgm id or None. A mod whose song

@@ -20,6 +20,7 @@ static class Program
         Test("request file is taken once", RequestTakenOnce);
         Test("feature switches and isolation", FeatureSwitches);
         Test("snake_case table to master type name", Pascal);
+        Test("art new groups: art.json parsing, keys and the atlas address", ArtNewGroupsPlan);
         Test("SNES encounter rules: vanilla", EncountersVanilla);
         Test("SNES encounter rules: BNW's roll and tables", EncountersBnw);
         Test("monster images: recipe, pixels, thumbnail", MonsterImagesRecipe);
@@ -147,6 +148,34 @@ static class Program
                 if (!text.Contains(key)) throw new Exception($"config file lacks '{key}'");
         }
         finally { File.Delete(cfgPath); }
+    }
+
+    // PrKit/ArtNewGroups.cs: a field NPC group the game never shipped, made from one it has (ArtSwap's game side)
+    static void ArtNewGroupsPlan()
+    {
+        using var doc = System.Text.Json.JsonDocument.Parse(
+            "{\"new_groups\": {\"mo_ted_s183\": {\"like\": \"mo_ff6_n001_c00\"}, \"mo_x\": {\"like\": \"mo_ff6_n004_c00\", \"atlas\": \"MO_X_ATLAS\"}, " +
+            "\"bad\": {}}, \"atlases\": {}}");
+        var gs = ArtNewGroups.Parse(doc.RootElement);
+        Eq(2, gs.Count, "groups (one without like skipped)");
+        Eq("MO_TED_S183", gs[0].Atlas, "default atlas name: the group in capitals");
+        Eq("MO_X_ATLAS", gs[1].Atlas, "an atlas name given");
+        using var none = System.Text.Json.JsonDocument.Parse("{\"sprites\": {}}");
+        Eq(0, ArtNewGroups.Parse(none.RootElement).Count, "no new_groups: nothing (WC, BNW, BC)");
+        const string dir = "Assets/GameAssets/Serial/Res/Chara/Map/MO_FF6_N001_C00/";
+        var like = new Dictionary<string, string>
+        {
+            ["anim_info"] = dir + "anim_info", ["Default_00"] = dir + "Default_00",
+            ["MO_FF6_N001_C00"] = dir + "MO_FF6_N001_C00",
+        };
+        var plan = ArtNewGroups.Keys(gs[0], like);
+        Eq("Assets/GameAssets/Serial/Res/Chara/Map/MO_TED_S183/MO_TED_S183", plan.NewAtlasAddress, "the new atlas address");
+        Eq(dir + "MO_FF6_N001_C00", plan.LikeAtlasAddress, "like's atlas");
+        Eq(dir + "anim_info", plan.Keys["anim_info"], "anim_info: like's (same frame names)");
+        Eq(dir + "Default_00", plan.Keys["Default_00"], "a frame: like's address");
+        Eq(plan.NewAtlasAddress, plan.Keys["MO_TED_S183"], "the group's atlas key: the new address");
+        Eq(dir + "MO_FF6_N001_C00", plan.Keys["MO_FF6_N001_C00"], "like's atlas key kept: loading the group loads it");
+        Eq(null, ArtNewGroups.Keys(gs[0], new Dictionary<string, string> { ["anim_info"] = "x" }), "no atlas key in like: none");
     }
 
     static void Pascal()

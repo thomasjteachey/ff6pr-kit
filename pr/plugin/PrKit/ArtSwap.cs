@@ -37,6 +37,8 @@ namespace PrKit
     // - keys: {group: {key: address}} the game doesn't have (a monster image of its own: a master row
     //   points at group + key); added to AssetBundlePathMatch (as Magicite adds its new keys), and the
     //   address is in completeAssetDic from Load on, so the game never asks its bundles for it.
+    // - new_groups: {group: {"like": an existing NPC group, "atlas": name}}: a field NPC group the game never shipped,
+    //   its atlas a renamed copy of `like`'s (ArtNewGroups.cs); the mod's frames come from `atlases` under its name.
     public static class ArtSwap
     {
         public static string Tag = "[art]";
@@ -115,6 +117,7 @@ namespace PrKit
                                 AddKey(g.Name, p.Name, addr);
                                 if (layer.Sprites.TryGetValue(addr, out var en)) en.New = true;
                             }
+                    foreach (var g in ArtNewGroups.Parse(root)) AddGroup(g);
                     if (root.TryGetProperty("atlases", out var a))
                         foreach (var at in a.EnumerateObject())
                         {
@@ -241,6 +244,72 @@ namespace PrKit
             catch (Exception e) { added.Remove(group + "/" + key); Hooks.WarnOnce("art keys", e); }
         }
 
+        // a new group (ArtNewGroups): its keys from `like`'s, its atlas address answered in CheckCompletePost
+        static readonly Dictionary<string, (string Like, string Atlas, string LikeGroup, string LikeKey)> newAtlases =
+            new Dictionary<string, (string, string, string, string)>(StringComparer.OrdinalIgnoreCase);
+        // a new group's atlas waiting for like's: since when (asked for like's after ~5 s, a warning after ~15 s)
+        static readonly Dictionary<string, DateTime> waitingSince = new Dictionary<string, DateTime>(StringComparer.OrdinalIgnoreCase);
+        static readonly HashSet<string> askedFor = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        static readonly HashSet<string> warnedFor = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        static readonly List<ArtNewGroups.Group> pendingGroups = new List<ArtNewGroups.Group>();
+        static readonly HashSet<string> madeGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        static void AddGroup(ArtNewGroups.Group g)
+        {
+            try
+            {
+                var data = Il2CppSystem.Asset.AssetBundlePathMatch.Instance?.originalData;
+                if (data == null) { lock (gate) pendingGroups.Add(g); return; }   // the path list isn't read yet
+                if (!data.ContainsKey(g.Like)) { Kit.Warn($"{Tag} new group {g.Name}: no group {g.Like} to copy"); return; }
+                var likeKeys = new Dictionary<string, string>(StringComparer.Ordinal);
+                foreach (var kv in data[g.Like]) likeKeys[kv.Key] = kv.Value;
+                var plan = ArtNewGroups.Keys(g, likeKeys);
+                if (plan == null) { Kit.Warn($"{Tag} new group {g.Name}: {g.Like} has no atlas key"); return; }
+                foreach (var kv in plan.Keys) AddKey(g.Name, kv.Key, kv.Value);
+                lock (gate) newAtlases[plan.NewAtlasAddress] = (plan.LikeAtlasAddress, g.Atlas, g.Like, g.Like.ToUpperInvariant());
+            }
+            catch (Exception e) { Hooks.WarnOnce("art new group " + g.Name, e); }
+        }
+
+        // the game checks a new group's atlas address: a copy of `like`'s atlas named as the group's, once `like`'s is
+        // loaded (the group's keys include `like`'s atlas, so loading the group loads it); false until then
+        static bool NewAtlas(string addressName, ResourceManager rm, ref bool result)
+        {
+            (string Like, string Atlas, string LikeGroup, string LikeKey) na;
+            lock (gate) if (!newAtlases.TryGetValue(addressName, out na)) return false;
+            var dic = rm.completeAssetDic;
+            if (dic == null) return true;
+            if (dic.ContainsKey(addressName) && dic[addressName] != null) { result = true; return true; }
+            if (!dic.ContainsKey(na.Like) || dic[na.Like] == null)
+            {
+                // like's atlas not loaded yet: after ~5 s ask for it ourselves (as ArtHarness's `atlas` does), after
+                // ~15 s say so once (the group's NPC would otherwise wait unseen)
+                var now = DateTime.UtcNow;
+                if (!waitingSince.TryGetValue(addressName, out var since)) waitingSince[addressName] = since = now;
+                var waited = (now - since).TotalSeconds;
+                if (waited > 5 && askedFor.Add(addressName))
+                {
+                    try { rm.RequestLoadAssetBundle<SpriteAtlas>(na.LikeGroup, na.LikeKey, false); }
+                    catch (Exception e) { Hooks.WarnOnce("art new group load " + na.Atlas, e); }
+                    Kit.Info($"{Tag} new group atlas {na.Atlas}: asked for {na.LikeGroup}/{na.LikeKey} after {waited:0.0} s");
+                }
+                if (waited > 15 && warnedFor.Add(addressName))
+                    Kit.Warn($"{Tag} new group {na.Atlas}: like's atlas {na.Like} never loaded ({waited:0} s)");
+                result = false;
+                return true;
+            }
+            var src = dic[na.Like].TryCast<SpriteAtlas>();
+            if (src == null) { Hooks.WarnOnce("art new group " + na.Atlas, new InvalidCastException(na.Like + " isn't a SpriteAtlas")); return true; }
+            var copy = UnityEngine.Object.Instantiate(src);
+            copy.name = na.Atlas;
+            copy.hideFlags = HideFlags.DontUnloadUnusedAsset;
+            dic[addressName] = copy;
+            result = true;
+            if (madeGroups.Add(addressName))
+                Kit.Info($"{Tag} new group atlas {na.Atlas}: a copy of {na.Like}" +
+                         (waitingSince.TryGetValue(addressName, out var t0) ? $" (after {(DateTime.UtcNow - t0).TotalSeconds:0.0} s)" : ""));
+            return true;
+        }
+
         public static bool Serves(string address) { lock (gate) return sprites.ContainsKey(address); }
         public static int Count { get { lock (gate) return sprites.Count + atlases.Count; } }
 
@@ -303,6 +372,13 @@ namespace PrKit
                     lock (gate) { again = new List<(string, string, string)>(pending); pending.Clear(); }
                     foreach (var (g, k, a) in again) AddKey(g, k, a);
                 }
+                if (pendingGroups.Count > 0)
+                {
+                    List<ArtNewGroups.Group> again;
+                    lock (gate) { again = new List<ArtNewGroups.Group>(pendingGroups); pendingGroups.Clear(); }
+                    foreach (var g in again) AddGroup(g);
+                }
+                if (newAtlases.Count > 0 && NewAtlas(addressName, __instance, ref __result)) return;
                 lock (gate)
                 {
                     if (!sprites.TryGetValue(addressName, out var e)) return;

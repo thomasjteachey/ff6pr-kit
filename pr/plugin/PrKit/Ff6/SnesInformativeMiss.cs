@@ -13,8 +13,9 @@ using UnityEngine;
 namespace PrKit.Ff6
 {
     // Informative misses for any FF6 mod (Bropedio's "Informative Miss", which Brave New World and Beyond Chaos's
-    // `informativemiss` both carry; 2026-11-20, copied from BnwPlugin/BattleUi.cs, bnw-text-ui's, which keeps its
-    // own copy until BNW moves onto this one). A status attack that changes nothing shows
+    // `informativemiss` both carry; 2026-11-20, from BnwPlugin/BattleUi.cs, bnw-text-ui's). Beyond Chaos uses it;
+    // Brave New World from 0.25 (branch bnw-v025-items, 2026-11-21: BattleUi.cs keeps only its Config gate and its
+    // tests; its own copy stays in main's BattleUi.cs until that lands). A status attack that changes nothing shows
     //   "Null"  when the target is immune to every status it would set (the resistance list: 1 = resists),
     //   "Fail"  when the target was open to a status but a forced miss stopped it (the mod says which forced misses
     //           count: BNW's Spirit evasion; by default every forced miss but the PR's own special refusals),
@@ -63,7 +64,7 @@ namespace PrKit.Ff6
             if (Hooks.Patch(h, typeof(AddConditionMultiFunction), "Calc", typeof(SnesInformativeMiss), prefix: nameof(Calc_Prefix), postfix: nameof(Calc_Postfix))) n++;
             // last among the postfixes on CheckForceMissCondition: a mod's own forced misses (BNW's Spirit evasion) first
             var force = AccessTools.Method(typeof(Serial.FF6.Battle.AddConditionFunctionSerial), "CheckForceMissCondition");
-            if (force != null) { h.Patch(force, postfix: new HarmonyMethod(typeof(SnesInformativeMiss), nameof(ForceMiss_Postfix)) { priority = Priority.Last }); n++; }
+            if (force != null && Hooks.Patch(h, force, typeof(SnesInformativeMiss), postfix: nameof(ForceMiss_Postfix), priority: Priority.Last)) n++;
             if (Hooks.Patch(h, typeof(BattleUtility), "CreateDamageView", typeof(SnesInformativeMiss), prefix: nameof(View_Prefix), postfix: nameof(View_Postfix),
                             args: new[] { typeof(BattleUnitData), typeof(int), typeof(bool), typeof(bool) })) n++;
             if (Hooks.Patch(h, typeof(ViewDamageEntity), "ViewMiss", typeof(SnesInformativeMiss), postfix: nameof(ViewMiss_Postfix))) n++;
@@ -125,7 +126,12 @@ namespace PrKit.Ff6
         }
 
         // the sort kept for a unit's next miss popup (null: none, or a status landed), taken once
-        public static Kind? KindFor(BattleUnitData unit)
+        public static Kind? KindFor(BattleUnitData unit) => Find(unit, true);
+
+        // the same without taking it (a test or a mod's own display reads it; the popup still gets it)
+        public static Kind? PeekKindFor(BattleUnitData unit) => Find(unit, false);
+
+        static Kind? Find(BattleUnitData unit, bool take)
         {
             if (unit == null) return null;
             var keys = new List<IntPtr>();
@@ -136,7 +142,7 @@ namespace PrKit.Ff6
             foreach (var k in keys)
                 if (kinds.TryGetValue(k, out var v) && Time.realtimeSinceStartup - v.At <= KeepSeconds)
                 {
-                    kinds.Remove(k);
+                    if (take) kinds.Remove(k);
                     return v.Hit ? null : v.Kind;
                 }
             return null;
@@ -147,12 +153,16 @@ namespace PrKit.Ff6
         public static void View_Prefix(BattleUnitData targetUnitData, bool isMiss)
         {
             pending = null;
-            if (!On || !isMiss) return;
+            if (!isMiss) return;
+            // a forced sort is for the next miss popup, shown or not: cleared before the off / language checks, so
+            // it never waits for a later popup (bnw-atb, 2026-11-21)
+            var forced = Forced;
+            Forced = null;
+            if (!On) return;
             try
             {
                 if ((int)(MessageManager.Instance?.currentLanguage ?? 0) != English) return;
-                var k = Forced ?? KindFor(targetUnitData);
-                Forced = null;
+                var k = forced ?? KindFor(targetUnitData);
                 if (k == Kind.Fail || k == Kind.Null) pending = k;
             }
             catch (Exception e) { Hooks.WarnOnce("kit-informative-miss-view", e); }

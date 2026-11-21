@@ -405,5 +405,83 @@ class PublishPrivacy(unittest.TestCase):
         self.assertEqual(R.user_paths([], ok), [])
 
 
+class HookAudit(unittest.TestCase):
+    """tools/hook_audit.py on a made-up dump, code and plugin: a raw hook on code another class shares is a finding,
+    so is a Hooks.Patch on tiny code (refused at run time); a same-class twin, a long unique body, a method only looked
+    up (no Patch) and a commented acceptance are not."""
+
+    DUMP = "\n".join([
+        "// Namespace: Game.UI",
+        "public class Menu : MonoBehaviour // TypeDefIndex: 1",
+        "\t// RVA: 0x10 Offset: 0x10 VA: 0x180000010",
+        "\tpublic void OnKey(int id) { }",
+        "\t// RVA: 0x40 Offset: 0x40 VA: 0x180000040",
+        "\tpublic int Long(int a) { }",
+        "\t// RVA: 0x80 Offset: 0x80 VA: 0x180000080",
+        "\tpublic bool Tiny() { }",
+        "\t// RVA: 0x40 Offset: 0x40 VA: 0x180000040",
+        "\tprivate int LongTwin(int a) { }",
+        "// Namespace: Game.Battle",
+        "public class Unit // TypeDefIndex: 2",
+        "\t// RVA: 0x10 Offset: 0x10 VA: 0x180000010",
+        "\tpublic void set_Evasion(int value) { }",
+        "// Namespace: ",
+        "public static class External.Item // TypeDefIndex: 3",
+        "\t// RVA: 0xA0 Offset: 0xA0 VA: 0x1800000A0",
+        "\tpublic static bool GetItem(MainCore mc) { }",
+    ])
+
+    def code(self):
+        data = bytearray(b"\xcc" * 0xC0)
+        data[0x10:0x14] = b"\x89\x51\x70\xc3"                    # mov [rcx+70h],edx / ret: shared with Unit
+        data[0x40:0x40 + 40] = bytes(range(0x50, 0x50 + 39)) + b"\xc3"   # 40 bytes, no short jump
+        data[0x80] = 0xC3                                        # ret
+        data[0xA0:0xA0 + 24] = bytes(range(0x50, 0x50 + 23)) + b"\xc3"   # External.Item.GetItem: its own
+        return bytes(data)
+
+    def run_audit(self, sources):
+        import hook_audit as A
+        with tempfile.TemporaryDirectory() as d:
+            for name, text in sources.items():
+                with open(os.path.join(d, name), "w", encoding="utf-8") as f:
+                    f.write(text)
+            found = A.sites(d)
+            return found, A.audit(A.Dump(self.DUMP), self.code(), found, log=lambda m: None)
+
+    def test_findings(self):
+        found, findings = self.run_audit({
+            "Raw.cs": "using HarmonyLib;\nclass Raw { static void P(Harmony h) {\n"
+                      "  var pick = AccessTools.Method(typeof(Game.UI.Menu), \"OnKey\");\n"
+                      "  h.Patch(pick, prefix: new HarmonyMethod(typeof(Raw), \"Pre\")); } }\n",
+            "Guarded.cs": "using Game.UI;\nclass G { static void P(Harmony h) {\n"
+                          "  Hooks.Patch(h, typeof(Menu), \"Tiny\", typeof(G), postfix: nameof(Post));\n"
+                          "  Hooks.Patch(h, typeof(Menu), nameof(Menu.Long), typeof(G), prefix: \"Pre\"); } }\n",
+            "Lookup.cs": "class L { static void P(Harmony h) { var m = AccessTools.Method(typeof(Game.UI.Menu), \"OnKey\");"
+                         " Use(m); Hooks.Patch(h, typeof(Game.UI.Menu), \"Long\", typeof(L)); } }\n",
+            "Loop.cs": "using Item = global::External.Item;\nclass Loop { static void P(Harmony h) {\n"
+                       "  var t = typeof(Game.UI.Menu);\n"
+                       "  foreach (var (name, post) in new[] { (\"Long\", nameof(A)), (\"LongTwin\", nameof(B)) }) {\n"
+                       "    var m = AccessTools.Method(t, name); h.Patch(m, postfix: new HarmonyMethod(typeof(Loop), post)); }\n"
+                       "  harmony.Patch(AccessTools.Method(typeof(Item), \"GetItem\"), prefix: null); } }\n",
+            "Accepted.cs": "class Ok { static void P(Harmony h) {\n  var pick = AccessTools.Method(typeof(Game.UI.Menu), \"OnKey\");\n"
+                           "  // hook-audit: the prefix checks Hooks.IsA<Menu>\n  h.Patch(pick, prefix: null); } }\n",
+        })
+        hooked = sorted((os.path.basename(p), how, t.split(".")[-1], n) for p, _, how, t, n, _, _ in found)
+        self.assertIn(("Raw.cs", "raw", "Menu", "OnKey"), hooked)
+        self.assertIn(("Loop.cs", "raw", "Menu", "LongTwin"), hooked)
+        self.assertIn(("Loop.cs", "raw", "Item", "GetItem"), hooked)
+        self.assertNotIn(("Lookup.cs", "raw", "Menu", "OnKey"), hooked)          # looked up, never patched
+        self.assertEqual(len(findings), 2, findings)
+        self.assertTrue(any("Raw.cs" in f and "shared with 1 other classes' methods: Unit.set_Evasion" in f
+                            and "nothing checks a raw hook" in f for f in findings), findings)
+        self.assertTrue(any("Guarded.cs" in f and "Menu.Tiny" in f and "the hook is off" in f for f in findings), findings)
+
+    def test_skips_without_game_files(self):
+        import hook_audit as A
+        with mock.patch("sys.stdout", new_callable=__import__("io").StringIO) as out:
+            self.assertEqual(A.main(["--dump", "no/such/dump.cs", "--dll", "no/such.dll"]), 0)
+        self.assertIn("skipped", out.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

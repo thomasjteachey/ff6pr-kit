@@ -118,6 +118,7 @@ namespace PrKit
             HookMessages(h);
             HookBattleLog(h);
             SkipLogosInTestRun(h);
+            HookSystemCalls(h);
             thread = new Thread(Listen) { IsBackground = true, Name = "prkit-harness" };
             thread.Start();
             Kit.Info($"[harness] listening on 127.0.0.1:{Port}; {n} input checks hooked");
@@ -389,7 +390,8 @@ namespace PrKit
             }, "idle <minutes>: quit after that many minutes with no client and no command, or when Wow.exe starts then (0: off)");
             Add("slots", _ => Slots(), "slots: the save slots (read only)");
             Add("load", Load, "load [slot|party] [goto]: the latest save, a slot, or the newest with 3+ in its party (at the title the title's load; goto: the in-game load)");
-            Add("warp", Warp, "warp <map> [point] [nofade]: to a map's entrance, as ChangeMap does (nofade: EventGotoMap's skipFade)");
+            AddTick("warp", Warp, "warp <map> [point] [nofade]: to a map's entrance, as ChangeMap does (nofade: EventGotoMap's skipFade), " +
+                                  "once the field has settled (no script or map change on its way; 20 s at most)");
             Add("script", RunScript, "script <name>: an event script of the current map");
             Add("speed", a =>
             {
@@ -553,19 +555,70 @@ namespace PrKit
             return why == null ? $"loading save {slot.Id} ({slot.TimeStamp}) from the title" : $"error: {why}";
         }
 
-        static string Warp(string[] a)
+        // warp, polled: the game's own map change first. A warp sent while one is on its way (a script's ChangeMap after
+        // its last line: BC's New Game opening, sc_e_0001's ChangeMap 3, warped at the hand-off) raced it, and the
+        // game's change never finished (bc-10, 2026-11-21); runs that waited reached map 3. So the warp waits until the
+        // field has settled: no script, no battle, a field map, the main game's sub-scene the player's (not ChangeMap,
+        // FieldReady, Event ...), all for a quarter second; after 20 s it warps anyway and says what was still going on.
+        static float warpAsked, warpSettled;
+
+        static string Warp(string[] a, int tick)
         {
             int map = a.Length > 0 && int.TryParse(a[0], out var mv) ? mv : -1;
             int point = a.Length > 1 && int.TryParse(a[1], out var pv) ? pv : 1;
             // nofade: no fade out/in. A warp from the harness has no event around it to finish a fade; in a graphics run
             // (BNW's dream test, PC 2026-11-21) the field stayed without player control after one, and scripts were refused
             bool skipFade = a.Any(x => x.Equals("nofade", StringComparison.OrdinalIgnoreCase));
+            float now = Time.realtimeSinceStartup;
+            if (tick == 0) { warpAsked = now; warpSettled = -1; }
+            var busy = FieldBusy();
+            string note = "";
+            if (busy != null)
+            {
+                warpSettled = -1;
+                if (now - warpAsked < 20f) return null;
+                note = $" (the field hadn't settled in 20 s: {busy})";
+            }
+            else
+            {
+                if (warpSettled < 0) warpSettled = now;
+                if (now - warpSettled < 0.25f) return null;
+            }
             var ep = Object.FindObjectOfType<MainGame>()?.eventProcedure;
             if (ep == null || map < 0) return "error: no event procedure or map";
             var ld = new LoadData();
             ld.NextMapData(map, point, (ViewType)0);
             ep.EventGotoMap(ld, skipFade, false);
-            return $"warping to map {map} point {point}{(skipFade ? " (no fade)" : "")}";
+            float waited = now - warpAsked;
+            return $"warping to map {map} point {point}{(skipFade ? " (no fade)" : "")}" +
+                   (note != "" ? note : waited > 0.4f ? $" (after {waited:0.0} s for the field to settle)" : "");
+        }
+
+        // why the field isn't ready for a harness warp (null: it is). A map's own script (sc_map_*) can stay alive the
+        // whole time the player walks it (map 112's sc_map_20160: every state for 40 s, BNW's atb-configcheck,
+        // 2026-11-21), so a script counts only when it isn't one; the main game's sub-scene state says the rest.
+        static string FieldBusy()
+        {
+            if (InBattle) return "a battle";
+            if (Object.FindObjectOfType<global::FieldMap>() == null) return "no field map";
+            var integ = Last.Interpreter.Integrator.Instance;
+            var name = integ != null && integ.IsMainCoreAlive() ? integ.scriptName ?? "" : null;
+            if (name != null && !name.StartsWith("sc_map_", StringComparison.Ordinal)) return $"a script runs ({name})";
+            var st = FieldState();
+            if (st != null && st != SubSceneManagerMainGame.State.Player) return $"the field's state is {st}";
+            return null;
+        }
+
+        // the main game's sub-scene (Player = the player has the field; ChangeMap, FieldReady, Event, Message ...), null
+        // when there's none or it can't be read
+        static SubSceneManagerMainGame.State? FieldState()
+        {
+            try
+            {
+                var mg = Object.FindObjectOfType<MainGame>();
+                return mg == null ? (SubSceneManagerMainGame.State?)null : mg.CurrentState<SubSceneManagerMainGame.State>();
+            }
+            catch (Exception e) { Hooks.WarnOnce("harness-field-state", e); return null; }
         }
 
         static string RunScript(string[] a)
@@ -628,6 +681,31 @@ namespace PrKit
                 return $"error: battle {btPid} started without its battle script (none like sc_b_ ran in 5 s; running: " +
                        $"{(script.Length > 0 ? script : "none")}): the game calls such a battle won at once; start it again from a settled field";
             return null;
+        }
+
+        // test runs: each script's system calls, once per script and call, so an ErrorFactorBase out of Misc.SystemCall
+        // ("Invalid System Call": a fight started bare that its story setup should have prepared, BC's and BNW's Vargas
+        // via `battle 436`, 2026-11-21) is named by the last line before it. A prefix only: the game's call runs as ever.
+        static readonly HashSet<string> sysCallsSeen = new HashSet<string>();
+
+        static void HookSystemCalls(Harmony h)
+        {
+            var m = AccessTools.Method(typeof(Last.Interpreter.Instructions.External.Misc), "SystemCall");
+            if (m != null) Hooks.Patch(h, m, typeof(Harness), prefix: nameof(SystemCall_Prefix));
+        }
+
+        public static void SystemCall_Prefix(Last.Interpreter.MainCore __0)
+        {
+            try
+            {
+                var sv = __0?.currentInstruction?.operands?.sValues;
+                string call = sv != null && sv.Length > 0 ? sv[0] : "?";
+                var integ = Last.Interpreter.Integrator.Instance;
+                string script = integ != null && integ.IsMainCoreAlive() ? integ.scriptName : "?";
+                if (sysCallsSeen.Count < 2000 && sysCallsSeen.Add(script + "|" + call))
+                    Kit.Info($"[harness] system call {call} in {script}");
+            }
+            catch (Exception) { }
         }
 
         static string Encount(string[] a)
@@ -1038,6 +1116,8 @@ namespace PrKit
             var script = Last.Interpreter.Integrator.Instance;
             if (script != null && script.IsMainCoreAlive()) sb.Append($"; script {script.scriptName}");
             sb.Append($"; messages {(SkipMessages ? "skipped" : "shown")}");
+            // the main game's sub-scene (Player: the player has the field); after "messages" so older patterns still match
+            if (Scene() == "field") { var fs = FieldState(); if (fs != null) sb.Append($"; field state {fs}"); }
             foreach (var part in StateParts)
             {
                 try { sb.Append("; ").Append(part()); }

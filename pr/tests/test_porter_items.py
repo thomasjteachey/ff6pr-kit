@@ -253,5 +253,37 @@ class GroupIds(unittest.TestCase):
         self.assertEqual(t.rows[3]["group_id"], "7")
 
 
+class VeldtFlags(unittest.TestCase):
+    """port_veldt.cap_formations: a mod's Veldt keeps every flag_index under the PR's 400 open flags (an index past
+    them throws in the battle that opens it: Beyond Chaos's Vargas at 434, 2026-11-21)."""
+
+    def test_under_the_limit_unchanged(self):
+        import port_veldt as V
+        self.assertEqual(V.cap_formations([5, 600, 7], [5]), ([5, 600, 7], []))
+        self.assertEqual(V.FLAG_SLOTS, 400)
+
+    def test_every_formation(self):
+        import port_veldt as V
+        kept, dropped = V.cap_formations(list(range(512)), list(range(371)))   # T-Edition's all formations
+        self.assertEqual(kept, list(range(400)))
+        self.assertEqual(dropped, list(range(400, 512)))
+
+    def test_vanillas_veldt_kept_first(self):
+        import port_veldt as V
+        kept, dropped = V.cap_formations(list(range(10)), [9, 8], limit=3)
+        self.assertEqual(kept, [0, 8, 9])                                     # vanilla's 8, 9, then the lowest ID
+        self.assertEqual(dropped, [1, 2, 3, 4, 5, 6, 7])
+
+    def test_rage_formations_first(self):
+        import port_veldt as V
+        # veldt_rage_first (T-Edition): formations teaching a Rage (a monster below 256) before the rest,
+        # vanilla's first among each
+        kept, dropped = V.cap_formations(list(range(10)), [9, 1], limit=4, rages=[5, 6, 7, 9])
+        self.assertEqual(kept, [5, 6, 7, 9])
+        self.assertEqual(dropped, [0, 1, 2, 3, 4, 8])
+        kept, _ = V.cap_formations(list(range(10)), [9, 1], limit=5, rages=[5, 6, 7, 9])
+        self.assertEqual(kept, [1, 5, 6, 7, 9])                               # then vanilla's 1 among the others
+
+
 if __name__ == "__main__":
     unittest.main()

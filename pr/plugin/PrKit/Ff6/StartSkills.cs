@@ -25,6 +25,7 @@ namespace PrKit.Ff6
         };
 
         public static string Tag = "[kit]";
+        public static Action<string, Exception> Warn = Hooks.WarnOnce;   // a mod's own warning (WC: WcRunner.WarnOnce)
         public static string Last = "";
         static readonly Dictionary<int, HashSet<int>> pending = new Dictionary<int, HashSet<int>>();
 
@@ -72,14 +73,16 @@ namespace PrKit.Ff6
             return true;
         }
 
-        // every holder of `command` learns `abilities` (those not known yet); with no holder they wait (TeachPending).
+        // every holder of `command` learns `abilities` (those not known yet); with no holder they wait (TeachPending)
+        // unless queue is false (a seed's start skills, read again on every call: a queue would outlive a seed switch).
         // Returns how many were taught.
-        public static int Teach(int command, IEnumerable<int> abilities)
+        public static int Teach(int command, IEnumerable<int> abilities, bool queue = true)
         {
             var ids = abilities.Distinct().ToList();
             var holders = Holders(command);
             if (holders.Count == 0)
             {
+                if (!queue) return 0;
                 if (!pending.TryGetValue(command, out var wait)) pending[command] = wait = new HashSet<int>();
                 foreach (var id in ids) wait.Add(id);
                 return 0;
@@ -100,13 +103,61 @@ namespace PrKit.Ff6
             {
                 if (Holders(command).Count == 0) continue;
                 var ids = pending[command].ToList();
-                pending.Remove(command);
                 n += Teach(command, ids);
+                pending.Remove(command);          // only once taught (a throw keeps them queued)
             }
             return n;
         }
 
         public static int Pending(int command) => pending.TryGetValue(command, out var s) ? s.Count : 0;
+
+        // the queued abilities of a command, taken out of the queue (a mod that keeps them its own way: BC teaches them
+        // to an owned character, so the save keeps them and Sync shares them with a later holder)
+        public static List<int> TakePending(int command)
+        {
+            if (!pending.TryGetValue(command, out var s)) return new List<int>();
+            pending.Remove(command);
+            return s.ToList();
+        }
+
+        // The SNES's party-wide sets: every holder of a set's command knows what any owned character knows of that set
+        // (taught to 100). For a mod that moves commands (WC, BC's `o`): call it on joins and every few seconds in the
+        // field. Returns what was taught ("" when nothing). From Worlds Collide's WcSkills.Sync (2026-11-21).
+        public static string LastSync = "";
+
+        public static string Sync() => Sync(null);
+
+        // only these commands' sets (null: every set)
+        public static string Sync(ICollection<int> commands)
+        {
+            var report = new List<string>();
+            try
+            {
+                var owned = Owned().ToList();
+                foreach (var (command, first, last) in Sets)
+                {
+                    if (commands != null && !commands.Contains(command)) continue;
+                    var holders = owned.Where(c => Has(c, command)).ToList();
+                    if (holders.Count == 0) continue;
+                    var known = new HashSet<int>();
+                    foreach (var c in owned)
+                        if (c.OwnedAbilityList != null)
+                            foreach (var a in c.OwnedAbilityList)
+                                if (a?.Ability != null && a.Ability.Id >= first && a.Ability.Id <= last && a.SkillLevel >= 100)
+                                    known.Add(a.Ability.Id);
+                    int taught = 0;
+                    foreach (var h in holders)
+                        foreach (var id in known)
+                            if (!Knows(h, id) && Teach(h, id)) taught++;
+                    if (taught > 0) report.Add($"command {command}: {taught} taught to {string.Join(",", holders.Select(h => h.characterStatusId))}");
+                }
+            }
+            catch (Exception e) { Warn("skills-sync", e); }
+            if (report.Count == 0) return "";
+            LastSync = string.Join("; ", report);
+            Kit.Info($"{Tag} skills shared: {LastSync}");
+            return LastSync;
+        }
 
         static void Note(string what)
         {

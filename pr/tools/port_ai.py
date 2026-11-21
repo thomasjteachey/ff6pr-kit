@@ -326,7 +326,10 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
     slots = formation_slots(bnw)
     formation_parties = party_resolver(tables)
     import battle_text
-    battle_lines = battle_text.Messages(bnw) if battle_messages else None
+    # a profile with its own battle text table (T-Edition: tools/ted_dialog.BattleMessages, TED_BTL_ keys) says so with
+    # battle_lines(rom); every other mod reads the vanilla table's place (battle_text.Messages, BNW_BTL_ keys)
+    make_lines = profile_setting("battle_lines")
+    battle_lines = (make_lines(bnw) if make_lines else battle_text.Messages(bnw)) if battle_messages else None
     compiled = {}  # SNES id -> (mnemonics, ctx)
     is_boss = {e: vmo[e + 1]["boss"] != "0" for e in range(384)}
     import ff6snes as _S
@@ -530,10 +533,11 @@ def port(van, bnw, tables, out_dir, log, battle_messages=False):
     sa = None
     if SNES_AI:
         sa = snes_ai_data(van, bnw, ab, vmo, scripts, tables.get("monster_party"), formation_parties, battle_lines)
-    used = set(k for ks in (sa["message_keys"].values() if sa else []) for k in ks if k.startswith("BNW_BTL_"))
+    ours = battle_lines.texts if battle_lines else {}   # the mod's own lines (BNW_BTL_..., TED_BTL_...)
+    used = set(k for ks in (sa["message_keys"].values() if sa else []) for k in ks if k in ours)
     for e in compiled:
         for m in compiled[e][0]:
-            used.update(x for x in m["operands"].get("sValues", []) if x.startswith("BNW_BTL_"))
+            used.update(x for x in m["operands"].get("sValues", []) if x in ours)
     port.battle_texts = {k: v for k, v in (battle_lines.texts.items() if battle_lines else []) if k in used}
     stats["battle lines"] = len(port.battle_texts)
     os.makedirs(os.path.join(out_dir, "monster_ai", "keys"), exist_ok=True)

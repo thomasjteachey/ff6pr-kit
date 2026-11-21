@@ -22,6 +22,10 @@ namespace PrKit.Ff6
         public ICollection<int> NoSuplex = SnesSuplexRules.VanillaWithCopies;   // PR monster ids (regulars + Coliseum copies)
         public int Ability = SnesSuplexRules.SuplexAbility;
         public Func<bool> Enabled = () => true;
+        // the mod's Suplex runs a function without its own HitCalc (BattleBasicFunction's, e.g. BNW's Suplex is function
+        // 3, function group 469; QA bnw-atb 2026-11-21: 0 of 30 hits turned): hook that HitCalc too. Off for WC and BC
+        // (vanilla's Suplex, function 2, which has its own).
+        public bool BasicFunctions;
     }
 
     public static class SnesSuplex
@@ -38,17 +42,25 @@ namespace PrKit.Ff6
             mod = m;
             ids = new HashSet<int>(m.NoSuplex ?? Array.Empty<int>());
             Hooks.Patch(h, typeof(BattleFunction2), "HitCalc", typeof(SnesSuplex), postfix: nameof(HitCalc_Postfix));
-            Kit.Info($"[suplex] {m.Name}: Suplex (ability {m.Ability}) misses the {ids.Count} monsters that can't be suplexed (the SNES's monster flag)");
+            if (m.BasicFunctions)
+                Hooks.Patch(h, typeof(BattleBasicFunction), "HitCalc", typeof(SnesSuplex), postfix: nameof(BasicHitCalc_Postfix));
+            Kit.Info($"[suplex] {m.Name}: Suplex (ability {m.Ability}) misses the {ids.Count} monsters that can't be suplexed (the SNES's monster flag)" +
+                     (m.BasicFunctions ? "; hooked in function 2 and the basic functions" : ""));
         }
 
-        public static void HitCalc_Postfix(BattleFunction2 __instance)
+        public static void HitCalc_Postfix(BattleFunction2 __instance) => Turn(__instance);
+
+        public static void BasicHitCalc_Postfix(BattleBasicFunction __instance) => Turn(__instance);
+
+        // a hit of the mod's Suplex on a listed monster becomes a miss (a miss already stays: running twice is harmless)
+        static void Turn(BattleBaseFunction f)
         {
-            if (!On || __instance == null) return;
+            if (!On || f == null) return;
             try
             {
-                var abilities = __instance.battleActData?.abilityList;
+                var abilities = f.battleActData?.abilityList;
                 if (abilities == null || abilities.Count == 0 || abilities[0] == null || abilities[0].Id != mod.Ability) return;
-                var dic = __instance.ICalcResultDic;
+                var dic = f.ICalcResultDic;
                 if (dic == null) return;
                 var keys = new List<BattleUnitData>();
                 foreach (var k in dic.Keys) keys.Add(k);

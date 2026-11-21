@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace PrKit.Snes
 {
@@ -30,6 +31,21 @@ namespace PrKit.Snes
 
         public bool Ours(int ch) => ch >= 0 && ch < 2 && Chans[ch].Ours;
         public int PlayingSlot(int ch) => Ours(ch) && Active == ch ? Chans[ch].Slot : -1;
+
+        // The game's track for each of its requests: the PR id asked for -> the one it was told to play instead (the
+        // game's own track for one of its songs, the carrier behind a new song). The interpreter's asset waits
+        // (ReadyBGM, LoadBGM) poll the asked-for id's asset; the game loaded this one (SnesBgm.AssetId).
+        readonly Dictionary<int, int> played = new Dictionary<int, int>();
+        public void Played(int pr, int gameId) { if (gameId == pr) played.Remove(pr); else played[pr] = gameId; }
+        public int PlayedFor(int pr) => played.TryGetValue(pr, out int id) ? id : pr;
+
+        // the track whose asset the game loads for a request of pr: the one it was last told to play for it, else the
+        // carrier for a new song's id (newSong: no track of its own, e.g. T-Edition's 1000 + slot), else pr
+        public int AssetFor(int pr, Func<int, bool> newSong, Func<int> carrier)
+        {
+            int id = PlayedFor(pr);
+            return id == pr && newSong != null && newSong(pr) ? carrier() : id;
+        }
 
         // The game asks channel ch for its track pr (fade: its fade-in); choice: what the rules say.
         // Returns the PR id the game should play (the request, or the game's own track for one of its
@@ -139,6 +155,7 @@ namespace PrKit.Snes
         {
             foreach (var c in Chans) { c.Pr = -1; c.Slot = -1; c.Ours = false; c.Suspended = false; c.Restart = false; }
             Active = Paused = -1;
+            played.Clear();
         }
 
         public string Describe(int i) =>

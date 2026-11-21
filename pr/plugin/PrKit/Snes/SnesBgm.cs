@@ -29,7 +29,8 @@ namespace PrKit.Snes
     // slot holding one of the game's own songs (rules.Songs[slot].GameTrack) has the game play that track.
     // A mod's new song has a PR id the game has no track for (convention: 1000 + its number, in map.csv's
     // bgm_id and scripts' PlayBGM) and a rules.Tracks entry: the game loads and plays the carrier for it
-    // (rules.Carrier, else its first BGM), muted.
+    // (rules.Carrier, else its first BGM), muted. A script's wait for a track's asset (ReadyBGM, LoadBGM) and the
+    // game's own asset loads and checks by id follow that: they name the track the game loaded for the id (AssetId).
     public static class SnesBgm
     {
         public static string Tag = "[snes bgm]";
@@ -103,6 +104,25 @@ namespace PrKit.Snes
             // (its own code dereferences the track's asset unchecked)
             Hooks.Patch(h, t, "RequestLoadBGMAsset", typeof(SnesBgm), nameof(LoadBgm_Prefix), null, new[] { typeof(int) });
             Hooks.Patch(h, t, "AssetIsReady", typeof(SnesBgm), nameof(AssetIsReady_Prefix), null, new[] { typeof(AudioType), typeof(int) });
+            // the event scripts' BGM asset waits (ReadyBGM, LoadBGM): Audio.<>c's bool(int handle) lambdas
+            PatchPoll(h, "_ReadyBGM_b__", nameof(ReadyPoll_Prefix), nameof(ReadyPoll_Postfix));
+            PatchPoll(h, "_LoadBGM_b__", nameof(LoadPoll_Prefix), nameof(LoadPoll_Postfix));
+        }
+
+        // by name prefix: the lambdas' numbers are the compiler's (bool(int): the poll, not the request or the handle getter)
+        static void PatchPoll(Harmony h, string name, string prefix, string postfix)
+        {
+            var c = typeof(Last.Interpreter.Instructions.Audio.__c);
+            foreach (var m in AccessTools.GetDeclaredMethods(c))
+            {
+                var ps = m.GetParameters();
+                if (m.Name.StartsWith(name) && m.ReturnType == typeof(bool) && ps.Length == 1 && ps[0].ParameterType == typeof(int))
+                {
+                    Hooks.Patch(h, m, typeof(SnesBgm), prefix, postfix);
+                    return;
+                }
+            }
+            Kit.Warn($"[patch] Audio.<>c: no {name}* poll; that script wait isn't covered");
         }
 
         // a track of the game's to stand behind songs whose own PR id has none (rules.Carrier, else the
@@ -121,16 +141,57 @@ namespace PrKit.Snes
 
         static bool NewSongId(int id) => Active && Master.Ready && id > 0 && Rules.Tracks.ContainsKey(id) && Master.Get<BgmAsset>(id) == null;
 
+        // The track whose asset the game loads for a request of pr: the one it was last told to play for pr (the
+        // game's own track for one of the mod's songs, the carrier behind a new song: chans.PlayedFor), else the
+        // carrier for a new song's id, else pr. Every load of a BGM asset by id and every wait on one go through
+        // this, so a load and its wait always name the same asset.
+        static int AssetId(int pr) => chans.AssetFor(pr, NewSongId, CarrierId);
+
         public static void LoadBgm_Prefix(ref int __0)
         {
-            try { if (NewSongId(__0)) __0 = CarrierId(); }
+            try { if (Active) __0 = AssetId(__0); }
             catch (Exception e) { Hooks.WarnOnce("snes-bgm-load", e); }
         }
 
         public static void AssetIsReady_Prefix(AudioType __0, ref int __1)
         {
-            try { if (__0 == AudioType.BGM && NewSongId(__1)) __1 = CarrierId(); }
+            try { if (__0 == AudioType.BGM && Active) __1 = AssetId(__1); }
             catch (Exception e) { Hooks.WarnOnce("snes-bgm-ready", e); }
+        }
+
+        // The event scripts' waits: ReadyBGM (after PlayBGM: FF6's New Game opening sc_e_0001, the opera's sc_e_1030)
+        // and LoadBGM poll AssetInstance.Get(BGM, the script's id).isReady, which only the game's own loads make true.
+        // Where the game loaded another track for that id, they poll that one (AssetId), as the game's own path polls
+        // the track it loaded: else the wait never ends (a new song's id has no asset at all: Get throws).
+        static int pollAsked = int.MinValue, pollFrom, pollLast;
+        static bool pollReady, pollSlow;
+
+        public static void ReadyPoll_Prefix(ref int __0, out int __state) => PollPrefix(ref __0, out __state);
+        public static void LoadPoll_Prefix(ref int __0, out int __state) => PollPrefix(ref __0, out __state);
+        public static void ReadyPoll_Postfix(int __0, int __state, bool __result) => PollNote("ReadyBGM", __state, __0, __result);
+        public static void LoadPoll_Postfix(int __0, int __state, bool __result) => PollNote("LoadBGM", __state, __0, __result);
+
+        static void PollPrefix(ref int id, out int asked)
+        {
+            asked = id;
+            try { if (Active) id = AssetId(id); }
+            catch (Exception e) { Hooks.WarnOnce("snes-bgm-poll", e); }
+        }
+
+        // a line when a wait ends ("ReadyBGM 1 ready"), and one if it's still waiting after 600 frames
+        static void PollNote(string what, int asked, int id, bool ready)
+        {
+            try
+            {
+                if (!Active) return;
+                int f = UnityEngine.Time.frameCount;
+                if (asked != pollAsked || f > pollLast + 2) { pollAsked = asked; pollFrom = f; pollReady = pollSlow = false; }
+                pollLast = f;
+                string track = id != asked ? $" (the game's track {id})" : "";
+                if (ready && !pollReady) { pollReady = true; Note($"{what} {asked} ready{track}{(f > pollFrom ? $" after {f - pollFrom} frames" : "")}"); }
+                else if (!ready && !pollSlow && f - pollFrom >= 600) { pollSlow = true; Note($"{what} {asked}: still waiting for track {id}'s asset after {f - pollFrom} frames"); }
+            }
+            catch (Exception e) { Hooks.WarnOnce("snes-bgm-pollnote", e); }
         }
 
         static bool IsBgm(AudioManager m, StaticChannelController c) =>
@@ -179,6 +240,7 @@ namespace PrKit.Snes
                 __1 = chans.Play(__2, pr, __3, ch);
                 if (chans.Ours(__2) && Master.Ready && Master.Get<BgmAsset>(__1) == null)
                     __1 = CarrierId();                          // a new song: the carrier behind it, muted
+                chans.Played(pr, __1);                          // what the script's ReadyBGM pr waits for (AssetId)
                 return true;
             }
             catch (Exception e) { Hooks.WarnOnce("snes-bgm-play", e); return true; }
