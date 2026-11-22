@@ -13,7 +13,7 @@ _NAME = {0xbe: "!", 0xbf: "?", 0xc0: "/", 0xc1: ":", 0xc2: '"', 0xc3: "'", 0xc4:
 _NAME.update({c + 0x3f: chr(c) for c in range(ord("A"), ord("Z") + 1)})
 _NAME.update({c + 0x39: chr(c) for c in range(ord("a"), ord("z") + 1)})
 _NAME.update({c + 0x84: chr(c) for c in range(ord("0"), ord("9") + 1)})
-ICONS = range(0xd8, 0xfe)  # weapon/armor/magic icons (BNW adds more above 0xEA)
+ICONS = range(0xd7, 0xfe)  # weapon/armor/magic icons (BNW adds more above 0xEA, and 0xD7: its boomerangs)
 
 
 def decode_name(raw: bytes) -> str:

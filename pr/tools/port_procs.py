@@ -46,6 +46,8 @@ class ProcPorter:
         self.special_procs.update(getattr(profile, "special_procs", None) or {})
         self.odds = getattr(profile, "proc_odds", None)
         self.metamorph_monsters = getattr(profile, "metamorph_monsters", False)
+        # proc copies of spells no weapon procs directly (BNW: X-Zone, which Doom becomes after an MP-critical swing)
+        self.extra_proc_copies = tuple(getattr(profile, "extra_proc_copies", None) or ())
         self.ab = tables["ability"]
         self.vab = P.Table("ability")
         self.extra = vanilla_extra()
@@ -285,6 +287,9 @@ class ProcPorter:
                     rates[wid] = [rate, rate]
                 else:
                     changes.append({"weapon_id": wid, "change_ability_id": pid, "ability_per": rate})
+        for spell_id in self.extra_proc_copies:
+            if spell_id in self.ab.rows:
+                self.copy_for(spell_id, copies, new)
         entries.sort(key=lambda e: e["weapon_id"])
         changes.sort(key=lambda e: e["weapon_id"])
         if skipped:

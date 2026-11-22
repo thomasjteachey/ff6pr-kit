@@ -1,8 +1,14 @@
-"""Parse Brave New World's description source (bnw 3.0/asm/descriptions.asm and
-asm/banks/c4.asm) into plain English, in game order.
+"""The SNES game's description tables (items, spells, lores, Blitz, Bushido, equip and esper
+bonuses), read from an FF6 ROM's own pointer tables into plain English, in game order: shared by
+every mod's profile (profiles.Profile.descriptions) and the vanilla ROM.
 
-  sections()  -> {"spells": [...54], "items": [...], "blitz": [...], ...}
-  esper_descriptions() -> [...27] (summon effect text, SNES esper order)
+  sections(rom_path) -> {"spells": [...54], "items": [...], "blitz": [...], ...}
+
+The byte legend (bigrams, element and skill icons) and the menu font's table are Brave New World's
+(its descriptions.asm and vwf.tbl; of the legend, vanilla's text uses only $01 newline and $C0 "/");
+without BNW's source the font comes from pr/data/vwf.tbl and the entry counts from COUNTS. BNW's own
+tables (its Rage descriptions at C4/A820, its esper summon text) are BNW's repository's:
+tools/port_bnw_descriptions.py.
 """
 import os
 import re
@@ -11,7 +17,6 @@ import prdata as P
 
 SOURCE = os.path.normpath(os.path.join(P.ROOT, "..", "mods", "brave-new-world", "source"))
 DESC_ASM = os.path.join(SOURCE, "bnw 3.0", "asm", "descriptions.asm")
-C4_ASM = os.path.join(SOURCE, "asm", "banks", "c4.asm")
 
 # Byte codes from the legend at the top of descriptions.asm (bigrams + icons).
 CODES = {
@@ -138,9 +143,6 @@ def tidy(text):
     return re.sub(r"\s*\n\s*", "\n", t).strip()
 
 
-BNW_ROM = os.path.normpath(os.path.join(P.ROOT, "..", "build", "brave-new-world", "Brave New World 3.0 FRC.sfc"))
-
-
 def _decode_rom(data):
     import ff6snes
     out = []
@@ -152,9 +154,9 @@ def _decode_rom(data):
     return s.replace("`", "\"").replace("^", "\"").replace("[", "\"").replace("]", "\"")
 
 
-def sections(rom_path=BNW_ROM, only=None):
-    """Descriptions read from the built BNW ROM via its pointer tables (ground truth);
-    the asm only supplies how many entries each table has."""
+def sections(rom_path, only=None):
+    """Descriptions read from the ROM at rom_path via its pointer tables (ground truth);
+    BNW's asm (or COUNTS without it) only supplies how many entries each table has."""
     pointers = _labels_and_pointers(DESC_ASM)[1] if os.path.exists(DESC_ASM) else None
     with open(rom_path, "rb") as f:
         rom = f.read()
@@ -169,42 +171,3 @@ def sections(rom_path=BNW_ROM, only=None):
         out[name] = [tidy(_decode_rom(rom[base + int.from_bytes(rom[ptr + 2 * i:ptr + 2 * i + 2], "little"):][:200]))
                      for i in range(n)]
     return out
-
-
-# BNW's Rage descriptions (bnw 3.0 ragedance_descriptions.asm, by dn and Bropedio): a pointer per
-# monster at C4/A820 (bank C4), each text two lines, the 2/3 attack then the 1/3 attack (the
-# menu adds the fractions); an empty text = no description (a rage Gau can't learn in BNW)
-RAGE_PTRS, RAGE_BANK = 0x04A820, 0x040000
-FRACTIONS = {0x0F: "2/3", 0x10: "1/3", 0x13: "5/8", 0xCF: "*"}   # and the font's "*"
-
-
-def rage_descriptions(rom_path=BNW_ROM):
-    """{SNES monster id: (2/3 attack, 1/3 attack)} in plain words: icons as their element's name,
-    magic-type dots dropped (the PR's spell names carry their own icon)."""
-    with open(rom_path, "rb") as f:
-        rom = f.read()
-    if len(rom) % 0x8000 == 0x200:
-        rom = rom[0x200:]
-    out = {}
-    for e in range(255):   # 255: past the table's end (Tonberry's slot holds other data)
-        p = int.from_bytes(rom[RAGE_PTRS + 2 * e:RAGE_PTRS + 2 * e + 2], "little")
-        raw = rom[RAGE_BANK + p:RAGE_BANK + p + 160]
-        b = raw[:raw.index(0)] if 0 in raw else b""
-        if not b:
-            continue
-        text = "".join(FRACTIONS.get(x) or CODES.get(x, FONT.get(x, "")) for x in b)
-        text = text.replace("`", "\"").replace("^", "\"").replace("[", "\"").replace("]", "\"")
-        text = re.sub(r"\{(white|black|gray|lore)\}", "", text)
-        text = re.sub(r"\{([A-Za-z]+)\}(?=\{)", r"\1/", text)   # {Ice}{Ice}{Ice}: one element
-        text = re.sub(r"\{([A-Za-z]+)\}", r"\1", text)
-        text = re.sub(r"\b(\w+)/\1/\1\b", r"\1", text)
-        lines = [re.sub(r"\s+", " ", x).strip() for x in text.split("\n")]
-        if len(lines) == 2 and all(lines):
-            out[e] = (lines[0], lines[1])
-    return out
-
-
-def esper_descriptions():
-    labels, pointers = _labels_and_pointers(C4_ASM)
-    order = next((p for p in pointers.values() if p and p[0] == "Ramuh"), [])
-    return [tidy(labels.get(lbl, "")) for lbl in order]

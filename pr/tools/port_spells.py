@@ -23,6 +23,9 @@ STATUS_TO_COND = {0: 9, 1: 15, 2: 10, 4: 33, 5: 13, 6: 11, 7: 5, 8: 14, 9: 4, 10
 COND_TWIN = {10: 88, 9: 89, 16: 90, 33: 87, 17: 96, 23: 93, 22: 94, 24: 92, 21: 95, 18: 91, 5: 100}
 STATUS_FUNCS = {9, 10, 12}
 LIFT_FLAG = 0x04  # flags3 bit: spell removes its statuses instead of adding them
+DANCE_TYPE, ENEMY_SKILL_TYPE = "637", "504"  # ability.type_id: Mog's dances, monsters' special skills
+HEAL_FLAG = 0x01  # flags3 bit: the spell heals (Cure, Cura...)
+HEAL_FUNC = (1, 2, 2, 0)  # the PR's recovery by Magic (every vanilla Cure-type ability's function 1)
 
 # BNW name -> vanilla SNES name of the spell whose PR look to borrow.
 ALIASES = {
@@ -102,6 +105,7 @@ class SpellPorter:
         self.next_cg_row = max(self.cg.rows) + 1
         self.next_fg = max(self.fg.rows) + 1
         self.physical_swaps = 0
+        self.heals_added = []
         self.fg_cache = {}
         pairs = [(spell_record(s), self.vab[M.spell(s.id)]) for s in self.vsp if M.spell(s.id) in self.vab.rows]
         self.maps = learn.learn(pairs, list(pairs[0][0]), ["accuracy_rate", "attribute_id",
@@ -187,9 +191,17 @@ class SpellPorter:
         phys = self.physical(tmpl_spell, b)
         sig = fsig(self.fg, gid)
         swap = (phys is True and any(f[0] == 3 for f in sig)) or (phys is False and any(f[0] == 2 for f in sig))
-        if tb == bb and tl == bl and not swap:
+        # an HP heal the mod added (flags3 bit 0, as Cure's): the template has no recovery function (BNW's
+        # Harvesters: vanilla's dance only cures statuses, BNW's heals HP; the enemy one, statuses gone,
+        # kept the dance's status cure alone and showed "Miss" on every target, the user 2026-11-22)
+        heal = (bool(b.flags3 & HEAL_FLAG) and not tmpl_spell.flags3 & HEAL_FLAG
+                and not any(f[0] == 1 and f[1] == 2 for f in sig))
+        if tb == bb and tl == bl and not swap and not heal:
             return gid
         funcs = [f for f in sig if f[0] not in STATUS_FUNCS]
+        if heal:
+            funcs = [list(HEAL_FUNC)] + [f for f in funcs if f[0] not in (1, 2, 3)]   # no damage beside it
+            self.heals_added.append(b.name.strip() or str(b.id))
         if swap:
             funcs = [[2, 0, 0, 0] if phys and f[0] == 3 else [3, 1, 0, 0] if not phys and f[0] == 2 else list(f) for f in funcs]
             self.physical_swaps += 1
@@ -227,6 +239,8 @@ class SpellPorter:
             row = self.vab.rows.get(k) or self.ab[k]
             new = dict(tmpl_row)
             new["id"], new["sort_id"] = row["id"], row["sort_id"]
+            if tmpl_row["type_id"] == DANCE_TYPE and self.vab.rows.get(k, {}).get("type_id") == ENEMY_SKILL_TYPE:
+                new["type_id"] = ENEMY_SKILL_TYPE   # a monster's skill named like a dance (BNW's enemy Harvester) stays one
             new["use_value"] = str(b.mp)
             direct_power = tmpl_row["standard_value"] == str(tmpl_spell.power)
             new["standard_value"] = str(b.power) if direct_power else tmpl_row["standard_value"]
@@ -234,7 +248,11 @@ class SpellPorter:
             for col in ("attribute_id", "attribute_group_id"):
                 new[col] = self.convert(self.maps.get(col), b.elements, tmpl_row[col])
             for col in ("renge_id", "battle_renge_id", "menu_renge_id"):
-                new[col] = self.convert(self.maps.get(col), b.targets, tmpl_row[col])
+                # the template's own range unless the mod changed the targeting: the byte -> range map gives the
+                # commonest range, and vanilla's own differs for some (Gale Cut's 16, Vargas's group attack, as 4
+                # froze the user's battle a long while, 2026-11-22; Tentacle, Bushido, Pummel, Bum Rush)
+                new[col] = (tmpl_row[col] if b.targets == tmpl_spell.targets
+                            else self.convert(self.maps.get(col), b.targets, tmpl_row[col]))
             new["battle_function_group_id"] = str(self.effects(tmpl_spell, tmpl_row, b))
             if new != row:
                 self.ab.rows[k] = new
@@ -250,6 +268,7 @@ class SpellPorter:
                 shown = self.in_pr_words(b.id, k, shown)
             self.set_text(k, M.spell(tslot), shown, self.description(b.id))
         self.log(f"physical spells: {self.physical_swaps} damage functions switched Magic <-> Physical by the mod's bit")
+        self.log(f"heals the mod added (HP recovery function): {', '.join(self.heals_added) or 'none'}")
         self.log(f"ability: {len(self.changed['ability'])} changed; new function groups "
                  f"{len(self.changed['function_group'])}, new status groups rows {len(self.changed['condition_group'])}")
         self.log(f"  spells using their own slot's look (no name match): {', '.join(unmatched)}")

@@ -557,9 +557,9 @@ namespace PrKit
 
         // warp, polled: the game's own map change first. A warp sent while one is on its way (a script's ChangeMap after
         // its last line: BC's New Game opening, sc_e_0001's ChangeMap 3, warped at the hand-off) raced it, and the
-        // game's change never finished (bc-10, 2026-11-21); runs that waited reached map 3. So the warp waits until the
-        // field has settled: no script, no battle, a field map, the main game's sub-scene the player's (not ChangeMap,
-        // FieldReady, Event ...), all for a quarter second; after 20 s it warps anyway and says what was still going on.
+        // game's change never finished (bc-10, 2026-11-21); runs that waited reached map 3. So the warp waits while a map
+        // change is in flight (no battle, a field map, the sub-scene not ChangeMap / FieldReady / Init, for 0.1 s; see
+        // FieldBusy: a running event doesn't wait); after 20 s it warps anyway and says what was still going on.
         static float warpAsked, warpSettled;
 
         static string Warp(string[] a, int tick)
@@ -582,7 +582,7 @@ namespace PrKit
             else
             {
                 if (warpSettled < 0) warpSettled = now;
-                if (now - warpSettled < 0.25f) return null;
+                if (now - warpSettled < 0.1f) return null;
             }
             var ep = Object.FindObjectOfType<MainGame>()?.eventProcedure;
             if (ep == null || map < 0) return "error: no event procedure or map";
@@ -599,13 +599,15 @@ namespace PrKit
         // 2026-11-21), so a script counts only when it isn't one; the main game's sub-scene state says the rest.
         static string FieldBusy()
         {
+            // Only a map change in flight waits (the BC race). Waiting out a running event or message did harm: BNW's
+            // warps sent in its opening then fired at the 20 s cap, mid-scene, and map 112's own script never let go
+            // (QA, bnw-final, 2026-11-21), where a warp sent at once had always come up clean. So those warp at once.
             if (InBattle) return "a battle";
             if (Object.FindObjectOfType<global::FieldMap>() == null) return "no field map";
-            var integ = Last.Interpreter.Integrator.Instance;
-            var name = integ != null && integ.IsMainCoreAlive() ? integ.scriptName ?? "" : null;
-            if (name != null && !name.StartsWith("sc_map_", StringComparison.Ordinal)) return $"a script runs ({name})";
             var st = FieldState();
-            if (st != null && st != SubSceneManagerMainGame.State.Player) return $"the field's state is {st}";
+            if (st == SubSceneManagerMainGame.State.ChangeMap || st == SubSceneManagerMainGame.State.FieldReady ||
+                st == SubSceneManagerMainGame.State.Init)
+                return $"the field's state is {st}";
             return null;
         }
 
@@ -634,7 +636,9 @@ namespace PrKit
             if (Master.Get<Last.Data.Master.MonsterParty>(pid) == null) return $"error: no party {pid}";
             if (Object.FindObjectOfType<FieldMap>()?.fieldController == null) return "error: not on the field";
             var integ = Last.Interpreter.Integrator.Instance;
-            if (integ != null && integ.IsMainCoreAlive()) return $"error: a script runs ({integ.scriptName})";
+            // a map's own script (sc_map_*) can live as long as the map (map 112's sc_map_20160): not an event in the way
+            if (integ != null && integ.IsMainCoreAlive() && !(integ.scriptName ?? "").StartsWith("sc_map_", StringComparison.Ordinal))
+                return $"error: a script runs ({integ.scriptName})";
             var mc = new Last.Interpreter.MainCore();
             var op = new Last.Interpreter.Instructions.Format.Operands();
             op.iValues = new Il2CppInterop.Runtime.InteropTypes.Arrays.Il2CppStructArray<int>(8);
