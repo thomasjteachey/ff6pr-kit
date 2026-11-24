@@ -239,7 +239,7 @@ def shim_script(battle):
     return [m("Nop", label="Main", pad=False),
             m("FinalAttackAct", [MARK_FINAL], [100], pad=False),
             m("SyncAI"), m("Blank"),
-            m("ExecMsg", [1], [1], pad=False),
+            m("ExecMsg", [1], [1]),  # ViewMes passes this row to Msg, which reads a second integer
             m("CounterAct", [MARK_COUNTER], [100], pad=False),
             m("IsMyCondition", [AC.CONFUSE, 11]),
             m("StartTable"),

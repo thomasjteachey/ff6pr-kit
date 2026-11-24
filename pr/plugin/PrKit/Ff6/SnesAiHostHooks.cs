@@ -50,10 +50,10 @@ namespace PrKit.Ff6
             if (sync != null) h.Patch(sync, prefix: new HarmonyMethod(typeof(SnesAiHost), nameof(SyncAI_Prefix)));
             var cad = AccessTools.Method(typeof(ActSelectEnemy), "CreateActData") ?? throw new MissingMethodException("ActSelectEnemy.CreateActData");
             h.Patch(cad, prefix: new HarmonyMethod(typeof(SnesAiHost), nameof(CreateActData_Prefix)) { priority = Priority.First });
-            // self-tests: what the AI's ViewMes hands the message window (BattleAI.ViewMes puts the act's next
-            // key into the running instruction's sValues, then runs the battle's Msg)
             var vm = AccessTools.Method(t, "ViewMes");
-            if (vm != null) h.Patch(vm, postfix: new HarmonyMethod(typeof(SnesAiHost), nameof(ViewMes_Postfix)));
+            if (vm != null) h.Patch(vm,
+                prefix: new HarmonyMethod(typeof(SnesAiHost), nameof(ViewMes_Prefix)),
+                postfix: new HarmonyMethod(typeof(SnesAiHost), nameof(ViewMes_Postfix)));
             var create = AccessTools.Method(typeof(InstantiateManager), "Create");
             if (create != null) h.Patch(create, postfix: new HarmonyMethod(typeof(SnesAiHost), nameof(Create_Postfix)));
             // what hits a monster (BNW's counter rules: was it a counterattack, did it take MP): the act as it starts
@@ -84,6 +84,31 @@ namespace PrKit.Ff6
             battleParty = __0;
         }
 
+        public static void ViewMes_Prefix(BattleAICore __0)
+        {
+            if (!Active) return;
+            try
+            {
+                var op = __0?.op;
+                var ints = op?.iValues;
+                if (ints == null || ints.Length != 1 || op.rValues?.Length != 1) return;
+                var data = D;
+                var enemy = Owner(Controller(__0));
+                int prId = enemy?.GetMonster()?.Id ?? 0;
+                if (data == null || prId == 0) return;
+                int snesId = data.Copies.TryGetValue(prId, out int original) ? original : prId - 1;
+                if (!data.Plugin.Contains(snesId)) return;
+
+                // Older generated ExecMsg rows had one integer. ViewMes fills in the key and sets
+                // the first integer, then calls Message.Msg, which also reads the second integer.
+                // With messages enabled, the short array throws and ViewMes retries next frame.
+                op.iValues = new Il2CppStructArray<int>(new[] { ints[0], 0 });
+                Hooks.NoteOnce("enemy-ai-msg-operands", () => $"[{Tag}] enemy AI: repaired legacy battle message operands");
+            }
+            catch (Exception e) { Hooks.WarnOnce("enemy-ai-msg-operands", e); }
+        }
+
+        // Self-tests: what ViewMes hands to the message window.
         public static void ViewMes_Postfix(BattleAICore __0, int __result)
         {
             try
@@ -281,8 +306,17 @@ namespace PrKit.Ff6
             List<SnesAiAction> acts, BattleUnitData[] units, List<string> lines, List<SnesAiAction> entries)
         {
             var q = new List<(int, Il2CppReferenceArray<BattleUnitData>)>();
+            // once a battle event the PR's battle script plays (a mode it reads) starts its scene, the turn's later
+            // attacks aren't queued: the scene takes the fight from there (BNW's Vargas: F7 07 then Gale Cut in one
+            // turn; the PR's Mash-joins scene already blows the party away, and the queued Gale Cut hung the battle)
+            bool prScene = false;
             foreach (var a in acts)
             {
+                if (prScene &&(a.Op == SnesAiOp.Attack || a.Op == SnesAiOp.Item || a.Op == SnesAiOp.Throw || a.Op == SnesAiOp.Command))
+                {
+                    if (Verbose) Log($": monster {snesId}: {a} dropped (after a PR-played battle event)");
+                    continue;
+                }
                 switch (a.Op)
                 {
                     case SnesAiOp.Attack:
@@ -311,6 +345,7 @@ namespace PrKit.Ff6
                         break;
                     case SnesAiOp.BattleEvent:
                         BattleEvent(snesId, a.B1, units[4 + slot]);
+                        if (D != null && D.EventModes.TryGetValue(snesId, out var evModes) && evModes.ContainsKey(a.B1)) prScene = true;
                         break;
                     case SnesAiOp.Message:
                         lines.AddRange(LineKeys(a.B1));
@@ -341,6 +376,13 @@ namespace PrKit.Ff6
                     if (data.PrEntrances.Contains(snesId)) entries.RemoveAll(x => !((x.B2 == 1 || x.B2 == 5) && x.B3 == 0xFF) && !BringsUnlisted(f, x));
                 }
                 if (Verbose && entries.Count != before) Log($": monster {snesId}: {before - entries.Count} entries/ends left to the PR's battle script");
+            }
+            // ...and none of the turn's battle lines: the scene holds the message window, and the AI's ViewMes showing
+            // a line then threw every frame (Last.Interpreter.ErrorFactorBase in Message.Msg: the Deck's log, 11-23)
+            if (prScene && lines.Count > 0)
+            {
+                if (Verbose) Log($": monster {snesId}: {lines.Count} battle line(s) dropped (after a PR-played battle event)");
+                lines.Clear();
             }
             return q;
         }
@@ -527,18 +569,9 @@ namespace PrKit.Ff6
         static bool Unresponsive(BattleUnitData me) =>
             HasCondition(me, 7) || HasCondition(me, 12) || HasCondition(me, 410) || HasCondition(me, 603) || HasCondition(me, 17) || HasCondition(me, 630);
 
-        static bool Counter(BattleAICore bc, ActSelectEnemyController c)
+        static int ReadRetaliation(Fight f, int slot, BattleUnitData[] units, BattleEnemyData me,
+            ActSelectEnemyController c, BattleUnitData attacker)
         {
-            var f = EnsureFight();
-            var me = Owner(c);
-            if (me == null || IsDead(me)) return false;
-            Join(f, me);
-            var units = Units();
-            int uid = me.UniqueId, slot = f.Slot.TryGetValue(uid, out int s) ? s : 0, snesId = f.SnesId.TryGetValue(uid, out int sid) ? sid : -1;
-            if (!f.Monsters.TryGetValue(uid, out var m)) return false;
-            if (f.Hidden.Contains(slot)) return false;   // out of the battle (an attack already on its way hit it)
-            // what hit it (the retaliation data its counter script reads)
-            var attacker = c.GetAttackUnitData() ?? c.GetRecevieUser();
             int who = UnitIndex(attacker, units);
             f.Retal[slot] = who;
             f.PrevAttacker[slot] = who;
@@ -557,10 +590,24 @@ namespace PrKit.Ff6
             f.RetalElemUnit[slot] = elem != 0 ? who : -1;
             f.RetalElem[slot] = elem;
             f.RetalFlags[slot] = HitFlags(me, attacker, f.RetalCmd[slot], f.RetalAtk[slot]);
-            // a BNW boss at 0 HP: its script's "if HP <= 0" decides, whatever state it's in (BNW's forced death
-            // counter), once for each time it reaches 0
+            return who;
+        }
+
+        static bool Counter(BattleAICore bc, ActSelectEnemyController c)
+        {
+            var f = EnsureFight();
+            var me = Owner(c);
+            if (me == null || IsDead(me)) return false;
+            Join(f, me);
+            var units = Units();
+            int uid = me.UniqueId, slot = f.Slot.TryGetValue(uid, out int s) ? s : 0, snesId = f.SnesId.TryGetValue(uid, out int sid) ? sid : -1;
+            if (!f.Monsters.TryGetValue(uid, out var m)) return false;
+            if (f.Hidden.Contains(slot)) return false;   // out of the battle (an attack already on its way hit it)
+            int who = ReadRetaliation(f, slot, units, me, c, c.GetAttackUnitData() ?? c.GetRecevieUser());
+            // Run the forced death counter once per drop to 0 HP. Scripted finishes that wait at 0 HP
+            // still need counters from subsequent hits (Vargas only finishes when Sabin lands Pummel).
             bool atZero = f.AtZero.ContainsKey(uid);
-            if (atZero && !f.ZeroCountered.Add(uid)) return false;
+            if (atZero && !f.ZeroCountered.Add(uid) && (who < 0 || !D.ZeroWait.Contains(snesId))) return false;
             var acts = SnesAi.RunCounter(m, 4 + slot, new View(f, units), !atZero && Unresponsive(me));
             var lines = new List<string>();
             var entries = new List<SnesAiAction>();
@@ -573,7 +620,7 @@ namespace PrKit.Ff6
                 if (entries.Count > 0 && AllGone(f)) q.Insert(0, (EraseAll, null));
             }
             Counters++;
-            LastCounter = $"monster {snesId} slot {slot} hit by unit {who} (cmd {f.RetalCmd[slot]:x2}, attack {f.RetalAtk[slot]:x2}, elements {elem:x2}" +
+            LastCounter = $"monster {snesId} slot {slot} hit by unit {who} (cmd {f.RetalCmd[slot]:x2}, attack {f.RetalAtk[slot]:x2}, elements {f.RetalElem[slot]:x2}" +
                           (f.RetalFlags[slot] != 0 ? $", flags {f.RetalFlags[slot]:x2}" : "") + (atZero ? ", at 0 HP" : "") + $"): {string.Join("; ", acts)} => {Show(q)}";
             if (Verbose) Log(" counter: " + LastCounter);
             if (atZero && q.Count > 0 && q[0].ability == EraseAll) { EraseThroughDeath(f, me); return false; }
@@ -637,7 +684,14 @@ namespace PrKit.Ff6
                 return true;
             }
             bool held = f.AtZero.ContainsKey(uid);
-            if (held && !f.ZeroCountered.Add(uid)) return false;
+            if (held)
+            {
+                // Hits at 1 HP can be routed through the PR's final-attack pass. A boss waiting for a
+                // specific hit must see its actual attacker and ability even after its first 0 HP pass.
+                int who = D.ZeroWait.Contains(snesId) && c.IsPrevHit()
+                    ? ReadRetaliation(f, slot, units, me, c, c.GetRecevieUser()) : -1;
+                if (!f.ZeroCountered.Add(uid) && who < 0) return false;
+            }
             var acts = SnesAi.RunCounter(m, 4 + slot, new View(f, units), !held);
             var lines = new List<string>();
             var entries = new List<SnesAiAction>();
