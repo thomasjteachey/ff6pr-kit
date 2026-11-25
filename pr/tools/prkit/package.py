@@ -130,6 +130,8 @@ def package(mod_id, out=None, root=PR):
         if src.endswith(SKIP_EXT):
             raise ValueError(f"{src}: never packaged")
         entries.append((m.path(src), f"{plugin}/{name}"))
+    for src, name in m.data_files:
+        entries.append((m.path(src), f"{m.data_dir or plugin}/{name}"))
     for src, name in m.plugin_dirs:
         leave = {p[len(name) + 1:] for p in m.package_leave_out if p.startswith(name + "/")}
         if name in m.package_leave_out:

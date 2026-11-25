@@ -30,6 +30,8 @@ class Mod:
         # own outside BepInEx/plugins (WC: BepInEx/WorldsCollide, since BepInEx lists every folder
         # under plugins at each failed assembly lookup: big data trees there make the game slow to start)
         self.data_dir = (plugin.get("data_dir") or "").strip("/")
+        # single files that go into data_dir (T-Edition reads its JSON files from BepInEx/TEdition, 2026-11-25)
+        self.data_files = [tuple(x) for x in plugin.get("data_files", [])]
         self.magicite = doc.get("magicite")
         self.magicite_skip = set(doc.get("magicite_skip", []))
         self.exclusive = doc.get("exclusive")
@@ -55,7 +57,7 @@ class Mod:
 
     @property
     def has_plugin(self):
-        return bool(self.plugin_files or self.plugin_dirs)
+        return bool(self.plugin_files or self.plugin_dirs or self.data_files)
 
     def version(self):
         if self.doc.get("version"):
@@ -73,6 +75,7 @@ class Mod:
         """Built parts that aren't there yet (paths relative to pr/)."""
         out = [p for p, _ in self.plugin_files if not os.path.exists(self.path(p))]
         out += [p for p, _ in self.plugin_dirs if not os.path.isdir(self.path(p))]
+        out += [p for p, _ in self.data_files if not os.path.exists(self.path(p))]
         if self.magicite and not os.path.isdir(self.path(self.magicite)):
             out.append(self.magicite)
         return out

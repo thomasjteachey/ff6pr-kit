@@ -19,6 +19,9 @@ namespace PrKit.Ff6
     //                                  own AbilityId), a target unit or allp / alle. A party member's act goes as an
     //                                  interrupting counter, a monster's as a Normal act: BC's finding (BcJunctionActs,
     //                                  bc-selftest-4: a party member's Normal or plain interrupt acts never landed).
+    //   endfight                       every enemy dies the game's way (the kit's AI host: SnesAiHost.KillAllForTest)
+    //   giveespers [all|<content id>..]   magicite into the inventory (memory only; content type 9), e.g. to see
+    //                                  a mod's Magicite list in a test
     // Units: p<n> = the n-th party member (GetPlayerUnits order, dead ones included), e<n> = the n-th monster.
     public static class HarnessBattle
     {
@@ -32,6 +35,10 @@ namespace PrKit.Ff6
             Harness.Register("unithp", UnitHp, "unithp <unit> <hp> [mp]: set a fighter's HP (and MP); units p0.. / e0..");
             Harness.Register("cond", Cond, "cond <unit> +<ConditionType>|-<ConditionType>: add or remove a condition (name or number)");
             Harness.Register("act", Act, "act <unit> <command> <ability|0> <unit|allp|alle>: queue an act (a party member's as a counter)");
+            // the AI host's test kill (BNW's AiFights has the same): every enemy dies the game's way, so a scripted story
+            // fight the kit's enemyhp 1 can't finish (an invincible part, a flee script) still ends (story_bosses.py)
+            Harness.Register("endfight", _ => SnesAiHost.KillAllForTest("endfight"), "endfight: every enemy left dies the game's way");
+            Harness.Register("giveespers", GiveEspers, "giveespers [all|<content id>..]: magicite into the inventory (memory only)");
         }
 
         static List<BattleUnitData> Players()
@@ -117,6 +124,28 @@ namespace PrKit.Ff6
             if (a[1][0] == '+') cc.InterruptAddCondition(u, t);
             else cc.InterruptRemoveCondition(u, t);
             return Describe(a[0], u);
+        }
+
+        const int MagiciteType = 9;   // content.csv type_id of the 27 espers
+
+        static string GiveEspers(string[] a)
+        {
+            var udm = UserDataManager.Instance();
+            var mm = MasterManager.Instance;
+            if (udm?.OwnedMagicStoneList == null || mm == null) return "error: load a save first";
+            var want = new HashSet<int>();
+            foreach (var s in a) if (int.TryParse(s, out int id)) want.Add(id);
+            var items = new OwnedItemClient();
+            int n = 0;
+            foreach (var ct in mm.GetList<Content>().Values)
+            {
+                if (ct == null || ct.TypeId != MagiciteType || (want.Count > 0 && !want.Contains(ct.Id))) continue;
+                if (udm.OwnedMagicStoneList.Contains(ct.Id)) continue;
+                items.AddMagicStone(ct.Id);
+                if (!udm.OwnedMagicStoneList.Contains(ct.Id)) udm.OwnedMagicStoneList.Add(ct.Id);
+                n++;
+            }
+            return $"giveespers: {n} added, {udm.OwnedMagicStoneList.Count} owned";
         }
 
         static string Act(string[] a)
