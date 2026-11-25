@@ -1,0 +1,5 @@
+# BNW Hotswap delay (2026-11-25), part 2: the equip-change screen's lambdas (what follows FixEquped) and the command callback
+Last\.UI\.KeyInput\.BattleInfomationController\.<>c__DisplayClass82_0\$\$
+Last\.UI\.KeyInput\.BattleInfomationController\.<>c\$\$<EquipChangeInit>
+Last\.UI\.BattleUIManager\$\$OnCommandSelected$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$SetNextState$

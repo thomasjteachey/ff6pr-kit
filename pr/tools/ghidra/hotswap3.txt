@@ -1,0 +1,6 @@
+# BNW Hotswap delay (2026-11-25), part 3: how the battle Item menu opens the equip change (state 7)
+Last\.UI\.KeyInput\.BattleInfomationController\$\$UseItemSelectUpdate$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$UseItemSelectInit$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$<UseItemSelectInit>
+Last\.UI\.KeyInput\.BattleInfomationController\$\$<EquipSelectInit>
+Last\.UI\.KeyInput\.BattleInfomationController\$\$EquipSelectUpdate$

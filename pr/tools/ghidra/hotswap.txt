@@ -1,0 +1,12 @@
+# BNW Hotswap delay (2026-11-25): the PR's in-battle equipment change and how a command is finished
+Last\.UI\.KeyInput\.BattleInfomationController\$\$FixEquped$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$EquipChangeInit$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$EquipChangeUpdate$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$EquipChangeExit$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$EquipSelectInit$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$CommandDone
+Last\.UI\.KeyInput\.BattleInfomationController\$\$OnCommandSelect$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$SetCommandSelected$
+Last\.UI\.KeyInput\.BattleInfomationController\$\$CreateBattleActData
+Last\.UI\.KeyInput\.BattleInfomationController\$\$<EquipChangeInit>
+Last\.UI\.KeyInput\.BattleInfomationController\$\$<EquipSelectInit>
