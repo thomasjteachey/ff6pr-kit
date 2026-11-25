@@ -100,6 +100,17 @@ Partial TXT: only edited lines.
   tools 163-170 → `item` 30-37; skeans 171-175 → `item` 25-29; consumables
   232-254 → `item` 1-23 (GBA names: Tonic→Potion…); Rename Card 231 → `item` 24.
   254/255 match on stats; stat boosts match 100%.
+- Consumables: `port_items` copies only the price. The PR heals by the row's `standard_value`
+  (= the SNES power for vanilla's Tonic, Potion, Tincture, Ether, Dried Meat) through function 1
+  (value1 1, value2 2 = HP / 3 = MP). `port_item_effects` (run last, so the groups it adds take the
+  highest ids) handles a mod's fixed-amount heals (SNES byte 19 0x08 HP / 0x10 MP, without 0x80
+  fraction or 0x20 lift; byte 0 bit 5 = battle, bit 6 = menu). If only the power changed, the
+  mod's power goes in (BNW's Dried Meat 150 → 100). If the slot held another item, the row is
+  rebuilt from the vanilla heal that works the same way, plus the statuses the mod's item adds in
+  battle (BNW's Red Bull on Echo Screen's row: 200 HP + Float; Slim Jim on Smoke Bomb's:
+  100 HP + Regen + Haste, battle only). T-Edition's Potion, Hi-Potion, Ether and Hi-Ether get its
+  powers this way too (90, 255, 100 MP, 250 MP). Fractional heals stay with the mod's plugin
+  (BnwPlugin ItemHealRules). Revives and status cures keep the rules they already have.
 - Enemies: `monster` id = SNES id + 1 (372/384 identical; rest are dummies).
   Bat.Pwr→`attack`, magic→`ability_attack`. Steal: slot1 = common, slot2 = rare.
   Drops: common only → rate 87, rare only → 12, both → 100 (d1 common, d2 rare).

@@ -253,6 +253,93 @@ def port_items(van, bnw, tables, jobs):
     return changed
 
 
+# SNES consumable bytes (vanilla's own items): byte 0 bit 5 = usable in battle, bit 6 = in the menu (Megalixir,
+# Smoke Bomb, Super Ball are battle only, and their PR rows have no menu function); byte 19 0x08 heals HP, 0x10 MP,
+# 0x80 heals power/16 of the max (X-Potion, Elixir), 0x20 lifts the statuses in bytes 21-24 (without it the item
+# adds them); byte 20 is the power
+ITEM_BATTLE, ITEM_MENU = 0x20, 0x40
+ITEM_HP, ITEM_MP, ITEM_LIFT, ITEM_FRACTION = 0x08, 0x10, 0x20, 0x80
+ITEM_KEEP = ("id", "sort_id", "buy", "sell", "sales_not_possible")   # what a rebuilt consumable row keeps of its own
+
+
+def fixed_heal(it):
+    """(heals HP, heals MP) for a consumable that heals a fixed amount (its power), maybe adding statuses; else None."""
+    f = it.raw[19]
+    if it.type != "item" or not f & (ITEM_HP | ITEM_MP) or f & (ITEM_FRACTION | ITEM_LIFT):
+        return None
+    return bool(f & ITEM_HP), bool(f & ITEM_MP)
+
+
+def item_status_bits(it):
+    """A consumable's SNES status bits 0-31 (bytes 21-24 = status bytes 1-4, numbered as port_spells' STATUS_TO_COND)."""
+    v = int.from_bytes(it.raw[21:25], "little")
+    return [b for b in range(32) if v >> b & 1]
+
+
+def item_function_group(sp, funcs):
+    """The vanilla function group with exactly these functions (Tonic's 1, Ether's 3), else a new one."""
+    want = [list(f) for f in funcs] + [[0, 0, 0, 0]] * (3 - len(funcs))
+    for gid, r in P.Table("function_group").rows.items():
+        have = [[int(r[f"function{k}_{c}"]) for c in ("id", "value1", "value2", "value3")] for k in (1, 2, 3)]
+        if have == want and sp.fg.rows.get(gid) == r:
+            return gid
+    return sp.function_group([list(f) for f in funcs])
+
+
+def port_item_effects(van, mod, tables, sp):
+    """What a mod's fixed-amount heals do. port_items copies only a consumable's price, and the PR heals by the row's
+    standard_value through its recovery function (1, 1, 2 = HP / 3 = MP, 0), so BNW's Dried Meat healed vanilla's 150,
+    not BNW's 100 (the user, 2026-11-25). For each mod consumable that heals a fixed amount (fixed_heal) and differs
+    from the slot's baseline item:
+      * the same item but for its power: the mod's power, where the row's standard_value is the baseline's power
+        (BNW's Dried Meat 150 -> 100);
+      * another item: the row rebuilt from the vanilla consumable that works the same way (byte 19 equal, else the
+        same heal, then the closest power), with the mod's power, its battle / menu use (byte 0) and the statuses it
+        adds in battle (port_spells' map; none in the menu, where they wouldn't last). BNW's Red Bull on Echo
+        Screen's row cured Mute instead of 200 HP + Float, Slim Jim on Smoke Bomb's ran from the battle instead of
+        100 HP + Regen + Haste.
+    Fractional heals (BnwPlugin ItemHealRules), revives and status cures are left to their own rules."""
+    vitems = S.items(S.Rom(P.VANILLA_ROM))
+    vrows = P.Table("item")
+    templates = [v for v in vitems if fixed_heal(v) and (M.default_item(v.id) or ("",))[0] == "item"]
+    ch = set()
+    for iv, ib in zip(S.items(van), S.items(mod)):
+        heal, m = fixed_heal(ib), M.item(ib.id)
+        if not heal or not m or m[0] != "item" or iv.raw == ib.raw:
+            continue
+        row = tables["item"][m[1]]
+        use = ITEM_BATTLE | ITEM_MENU
+        if iv.raw[0] & use == ib.raw[0] & use and iv.raw[19] == ib.raw[19] and iv.raw[21:25] == ib.raw[21:25]:
+            if iv.power == ib.power:
+                continue
+            if row["standard_value"] != str(iv.power):
+                log(f"item {m[1]} ({ib.name}): power {iv.power} -> {ib.power} not ported (the row heals "
+                    f"{row['standard_value']}, not its power)")
+                continue
+            setv(row, "standard_value", ib.power, ch)
+            log(f"item {m[1]} ({ib.name}): heals {ib.power} (was {iv.power})")
+            continue
+        t = min(templates, key=lambda v: (v.raw[19] != ib.raw[19], fixed_heal(v) != heal, abs(v.power - ib.power), v.id))
+        trow = vrows[M.default_item(t.id)[1]]
+        new = {c: row[c] if c in ITEM_KEEP else trow[c] for c in row}
+        new["standard_value"] = str(ib.power)
+        funcs = [(1, 1, 2, 0)] * heal[0] + [(1, 1, 3, 0)] * heal[1]
+        conds = [PS.STATUS_TO_COND[b] for b in item_status_bits(ib) if b in PS.STATUS_TO_COND]
+        battle = funcs + ([(9, conds[0], 0, 0)] if len(conds) == 1 else
+                          [(10, sp.new_condition_group(conds), 0, 0)] if conds else [])
+        for kind, flag, fs in (("battle", ITEM_BATTLE, battle), ("menu", ITEM_MENU, funcs)):
+            new[f"{kind}_function_group_id"] = str(item_function_group(sp, fs[:3])) if ib.raw[0] & flag else "0"
+            if not ib.raw[0] & flag:
+                new[f"{kind}_renge_id"] = "0"
+        for c, v in new.items():
+            setv(row, c, v, ch)
+        where = " + ".join(k for k, f in (("battle", ITEM_BATTLE), ("menu", ITEM_MENU)) if ib.raw[0] & f) or "nowhere"
+        log(f"item {m[1]} ({ib.name}): heals {ib.power} {'HP' if heal[0] else 'MP'}"
+            f"{' + conditions ' + str(conds) if conds else ''} in {where} (was {iv.name.strip()}'s row; "
+            f"look of {t.name.strip()})")
+    return {"item": ch} if ch else {}
+
+
 def drop_fields(items):
     rs, cs, rd, cd = items
 
@@ -931,7 +1018,14 @@ def _swap_in(stage, out):
                 raise
             time.sleep(0.5)
     try:
-        os.rename(stage, out)
+        for attempt in range(60):
+            try:
+                os.rename(stage, out)
+                break
+            except PermissionError:
+                if attempt == 59:
+                    raise
+                time.sleep(0.5)
     except OSError:
         if os.path.isdir(old) and not os.path.exists(out):
             os.rename(old, out)
@@ -1209,6 +1303,10 @@ def _main(profile):
     if getattr(profile, "sync_monster_copies", False):   # opt-in (BNW): after every monster stage
         for name, ids in sync_monster_copies(tables, log).items():
             changed.setdefault(name, set()).update(ids)
+    # last of the groups' allocators: the function / condition groups it adds take the highest ids, so no other
+    # porter's ids move (BNW's Red Bull and Slim Jim, 2026-11-25)
+    for name, ids in list(port_item_effects(van, bnw, tables, sp).items()) + list(sp.changed.items()):
+        changed.setdefault(name, set()).update(ids)
     os.makedirs(OUT, exist_ok=True)
     for fname, data in (profile.extra_data(bnw) or {}).items():
         with open(os.path.join(OUT, fname), "w", encoding="utf-8") as f:
@@ -1217,7 +1315,11 @@ def _main(profile):
 
     write_mod(tables, changed)
     battle = getattr(port_ai.port, "battle_texts", None) or {}
-    write_messages(messages, extra={"story_mes_en": battle, "story_cha_en": {k: "" for k in battle}})
+    story = dict(battle)
+    if getattr(profile, "bnw_rewards", False):
+        import port_bnw_rewards
+        story.update(port_bnw_rewards.story_lines(messages))
+    write_messages(messages, extra={"story_mes_en": story, "story_cha_en": {k: "" for k in battle}})
     with open(os.path.join(OUT, "port_report.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(report) + "\n")
 

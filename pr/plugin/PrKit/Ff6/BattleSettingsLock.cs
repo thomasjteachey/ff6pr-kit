@@ -11,7 +11,8 @@ namespace PrKit.Ff6
     // installed: the one synced save folder).
     //  * Wait: the FF6 battle update reads SystemConfig.ATBBattleType (in memory, set from the saved config);
     //    it's set to Wait on each battle frame while On (and put back once On is off).
-    //  * the rows: ConfigRows.Hide (battle mode 1, battle speed 2).
+    //  * the rows: ConfigRows.Hide removes battle speed, and battle mode unless Battle Options
+    //    supplies its Wait/Pause choice.
     // Not hooked (2026-11-21): BattleUtility.GetBattleModeByConfigValue and GetBattleSpeedByConfigValue. Each has a
     // short conditional jump in its first 14 bytes, which a detour moves and breaks: the (int) mode one crashed BNW's
     // battles as they started (GameAssembly.dll+0x91FD24, an int3 past its end), and the speed one (movss, test,
@@ -34,11 +35,16 @@ namespace PrKit.Ff6
             patched = true;
             bool frame = Hooks.Patch(h, AccessTools.DeclaredMethod(typeof(BattleProgressATBFF6), "Update"), typeof(BattleSettingsLock),
                                      prefix: nameof(Frame_Prefix), priority: Priority.First);
-            ConfigRows.Hide(h, 1, On);   // ConfigCommandType.BattleMode
+            // Battle Options supplies a Wait/Pause choice. Keep that row for its own menu hook;
+            // nATB still keeps the underlying game mode in Wait for either choice.
+            ConfigRows.Hide(h, 1, () => On() && !BattleOptionsPresent());
             ConfigRows.Hide(h, 2, On);   // ConfigCommandType.BattleSpeed
             Kit.Info($"{Tag} battle settings lock: battle frame {(frame ? "hooked (Wait)" : "NOT hooked")}; " +
-                     "Config rows 1, 2 hidden while on");
+                     "Battle Speed hidden; Battle Mode hidden without Battle Options");
         }
+
+        public static bool BattleOptionsPresent() =>
+            AppDomain.CurrentDomain.GetData("pr.battleoptions.present") is bool present && present;
 
         public static void Frame_Prefix()
         {

@@ -157,15 +157,15 @@ launch ~30 s to the title, then a fixed 25 s, New Game, the warp: ~90 s before a
     battle-message time (`Message.battleMessageSpeedTable`: 0.5-1.5 s, index 0), no frame cap
     (`targetFrameRate` 60 -> -1: a battle ran at ~68 frames a second instead of ~21); `off` puts them back,
     and nothing is saved. Opt-in, a run's `"fast": true` (else the runner sends `fast off`): on BNW's boss
-    446 it didn't change the boss's turns in 30 s (4 -> 4; acts 7 -> 8), and the fight went differently
-    (the party fell). Never with a request marked `"timing": true`.
+    446 the fight went differently, but that battle had started without its own script (below), so it
+    proved nothing. Never with a request marked `"timing": true`.
   - *A request's `speed: N`* (1-10, Unity's time scale through the request; the boot's warp keeps it):
-    harness/kit runs only, never with `"timing": true`, and **not on a request with a battle**: at 3x
-    BNW's boss 446 ended at once with no act and nothing defeated (at 1x: 4 boss acts in 30 s). Field and
-    scene tests may try it; nothing has confirmed it there yet. (Found 2026-11-21, the kit lead: that battle
-    started without its own script, which the game judges a win at once; the speed only made it likelier. The
-    harness's `battle` now replies "battle N started (script sc_b_...)" or "error: battle N started without its
-    battle script ..." after 5 s, so it can't pass as a win; BC's battle 25 after a single warp did the same.)
+    harness/kit runs only, never with `"timing": true`. Battles are allowed again (2026-11-21). The earlier
+    ban came from BNW's boss 446 ending at once at 3x, but the speed wasn't the cause: that battle had started
+    without its own script, which the game judges a win at once (a harness start race). The laptop rerun at
+    1x, 2x and 3x (test_runs.md, 04:02 bnw-boss446) played the same at every speed. The harness's `battle` now
+    replies "battle N started (script sc_b_...)" or "error: battle N started without its battle script ..."
+    after 5 s, so it can't pass as a win; BC's battle 25 after a single warp did the same.
 - **No commands in a battle's opening** (kit harness, 2026-11-21). Commands run while a battle opens (shot,
   damage/steal simulations, enemy HP) let the field's map script take the script slot from the battle's own
   (T-Edition's battle 72, BNW's dream fight: stuck at the Preemptive! message). The harness now holds every

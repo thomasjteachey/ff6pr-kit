@@ -826,7 +826,7 @@ UNTIL = re.compile(r"^until\s+(?P<re>.+?)(?:\s+(?P<t>\d+))?(?:\s+check\s+(?P<chk
 # (the title screen's idle demo runs on a field: "state" says "title window" while the title is up)
 # Since 2026-11-20 (speed): "newgamego" asks from the moment the title is up (no fixed 25 s), "warpfree" watches
 # the opening carry the party off instead of sleeping, "freefield" wants 1.5 s of free field.
-FREE_RX = r"scene field(?!.*title window)(?!.*; script (?!sc_[mM]ap_))"  # (QA 06:5x) a map's own script (sc_map_*) lives while the player walks: not busy (kit lead)
+FREE_RX = r"scene field(?!.*title window)(?!.*; script )"
 FREE_FIELD = rf"until {FREE_RX} 120"   # (kept for batch files that name it)
 QUIET_MAP = (112, 1)
 # a battle ended and the party back on the quiet map, settled (after a battle the New Game's opening can
@@ -1086,7 +1086,7 @@ def warp_free(h, transcript, ctx=None):
                 # on the quiet map already (or a stale reading): the warp must show (a load, a script) first
                 run_step(h, r"until scene other|; script  10", transcript)
             if ok:
-                ok, fail = run_step(h, rf"until scene field; map {m};(?!.*; script (?!sc_[mM]ap_)) 40", transcript)
+                ok, fail = run_step(h, rf"until scene field; map {m};(?!.*; script ) 40", transcript)
             if ok:
                 stay, r = watch_map(h, m, 2 if pulled else 5, transcript)
                 if stay:
@@ -1481,9 +1481,8 @@ def request_errors(req, run=None):
             errs.append(f"speed {req['speed']!r}: a number from 1 to 10")
         elif sp != 1 and req.get("timing"):
             errs.append('speed: not on a timing check ("timing": true)')
-        elif sp != 1 and any(isinstance(x, str) and x.strip().split(" ", 1)[0] in ("battle", "encount") for x in req.get("steps", [])):
-            errs.append("speed: not on a request with a battle (at 3x BNW's boss 446 ended at once, no act, nothing "
-                        "defeated: 2026-11-20)")
+        # (battles allowed again 2026-11-21: boss 446's instant end at 3x was the harness start race, not the speed;
+        # the laptop rerun at 1x/2x/3x played the same)
         elif sp != 1 and run is not None and run.get("kind") not in WARM_KINDS:
             errs.append(f"speed: only on harness/kit runs (this one is {run.get('kind')}: WcTest timing, the formula probe)")
     return errs
@@ -1629,8 +1628,8 @@ def harness_requests(run, t, transcript, out_path, reuse, opts):
     """the requests of a harness/kit run on one game: the warm one, or a launch (another one when the game dies
     with requests left, twice at most). -> (step results, transcript segments, log text, notes)"""
     reqs = run.get("requests", [])
-    # "fast": true on a run: the harness's quick game settings (opt-in: measured on BNW's boss 446, its turns in 30 s
-    # stayed 4 -> 4 and the fight went differently: the party fell). Otherwise "fast off" (a warm game may have it on)
+    # "fast": true on a run: the harness's quick game settings (opt-in; its one measurement, BNW's boss 446, was a
+    # battle started without its script, so it proved nothing either way). Otherwise "fast off" (a warm game may have it on)
     run_fast = bool(run.get("fast", False)) and not any(r.get("timing") for r in reqs)
     step_results, segments, log_parts, notes = {}, {}, [], []
     req_logs, in_launch = {}, []   # each request's launch's log (a crash's lines stay with the requests it hit)

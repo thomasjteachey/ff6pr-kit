@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Last.Management;
 using UnityEngine;
 using UnityEngine.U2D;
@@ -15,7 +16,7 @@ namespace PrKit
         public static void Register(string name = "art", string whose = "the mod's")
         {
             mine = whose;
-            Harness.Register(name, Run, $"{name} [load GROUP KEY | atlas GROUP ATLAS FRAME]: the art ArtSwap serves; load one as the game does");
+            Harness.Register(name, Run, $"{name} [load GROUP KEY | atlas GROUP ATLAS FRAME | keys TEXT | ui TEXT]: the art ArtSwap serves; inspect loaded resources and live UI images");
         }
 
         static string group, key, frame, mine = "the mod's";
@@ -26,6 +27,31 @@ namespace PrKit
             if (a.Length == 0) return $"{ArtSwap.Last}; served {ArtSwap.Served} sprites, {ArtSwap.AtlasServed} atlas calls";
             var rm = ResourceManager.Instance;
             if (rm == null) return "error: no ResourceManager";
+            if (a[0] == "keys" && a.Length > 1)
+            {
+                var hits = new List<string>();
+                var dic = rm.completeAssetDic;
+                if (dic != null)
+                    foreach (var k in dic.Keys)
+                        if (k != null && k.IndexOf(a[1], StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            hits.Add(k);
+                            if (hits.Count == 12) break;
+                        }
+                return $"loaded addresses matching {a[1]}: {(hits.Count == 0 ? "none" : string.Join(" | ", hits))}";
+            }
+            if (a[0] == "ui" && a.Length > 1)
+            {
+                var hits = new List<string>();
+                foreach (var image in UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Image>())
+                {
+                    var sprite = image?.sprite;
+                    if (sprite == null || sprite.name == null || sprite.name.IndexOf(a[1], StringComparison.OrdinalIgnoreCase) < 0) continue;
+                    hits.Add($"{image.name}: {Describe(sprite)}");
+                    if (hits.Count == 12) break;
+                }
+                return $"UI images matching {a[1]}: {(hits.Count == 0 ? "none" : string.Join(" | ", hits))}";
+            }
             if (tick == 0)
             {
                 atlas = a[0] == "atlas";

@@ -336,7 +336,7 @@ namespace PrKit.Seeds
         public void Update()
         {
             if (startupApplied || !ModOn() || !LiveData.Ready) return;
-            if (Active == null) { startupApplied = true; return; }
+            if (Active == null) { StartupFailed = 0; startupApplied = true; return; }
             float now = UnityEngine.Time.realtimeSinceStartup;
             if (now < startupRetryAt) return;
             var r = LiveData.Apply(Active.Dir);   // tables already set are skipped on a retry

@@ -199,8 +199,9 @@ class ArtWriter:
     """A folder of PNG sheets + art.json in ArtSwap's format ({"sprites", "atlases", "keys"}), merged with an
     art.json already there (several steps can write one folder)."""
 
-    def __init__(self, folder):
+    def __init__(self, folder, standalone_battle=False):
         self.folder = folder
+        self.standalone_battle = standalone_battle
         os.makedirs(folder, exist_ok=True)
         path = os.path.join(folder, "art.json")
         self.art = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {"sprites": {}, "atlases": {}}
@@ -228,13 +229,21 @@ class ArtWriter:
     def character(self, group, frames, field=None):
         """A character group's frames ({name: 32x32 rgba}) as one sheet: its battle addresses and, given its field
         group (mo_ff6_...), that SpriteAtlas's frames."""
+        import pr_images
         import snes_charsprites as C
         png, rects = C.pack(frames)
         fn = group + ".png"
         self.png(fn, png)
         G = group.upper()
         for n, r in rects.items():
-            self.sprite(ADDR_BATTLE.format(G=G, f=n), fn, r)
+            if self.standalone_battle:
+                # PR's battle renderer expects a frame's UVs to span its whole
+                # texture. A Sprite subrect from the field sheet looks scattered.
+                battle_fn = f"{group}_battle_{n.lower()}.png"
+                self.png(battle_fn, pr_images.png(32, 32, frames[n]))
+                self.sprite(ADDR_BATTLE.format(G=G, f=n), battle_fn, [0, 0, 32, 32])
+            else:
+                self.sprite(ADDR_BATTLE.format(G=G, f=n), fn, r)
         if field:
             self.art["atlases"][field.upper()] = {n: {"png": fn, "rect": r, "pivot": [0.5, 0]} for n, r in rects.items()}
 
@@ -250,7 +259,7 @@ class ArtWriter:
         import pr_images
         fn = f"ui_{name.lower()}.png"
         self.png(fn, pr_images.png(w, h, rgba))
-        self.sprite(ADDR_UI.format(n=name), fn, [0, 0, w, h], pivot=(0.5, 0.5), ppu=100, border=border)
+        self.sprite(ADDR_UI.format(n=name), fn, [0, 0, w, h], pivot=(0.5, 0.5), ppu=100, border=border, preload=True)
 
     def monster(self, m, group, asset_row, w, h, rgba, pivot=(0.5, 0.0), thumb=None, pr_id=None, asset_id=None):
         """SNES monster m on an image of its own: key {GROUP}_B{m:03} in `group` (an image group whose shadow and
@@ -269,14 +278,22 @@ class ArtWriter:
         import port_sprites as PS
         import pr_images
         images = {k: (w, h, rgba) for k, (g, w, h, rgba, pv, th) in self._monsters.items()}
-        for n, (png, rects) in enumerate(pack_shelves(images)):
-            fn = f"monsters_{n}.png"
-            self.png(fn, png)
-            for key, r in rects.items():
-                g, _, _, _, pv, _ = self._monsters[key]
+        if self.standalone_battle:
+            for key, (g, w, h, rgba, pv, _) in self._monsters.items():
+                fn = f"monster_{key.lower()}.png"
+                self.png(fn, pr_images.png(w, h, rgba))
                 addr = ADDR_MONSTER.format(G=g.upper(), K=key)
-                self.sprite(addr, fn, r, pivot=pv, preload=True)     # in battle: there before the game asks
+                self.sprite(addr, fn, [0, 0, w, h], pivot=pv, preload=True)
                 self.key(g, key, addr)
+        else:
+            for n, (png, rects) in enumerate(pack_shelves(images)):
+                fn = f"monsters_{n}.png"
+                self.png(fn, png)
+                for key, r in rects.items():
+                    g, _, _, _, pv, _ = self._monsters[key]
+                    addr = ADDR_MONSTER.format(G=g.upper(), K=key)
+                    self.sprite(addr, fn, r, pivot=pv, preload=True)     # in battle: there before the game asks
+                    self.key(g, key, addr)
         for key, (g, w, h, rgba, pv, th) in self._monsters.items():
             if th is False:
                 continue

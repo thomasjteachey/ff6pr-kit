@@ -61,6 +61,8 @@ namespace PrKit
         static Dictionary<string, Dictionary<string, Entry>> atlases = new Dictionary<string, Dictionary<string, Entry>>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, Texture2D> textures = new Dictionary<string, Texture2D>(StringComparer.OrdinalIgnoreCase);
         static readonly Dictionary<string, Il2CppSystem.Object> originals = new Dictionary<string, Il2CppSystem.Object>(StringComparer.OrdinalIgnoreCase);
+        static readonly Dictionary<string, Sprite> uiOriginals = new Dictionary<string, Sprite>(StringComparer.OrdinalIgnoreCase);
+        const string UiAddress = "Assets/GameAssets/Common/UI/Common/Sprites/";
         static readonly HashSet<IntPtr> ours = new HashSet<IntPtr>();
         // every sprite made here (served or shadowed by a later layer): never mistaken for the game's original
         static readonly HashSet<IntPtr> made = new HashSet<IntPtr>();
@@ -84,6 +86,7 @@ namespace PrKit
             Hooks.Patch(h, typeof(SpriteAtlas), "GetSprites", typeof(ArtSwap), prefix: nameof(GetSpritesPre),
                 args: new[] { typeof(Il2CppReferenceArray<Sprite>) });
             Hooks.Patch(h, AccessTools.PropertyGetter(typeof(SpriteAtlas), "spriteCount"), typeof(ArtSwap), postfix: nameof(SpriteCountPost));
+            Hooks.Patch(h, typeof(UnityEngine.UI.Image), "OnEnable", typeof(ArtSwap), postfix: nameof(ImageEnablePost));
         }
 
         // Serve folder/art.json as the base layer from now on (null or no file: none). Returns a line for the log.
@@ -185,10 +188,11 @@ namespace PrKit
                         originals.Remove(addr);
                         restored++;
                     }
-                    // addresses the game already holds, and our own keys' addresses: ours now
+                    // addresses the game already holds, and preloaded entries the game
+                    // may fetch from another cache without calling CheckCompleteAsset
                     foreach (var kv in sprites)
                     {
-                        if (kv.Value.New && !dic.ContainsKey(kv.Key))
+                        if (!dic.ContainsKey(kv.Key))
                         {
                             if (!kv.Value.Preload) continue;
                             var made = Make(kv.Key, kv.Value);
@@ -210,8 +214,47 @@ namespace PrKit
                 Last = $"{(layer.Name == "" ? "base" : layer.Name)}: {(on ? folder : "off")}; layers [{names}]: {sprites.Count} sprites, " +
                        $"{atlases.Count} atlases; {replaced} loaded assets replaced, {restored} restored; {clock.ElapsedMilliseconds} ms";
             }
+            RefreshUiImages();
             Kit.Info($"{Tag} {Last}");
             return Last;
+        }
+
+        // UI prefabs can keep a Sprite reference from before a seed is applied. The
+        // ResourceManager dictionary alone cannot change those Image components.
+        static void ImageEnablePost(UnityEngine.UI.Image __instance) => RefreshUiImage(__instance);
+
+        static void RefreshUiImages()
+        {
+            try
+            {
+                foreach (var image in UnityEngine.Object.FindObjectsOfType<UnityEngine.UI.Image>())
+                    RefreshUiImage(image);
+            }
+            catch (Exception ex) { Hooks.WarnOnce("art UI refresh", ex); }
+        }
+
+        static void RefreshUiImage(UnityEngine.UI.Image image)
+        {
+            try
+            {
+                var current = image?.sprite;
+                var name = current?.name;
+                if (string.IsNullOrEmpty(name) || !name.StartsWith("UI_Common_WindowFrame", StringComparison.OrdinalIgnoreCase)) return;
+                lock (gate)
+                {
+                    var address = UiAddress + name;
+                    if (sprites.TryGetValue(address, out var entry))
+                    {
+                        var replacement = Make(address, entry);
+                        if (replacement == null || current.Pointer == replacement.Pointer) return;
+                        if (!made.Contains(current.Pointer) && !uiOriginals.ContainsKey(name)) uiOriginals[name] = current;
+                        image.sprite = replacement;
+                    }
+                    else if (made.Contains(current.Pointer) && uiOriginals.TryGetValue(name, out var original) && original != null)
+                        image.sprite = original;
+                }
+            }
+            catch (Exception ex) { Hooks.WarnOnce("art UI image", ex); }
         }
 
         static IEnumerable<Entry> AllEntries()

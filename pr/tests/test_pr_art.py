@@ -84,7 +84,7 @@ class Writer(unittest.TestCase):
         self.assertEqual(set(art["atlases"]["MO_FF6_P001"]), {"Default_00", "Idle_00"})
         self.assertEqual(s["Assets/GameAssets/Serial/Res/Chara/Face/FA_FF6_P001/Default_00"]["pivot"], [0.5, 0.5])
         ui = s["Assets/GameAssets/Common/UI/Common/Sprites/UI_Common_WindowFrame01"]
-        self.assertEqual((ui["ppu"], ui["border"]), (100, [45, 45, 45, 45]))
+        self.assertEqual((ui["ppu"], ui["border"], ui["preload"]), (100, [45, 45, 45, 45], True))
         self.assertEqual(key, "MN_FF6_001_B005")
         m = s[f"Assets/GameAssets/Serial/Res/Battle/Monster/MN_FF6_001/{key}"]
         self.assertEqual((m["pivot"], m["preload"]), ([0.25, -0.5], True))
@@ -105,6 +105,24 @@ class Writer(unittest.TestCase):
         b.save()
         art = json.load(open(os.path.join(self.dir, "art.json"), encoding="utf-8"))
         self.assertEqual(len(art["sprites"]), 2)
+
+    def test_standalone_battle_textures_keep_field_atlas(self):
+        from PIL import Image
+        w = pr_art.ArtWriter(self.dir, standalone_battle=True)
+        w.character("bc_ff6_p001", {"Default_00": solid(32, 32), "Idle_00": solid(32, 32)}, field="mo_ff6_p001")
+        w.monster(0, "mn_ff6_001", {"group_name": "mn_ff6_001"}, 20, 30, solid(20, 30), thumb=False)
+        w.save()
+        with open(os.path.join(self.dir, "art.json"), encoding="utf-8") as f:
+            art = json.load(f)
+        char = art["sprites"]["Assets/GameAssets/Serial/Res/Chara/Battle/BC_FF6_P001/Idle_00"]
+        mon = art["sprites"]["Assets/GameAssets/Serial/Res/Battle/Monster/MN_FF6_001/MN_FF6_001_B000"]
+        for entry, size in ((char, (32, 32)), (mon, (20, 30))):
+            self.assertEqual(entry["rect"], [0, 0, *size])
+            with Image.open(os.path.join(self.dir, entry["png"])) as img:
+                self.assertEqual(img.size, size)
+        field = art["atlases"]["MO_FF6_P001"]["Idle_00"]
+        self.assertEqual(field["png"], "bc_ff6_p001.png")
+        self.assertNotEqual(field["png"], char["png"])
 
     def test_monster_tables(self):
         try:

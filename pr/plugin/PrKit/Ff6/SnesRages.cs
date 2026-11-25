@@ -33,7 +33,8 @@ namespace PrKit.Ff6
             Hooks.Patch(h, typeof(Serial.FF6.Management.CommandAvailableData), "IsAvailable", typeof(SnesRages),
                         postfix: nameof(Available_Postfix));
             if (ownTriggers)
-                Hooks.Patch(h, typeof(BattleAddExpPlug), "GetExp", typeof(SnesRages), postfix: nameof(Exp_Postfix));
+                Hooks.Patch(h, typeof(BattleAddExpPlug), "GetExp", typeof(SnesRages),
+                            prefix: nameof(Exp_Prefix), postfix: nameof(Exp_Postfix));
         }
 
         public static void Available_Postfix(Command command, ref bool __result)
@@ -51,19 +52,37 @@ namespace PrKit.Ff6
 
         public static void SeenLore(int ability) => battleLores.Add(ability);
 
-        // the won battle's formation (ownTriggers): its MonsterParty's monsters
+        // Capture before the reward calculation, which can clear MonsterParty by its end.
+        public static void Exp_Prefix()
+        {
+            try { ReadFormation(); }
+            catch (Exception e) { Warn("rages-formation", e); }
+        }
+
+        static void ReadFormation()
+        {
+            var battle = BattlePlugManager.Instance();
+            var p = battle?.MonsterParty;
+            battleMonsters.Clear();
+            if (p != null)
+                battleMonsters.AddRange(new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6 }
+                                        .Where(m => m > 0).Distinct());
+            if (battleMonsters.Count > 0) return;
+            var defeated = battle?.BattleAddExpPlug?.expeditionMonsters;
+            if (defeated != null)
+                for (int i = 0; i < defeated.Count; i++)
+                    if (defeated[i] != null && defeated[i].Id > 0 && !battleMonsters.Contains(defeated[i].Id))
+                        battleMonsters.Add(defeated[i].Id);
+        }
+
+        // the won battle's formation (ownTriggers)
         public static void Exp_Postfix()
         {
             Wins++;
             try
             {
                 if (!LearnRagesOnWin()) return;
-                var p = BattlePlugManager.Instance()?.MonsterParty;
-                if (p == null) return;
-                // the formation's monsters, without BattleStart: that would also forget the lores seen in this battle
-                battleMonsters.Clear();
-                battleMonsters.AddRange(new[] { p.Monster1, p.Monster2, p.Monster3, p.Monster4, p.Monster5, p.Monster6 }
-                                        .Where(m => m > 0).Distinct());
+                if (battleMonsters.Count == 0) ReadFormation();
                 BattleWon();
             }
             catch (Exception e) { Warn("rages-won", e); }
