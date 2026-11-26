@@ -77,16 +77,17 @@ def batch(mod, fights, chunks):
         part = fights[i * size:(i + 1) * size]
         if not part:
             continue
-        steps = list(SETUP.get(mod, ["tofield"])) + [KEEP.get(mod, "aikeep on")]
-        passes = []
-        for party, mp, sc in part:
+        # one request per fight (2026-11-25: one request per chunk stopped the chunk at its first fight the test kill
+        # can't end, e.g. BNW's first Ultros, who ends his fight by fleeing; the next request's tofield recovers)
+        reqs = []
+        for k, (party, mp, sc) in enumerate(part):
+            steps = (list(SETUP.get(mod, ["tofield"])) if k == 0 else ["tofield"]) + [KEEP.get(mod, "aikeep on")]
             steps += [f"battle {party}", "until scene battle 60", "sleep 12"] + FINISH
-            passes.append(f"battle {party} started")
+            reqs.append({"id": f"{mod}-story-{party}", "from": "kit story_bosses.py", "keep_going": True,
+                         "steps": steps, "pass": [f"battle {party} started"],
+                         "fail": "Exception|\\[Error", "note": f"{sc} on map {mp}"})
         runs.append({"name": f"story-bosses-{i + 1}", "kind": "kit" if mod == "bc" else "harness", "graphics": False,
-                     "minutes": 4 + 2 * len(part),
-                     "requests": [{"id": f"{mod}-story-bosses-{i + 1}", "from": "kit story_bosses.py", "keep_going": True,
-                                   "steps": steps, "pass": passes,
-                                   "fail": "Exception|\\[Error"}]})
+                     "minutes": 4 + 3 * len(part), "requests": reqs})
     return {"name": f"{mod}-story-bosses", "mod": mod, "runs": runs}
 
 
