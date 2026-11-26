@@ -199,6 +199,52 @@ def list_in_map(out_root, group, folder, sub, names):
     return f"Assets/GameAssets/Serial/Res/Map/{folder}/package"
 
 
+def room_objects(out_root, room, extra=(), skip=()):
+    """[(file name, object)] of every object file of a PR room: entity_default.json and its event layers (ev_*.json),
+    the port's copy where it wrote one, plus files only the port wrote; `extra`: docs not written yet (file name
+    None); `skip`: file names left out (the caller's own file from an earlier run). `room`: the room's folder
+    (Map_NNNNN_N), relative to the game data or absolute under vanilla or out_root."""
+    for base in (P.VANILLA, out_root):
+        if os.path.isabs(room) and os.path.normcase(os.path.abspath(room)).startswith(os.path.normcase(os.path.abspath(base))):
+            room = os.path.relpath(room, base)
+    docs = {}
+    for base in (P.VANILLA, out_root):   # the port's copy wins
+        d = os.path.join(base, room)
+        for f in sorted(os.listdir(d)) if os.path.isdir(d) else ():
+            if f.endswith(".json") and not f.startswith("sc_") and f not in ("package.json", "tilemap.json", "collision.json")                     and f not in skip:
+                try:
+                    docs[f] = json.load(open(os.path.join(d, f), encoding="utf-8"))
+                except (OSError, ValueError):
+                    pass
+
+    def walk(layers):
+        for lay in layers or []:
+            yield lay
+            yield from walk(lay.get("layers"))
+    out = []
+    for f, doc in list(docs.items()) + [(None, d) for d in extra]:
+        if isinstance(doc, dict):
+            out += [(f, o) for lay in walk(doc.get("layers")) for o in lay.get("objects") or []]
+    return out
+
+
+def entity_id(o):
+    """An object's entity_id, or None."""
+    return next((q["value"] for q in o.get("properties") or [] if q.get("name") == "entity_id" and isinstance(q.get("value"), int)), None)
+
+
+def room_ids(out_root, room, extra=(), skip=()):
+    """(highest Tiled object id, highest entity_id) over a PR room's object files (room_objects: its event layers
+    too). A new object takes max + 1 of each: one room's files share both numberings (vanilla repeats an entity_id
+    only for versions of one object, and 0 = none), and SetPuppet/Show/Hide find an entity by its id in whatever
+    layers are loaded. Numbering past one file alone hung the game: BNW's recovery point in the Phantom Train's
+    caboose took entity 14 from entity_default.json, the id of the hidden Tent's sparkle in ev_e_1106, and picking
+    up the rack's Fire Scroll then never ended (2026-11-25)."""
+    objs = room_objects(out_root, room, extra, skip)
+    return (max([o.get("id", 0) for _, o in objs] + [0]),
+            max([e for _, o in objs if (e := entity_id(o)) is not None] + [0]))
+
+
 _text = None
 
 

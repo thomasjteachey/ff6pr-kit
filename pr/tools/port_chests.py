@@ -284,23 +284,51 @@ MERGED = {(153, 21, 7): (153, 20, 7)}
 _contents = None
 
 
-def gift_ops(cid, num):
+def gil_price_group(tables, amount, changed):
+    """The product group whose price is `amount`, for SetGilTag: its operand is a product group, not an amount
+    (vanilla: the inns' and stables' prices, groups 102-127: one row, content 0, coefficient = the gil; WC's
+    Thamasa inn, wc_events). "Obtained (NUM) gil!" then says `amount`. A group like that already there, else a
+    new one past every product and product_group id (with its product_group row, so a later shop allocator
+    numbering from product_group can't take it). `changed`: {table: ids} the port writes. SetGilTag [1000] (no
+    such group) stopped BNW's Phantom Train rack pick-up before its gil and its flag (2026-11-26)."""
+    product = tables.setdefault("product", P.Table("product"))
+    groups = tables.setdefault("product_group", P.Table("product_group"))
+    members = defaultdict(list)
+    for r in product.rows.values():
+        members[int(r["group_id"])].append(r)
+    for g, rows in sorted(members.items()):
+        if len(rows) == 1 and int(rows[0]["content_id"]) == 0 and int(rows[0]["coefficient"]) == amount:
+            return g
+    g = 1 + max(list(members) + list(groups.rows))
+    pid = 1 + max(product.rows)
+    product.rows[pid] = dict(product.rows[min(product.rows)], id=str(pid), content_id="0", group_id=str(g),
+                             coefficient=str(amount), purchase_limit="0")
+    groups.rows[g] = dict(groups.rows[min(groups.rows)], id=str(g))
+    changed.setdefault("product", set()).add(pid)
+    changed.setdefault("product_group", set()).add(g)
+    return g
+
+
+def gift_ops(cid, num, tables=None, changed=None):
     """A scripted chest's gift. A WC seed: the WC plugin's WC:item / WC:gil (they set WC_REWARD's
     line; headless-tested). Any other mod has no WC plugin: the game's own ops, as vanilla's story
     pick-ups give theirs (sc_e_1106: Tag + "Obtained (ITEM_N)!" + GetItem; sc_e_0453 gives gil with
-    GetItem content 1, headless-tested: 293 gil)."""
+    GetItem content 1, headless-tested: 293 gil); gil's line takes its amount from a price group
+    (gil_price_group: needs the porter's tables)."""
     import pr_script as S
     global _contents
     if "WC_FLAGS" in os.environ:
         return [S.op("SysCall", s=[f"WC:item {cid} {num}" if cid != 1 else f"WC:gil {num}"]), S.op("Msg", s=["WC_REWARD"])]
     if cid == 1:
-        return [S.op("SetGilTag", i=[num]), S.op("Msg", s=[MSG_GIL]), S.op("GetItem", i=[1, num])]
+        assert tables is not None, "a gil gift needs the porter's tables (its SetGilTag price group)"
+        return [S.op("SetGilTag", i=[gil_price_group(tables, num, changed if changed is not None else {})]),
+                S.op("Msg", s=[MSG_GIL]), S.op("GetItem", i=[1, num])]
     if _contents is None:
         _contents = P.Table("content")
     return [S.op("Tag", s=["ITEM_N", _contents[cid]["mes_id_name"]]), S.op("Msg", s=[MSG_ITEM]), S.op("GetItem", i=[cid, num])]
 
 
-def fill_empty(script_rel, gifts, out_dir):
+def fill_empty(script_rel, gifts, out_dir, tables=None, changed=None):
     """A seed's contents in a scripted chest's script (empty_chests): gifts [(content id, num)],
     each given by the plugin's WC:item / WC:gil with WC_REWARD's line, as a check's reward does
     (the script's own GetItem gave nothing in the headless test). They take the place of an empty
@@ -323,7 +351,7 @@ def fill_empty(script_rel, gifts, out_dir):
             at -= 1                                              # the line's item name
     give = []
     for cid, num in gifts:
-        give += gift_ops(cid, num)
+        give += gift_ops(cid, num, tables, changed)
     S.hook(sc, at, "wc_filled", (give or [S.op("Msg", s=[EMPTY_LINE])]) + [S.op("Jump", i=[last])])
     dest = os.path.join(out_dir, *script_rel.replace("\\", "/").split("/"))
     os.makedirs(os.path.dirname(dest), exist_ok=True)
@@ -921,8 +949,9 @@ def port(van, bnw, out_dir, log, tables=None):
     keys = asset_keys()
     written = defaultdict(list)
     filled = []
+    prices = {}                                    # gil gifts' price groups (gil_price_group): product rows
     for rel, gifts in sorted(fills.items()):
-        if fill_empty(rel, gifts, out_dir):
+        if fill_empty(rel, gifts, out_dir, tables, prices):
             group, path = rel.replace("\\", "/").split("/", 1)
             stem = os.path.splitext(path)[0]
             written[group].append((keys.get((group, stem), stem.split("/")[-2] + "/" + stem.split("/")[-1]), stem))
@@ -1009,4 +1038,4 @@ def port(van, bnw, out_dir, log, tables=None):
         with open(os.path.join(out_dir, group, "keys", "bnw_chests.json"), "w", encoding="utf-8") as fh:
             json.dump({"keys": [k for k, _ in items], "values": [v for _, v in items]}, fh, indent=1)
     log(f"chests: {n} PR chests changed in {len(edits)} map files; skipped {dict(skipped)}")
-    return {"monster_party": made, "script": new_ids}
+    return {"monster_party": made, "script": new_ids, **prices}
