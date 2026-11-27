@@ -34,7 +34,7 @@ namespace PrKit.Ff6
             Harness.Register("units", _ => Units(), "units: every fighter in the battle (p0.. party, e0.. monsters): HP, MP, conditions");
             Harness.Register("unithp", UnitHp, "unithp <unit> <hp> [mp]: set a fighter's HP (and MP); units p0.. / e0..");
             Harness.Register("cond", Cond, "cond <unit> +<ConditionType>|-<ConditionType>: add or remove a condition (name or number)");
-            Harness.Register("act", Act, "act <unit> <command> <ability|0> <unit|allp|alle>: queue an act (a party member's as a counter)");
+            Harness.Register("act", Act, "act <unit> <command> <ability|0> <unit|allp|alle> [turn]: queue an act (a party member's as a counter, or with turn as a turn's)");
             // the AI host's test kill (BNW's AiFights has the same): every enemy dies the game's way, so a scripted story
             // fight the kit's enemyhp 1 can't finish (an invincible part, a flee script) still ends (story_bosses.py)
             Harness.Register("endfight", _ => SnesAiHost.KillAllForTest("endfight"), "endfight: every enemy left dies the game's way");
@@ -172,9 +172,12 @@ namespace PrKit.Ff6
             var act = new BattleActData(who, arr, cmd, abilities,
                 party ? BattleActData.ActType.Interrupt : BattleActData.ActType.Normal, tt,
                 BattleActData.ArmType.Right, (BattleActData.ActAbilityType)0, 1, false);
-            act.isCounter = party;
+            // "turn": not marked as a counter, so the target's counter conditions see it as a hit of a turn (a hit by
+            // a counterattack matches none on the SNES: the AI host's CounterRules; BNW's Soul Train "if hit by Suplex")
+            bool turn = a.Length > 4 && a[4] == "turn";
+            act.isCounter = party && !turn;
             bm.BattleActExection.SetBattleActData(act);
-            return $"queued: {Name(who)} command {command} ability {ab.Id} on {string.Join(", ", targets.Select(Name))}";
+            return $"queued: {Name(who)} command {command} ability {ab.Id} on {string.Join(", ", targets.Select(Name))}{(turn ? " (a turn's act)" : "")}";
         }
     }
 }

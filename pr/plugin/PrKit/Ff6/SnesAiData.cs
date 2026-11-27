@@ -32,6 +32,9 @@ namespace PrKit.Ff6
         // SNES monster -> {its battle event (F7) -> the PR monster mode the plugin sets}: the PR's own battle
         // script reads that mode (GetEnemyMode) and plays the scene (BNW's Vargas: event 07, Mash joins)
         public Dictionary<int, Dictionary<int, int>> EventModes = new Dictionary<int, Dictionary<int, int>>();
+        // SNES monster -> {its battle event (F7) -> the story_mes keys of the event's talk}: events with only
+        // talk that the PR has no scene for, shown as the monster's battle lines (BNW's Kaiser, Ziegfried, Wrexsoul)
+        public Dictionary<int, Dictionary<int, string[]>> EventLines = new Dictionary<int, Dictionary<int, string[]>>();
         // SNES monsters whose fight the PR's battle script ends (its scripted exit: the host leaves their
         // "end the battle" / "everyone dies like a boss" to it), and bosses that wait at 0 HP for good (their
         // script keeps fighting there: BNW's Vargas until Pummel), not the host's one-minute limit
@@ -104,6 +107,13 @@ namespace PrKit.Ff6
                     var map = new Dictionary<int, int>();
                     Ints(em, p.Name, map);
                     d.EventModes[int.Parse(p.Name)] = map;
+                }
+            if (sai.TryGetProperty("event_lines", out var el) && el.ValueKind == JsonValueKind.Object)
+                foreach (var p in el.EnumerateObject())
+                {
+                    var map = new Dictionary<int, string[]>();
+                    Lines(el, p.Name, map);
+                    d.EventLines[int.Parse(p.Name)] = map;
                 }
             foreach (var (key, set) in new[] { ("pr_ends", d.PrEnds), ("zero_hp_wait", d.ZeroWait), ("start_shows", d.StartShows), ("pr_entrances", d.PrEntrances) })
                 if (sai.TryGetProperty(key, out var arr) && arr.ValueKind == JsonValueKind.Array)

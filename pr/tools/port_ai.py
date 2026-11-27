@@ -753,6 +753,17 @@ def snes_ai_data(van, bnw, ab, vmo, scripts, mp=None, resolver=None, battle_line
     modes = {e: {ev: m for ev, m in evs.items() if m} for e, evs in profile_setting("snes_ai_events", {}).items()}
     if any(modes.values()):
         out["event_modes"] = {e: m for e, m in modes.items() if m}
+    # battle events with only talk the PR has no scene for: their battle dialogues' keys (the profile's key
+    # format, e.g. BNW's "BNW_BTLD_{:03d}", whose text the mod's dialogue data adds), shown as the monster's
+    # battle lines when its script triggers the event (the kit's SnesAiHost)
+    talk = profile_setting("snes_ai_event_talk", {})
+    if talk:
+        import snes_battle_events as SBE
+        fmt = profile_setting("snes_ai_event_talk_key")
+        assert fmt, "snes_ai_event_talk needs the profile's snes_ai_event_talk_key"
+        events = SBE.dialogues(d)
+        out["event_lines"] = {e: {ev: [fmt.format(n) for n in events[ev]] for ev in evs if events.get(ev)}
+                              for e, evs in talk.items()}
     for key in ("pr_ends", "zero_hp_wait", "start_shows"):
         v = sorted(profile_setting("snes_ai_" + key, []))
         if v:

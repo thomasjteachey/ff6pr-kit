@@ -346,6 +346,12 @@ namespace PrKit.Ff6
                     case SnesAiOp.BattleEvent:
                         BattleEvent(snesId, a.B1, units[4 + slot]);
                         if (D != null && D.EventModes.TryGetValue(snesId, out var evModes) && evModes.ContainsKey(a.B1)) prScene = true;
+                        // an event with only talk the PR has no scene for: its lines, as the monster's battle lines
+                        else if (D != null && D.EventLines.TryGetValue(snesId, out var evLines) && evLines.TryGetValue(a.B1, out var talk))
+                        {
+                            lines.AddRange(talk);
+                            if (Verbose) Log($": monster {snesId}: battle event {a.B1:x2} -> {talk.Length} line(s) ({string.Join(", ", talk)})");
+                        }
                         break;
                     case SnesAiOp.Message:
                         lines.AddRange(LineKeys(a.B1));
@@ -624,6 +630,14 @@ namespace PrKit.Ff6
                           (f.RetalFlags[slot] != 0 ? $", flags {f.RetalFlags[slot]:x2}" : "") + (atZero ? ", at 0 HP" : "") + $"): {string.Join("; ", acts)} => {Show(q)}";
             if (Verbose) Log(" counter: " + LastCounter);
             if (atZero && q.Count > 0 && q[0].ability == EraseAll) { EraseThroughDeath(f, me); return false; }
+            // a counter with only a battle line (BNW's Soul Train hit by Suplex: "ACHIEVEMENT UNLOCKED / SUPLEXED A
+            // TRAIN", F3 0E): the line rides on the PR's idle act, as an idle turn's does (it was dropped). Not in a
+            // fight whose PR battle routine plays scenes (an event mode, its own end or entrances, a 0-HP wait: Ultros
+            // at the Lete River, Vargas, Chadarnook): its routine holds the message window there
+            var dd = D;
+            bool prRoutine = dd == null || dd.EventModes.ContainsKey(snesId) || dd.PrEnds.Contains(snesId) ||
+                             dd.PrEntrances.Contains(snesId) || dd.ZeroWait.Contains(snesId);
+            if (q.Count == 0 && lines.Count > 0 && !atZero && !prRoutine) q.Add((Nothing, null));
             if (q.Count == 0) return false;
             var first = new List<(int, Il2CppReferenceArray<BattleUnitData>)> { q[0] };
             Rewrite(bc, MarkCounter, first, lines, false);
