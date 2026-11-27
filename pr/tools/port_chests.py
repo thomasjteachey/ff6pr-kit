@@ -164,6 +164,16 @@ def pr_area(file):
 # message_key, not its contents, so a chest WC turns from gil into an item (or back) needs the
 # other key ("Obtained (NUM) gil!" on an item chest showed the raw (NUM): the user's playtest)
 MSG_ITEM, MSG_GIL, MSG_MONSTER, MSG_EMPTY = "T0001_01_01", "T0001_03_01", "T0001_04_01", "T0001_05_01"
+# A scripted gil gift's line. The chests' "Obtained (NUM) gil!" takes (NUM) from the chest entity's
+# content_num; SetGilTag fills (KINGAKU) (the inns' "Rooms are (KINGAKU) gil per night"), so a script's
+# gift said "Obtained (NUM) gil!" raw (BNW 0.26.10's Phantom Train rack, the user's playtest 2026-11-27).
+# This story line is the chests' own with (KINGAKU); port.py writes it (gil_gift_texts).
+MSG_GIL_GIFT = "PRKIT_GIL_GIFT"
+
+
+def gil_gift_texts():
+    """{MSG_GIL_GIFT: vanilla's "Obtained (NUM) gil!" (story_mes) with (KINGAKU)} for the mod's story_mes_en."""
+    return {MSG_GIL_GIFT: P.messages("story_mes", "en")[MSG_GIL].replace("(NUM)", "(KINGAKU)")}
 
 
 def chest_message(cid, num):
@@ -322,7 +332,7 @@ def gift_ops(cid, num, tables=None, changed=None):
     if cid == 1:
         assert tables is not None, "a gil gift needs the porter's tables (its SetGilTag price group)"
         return [S.op("SetGilTag", i=[gil_price_group(tables, num, changed if changed is not None else {})]),
-                S.op("Msg", s=[MSG_GIL]), S.op("GetItem", i=[1, num])]
+                S.op("Msg", s=[MSG_GIL_GIFT]), S.op("GetItem", i=[1, num])]
     if _contents is None:
         _contents = P.Table("content")
     return [S.op("Tag", s=["ITEM_N", _contents[cid]["mes_id_name"]]), S.op("Msg", s=[MSG_ITEM]), S.op("GetItem", i=[cid, num])]

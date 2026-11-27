@@ -1319,7 +1319,9 @@ def _main(profile):
     if getattr(profile, "bnw_rewards", False):
         import port_bnw_rewards
         story.update(port_bnw_rewards.story_lines(messages))
-    write_messages(messages, extra={"story_mes_en": story, "story_cha_en": {k: "" for k in battle}})
+    gil_gift = port_chests.gil_gift_texts()   # scripted gil gifts' "Obtained (KINGAKU) gil!" (a new key: no speaker)
+    story.update(gil_gift)
+    write_messages(messages, extra={"story_mes_en": story, "story_cha_en": {k: "" for k in list(battle) + list(gil_gift)}})
     with open(os.path.join(OUT, "port_report.txt"), "w", encoding="utf-8") as f:
         f.write("\n".join(report) + "\n")
 
