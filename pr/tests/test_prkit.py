@@ -187,8 +187,9 @@ class Manifest(unittest.TestCase):
         for mid in ("bnw", "wc", "hd2d"):
             self.assertIn(mid, found)
         bnw, wc = found["bnw"], found["wc"]
-        # never installed together: the game-data mods (Beyond Chaos's entry where the project has it)
-        self.assertEqual([m.id for m in bnw.rivals()], ["wc"] + (["bc"] if "bc" in found else []))
+        # never installed together: the game-data mods (Beyond Chaos's and T-Edition's entries where the project has them)
+        self.assertEqual([m.id for m in bnw.rivals()],
+                         ["wc"] + [mid for mid in ("bc", "tedition") if mid in found])
         self.assertEqual(wc.keep, ["seeds"])
         self.assertEqual(mods.get("BraveNewWorld").id, "bnw")
         for m in found.values():

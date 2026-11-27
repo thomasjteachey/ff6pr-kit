@@ -1,0 +1,3 @@
+# HasTwoSwordStyle predicate
+Last\.Data\.User\.OwnedCharacterData\.<>c\$\$<get_HasTwoSwordStyle>b__26_0$
+Last\.Data\.User\.OwnedCharacterData\$\$get_HasTwoSwordStyle$

@@ -1,0 +1,4 @@
+# BNW boomerangs: why equipping one in a hand removes the other (OwnedCharacterClient.SetEquip IsBow/IsArrow branch)
+Last\.Data\.User\.OwnedItemData\$\$get_IsBow$
+Last\.Data\.User\.OwnedItemData\$\$get_IsArrow$
+Serial\.Template\.Management\.EquipmentItemProvider\$\$IsOneHandEquipBow$

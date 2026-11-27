@@ -285,6 +285,18 @@ launch ~30 s to the title, then a fixed 25 s, New Game, the warp: ~90 s before a
   `BepInEx/probe_run.lock` for 10 s straight (wc-4's mod switch, 17:04: a closing game's files still
   held). Each summary line names the install: `DLL <md5>, data <hash of the installed Magicite folder>`.
 
+**Talking to NPCs and shops headless** (2026-11-26, T-Edition's gates; decompiled in `tools/decomp/ted_talk*`):
+- `until scene field; map N` also matches while a map's arrival still runs (field state FieldReady, ChangeMap): a
+  talk sent then is not what a player can do. T-Edition's `tedtalk` waits for field state Player, no script and no
+  pending request (`EventProcedure.runAction`) before it asks `RequestEntityAction`.
+- An entity's action is its `PropertyEvent.ActionId`/`ActionName`, not its script: a shop keeper (action_id 8)
+  opens the PR's shop even when a script id is wired onto it.
+- **No headless run can close a PR shop**: 150 s of `press cancel` and `ShopUIManager.Close()` both left it open;
+  a test that warps away with it open hangs the next map load. Shop checks stop at the mod's "shop opened" line.
+- The PR's own story scenes triggered out of story order (a New Game state) can stay in their opening for good
+  (Doma's sentry, script 148; Figaro's priestess into sc_e_0028_1): A/B a mod's scene against the PR's before
+  blaming the mod.
+
 ### Formula probe (in-game, automated; plugin `FormulaProbe.cs`, `tools/probe_check.py`)
 
 2026-11-05: `probe_headless.ps1` only watches and stops the process it started (it used to

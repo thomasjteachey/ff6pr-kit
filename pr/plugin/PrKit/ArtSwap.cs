@@ -77,16 +77,20 @@ namespace PrKit
         public static int Served, AtlasServed;
         public static string Last = "none";
 
+        static Harmony harmony;
+
         public static void Install(Harmony h)
         {
             if (installed) return;
             installed = true;
+            harmony = h;
             Hooks.Patch(h, typeof(ResourceManager), "CheckCompleteAsset", typeof(ArtSwap), postfix: nameof(CheckCompletePost));
             Hooks.Patch(h, typeof(SpriteAtlas), "GetSprite", typeof(ArtSwap), prefix: nameof(GetSpritePre), args: new[] { typeof(string) });
             Hooks.Patch(h, typeof(SpriteAtlas), "GetSprites", typeof(ArtSwap), prefix: nameof(GetSpritesPre),
                 args: new[] { typeof(Il2CppReferenceArray<Sprite>) });
             Hooks.Patch(h, AccessTools.PropertyGetter(typeof(SpriteAtlas), "spriteCount"), typeof(ArtSwap), postfix: nameof(SpriteCountPost));
             Hooks.Patch(h, typeof(UnityEngine.UI.Image), "OnEnable", typeof(ArtSwap), postfix: nameof(ImageEnablePost));
+            if (newGroupNames.Count > 0) InstallGroupHooks();
         }
 
         // Serve folder/art.json as the base layer from now on (null or no file: none). Returns a line for the log.
@@ -120,7 +124,15 @@ namespace PrKit
                                 AddKey(g.Name, p.Name, addr);
                                 if (layer.Sprites.TryGetValue(addr, out var en)) en.New = true;
                             }
-                    foreach (var g in ArtNewGroups.Parse(root)) AddGroup(g);
+                    var groups = ArtNewGroups.Parse(root);
+                    if (groups.Count > 0)
+                    {
+                        // named and hooked now even while AddGroup waits for the path list (pendingGroups): the game's
+                        // completion checks drain it (GroupCheckPre), CheckCompleteAsset alone is called too rarely
+                        lock (gate) foreach (var g in groups) newGroupNames.Add(g.Name);
+                        InstallGroupHooks();
+                    }
+                    foreach (var g in groups) AddGroup(g);
                     if (root.TryGetProperty("atlases", out var a))
                         foreach (var at in a.EnumerateObject())
                         {
@@ -308,9 +320,122 @@ namespace PrKit
                 var plan = ArtNewGroups.Keys(g, likeKeys);
                 if (plan == null) { Kit.Warn($"{Tag} new group {g.Name}: {g.Like} has no atlas key"); return; }
                 foreach (var kv in plan.Keys) AddKey(g.Name, kv.Key, kv.Value);
-                lock (gate) newAtlases[plan.NewAtlasAddress] = (plan.LikeAtlasAddress, g.Atlas, g.Like, g.Like.ToUpperInvariant());
+                lock (gate)
+                {
+                    newAtlases[plan.NewAtlasAddress] = (plan.LikeAtlasAddress, g.Atlas, g.Like, g.Like.ToUpperInvariant());
+                    newGroupNames.Add(g.Name);
+                }
+                InstallGroupHooks();
             }
             catch (Exception e) { Hooks.WarnOnce("art new group " + g.Name, e); }
+        }
+
+        // A new group's atlas has to be in completeAssetDic BEFORE a room asks for it (2026-11-26, decompiled in
+        // tools/decomp/ted_newgroups*, patterns pr/tools/ghidra/ted_newgroups*.txt). The field loads an NPC group through
+        // MapManager.LoadCharaEntityAnimationStructure -> FieldCharacterLoader: RequestLoadAssetBundle<object>(group, key)
+        // -> LoadAssetBundle<object>(address), which asks Addressables for any address not already in completeAssetDic
+        // (the new atlas address is in no bundle), and the load is "done" once ResourceManager.CheckLoadAssetCompleted
+        // (group, key) / CheckGroupLoadAssetCompleted(group) find the address in completeAssetDic: both look there
+        // directly, never through CheckCompleteAsset (the only method hooked before), so NewAtlas was never asked and a
+        // room placing a new group never finished loading (T-Edition's ted-final / ted-newgroups-1, 2026-11-25).
+        // So: `like`'s atlas is requested as soon as the game can load (Addressables up) and the renamed copy goes into
+        // completeAssetDic once it's there (EnsureNewAtlases: from every asset check and from the two completion checks,
+        // hooked here); unloading a new group (DestroyGroupAsset) is skipped, and so is destroying the copy's address
+        // (DestroyAssetData), so the copy outlives room changes and unloading a new group never takes `like`'s atlas away
+        // from `like`'s own NPCs. These hooks go in only once some layer has a new group (no cost for other mods).
+        static readonly HashSet<string> newGroupNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        static bool groupHooks;
+        static int unmade = -1;                // new atlases not in completeAssetDic yet (-1: not counted since a change)
+        static readonly HashSet<string> likeAsked = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        static void InstallGroupHooks()
+        {
+            lock (gate)
+            {
+                unmade = -1;
+                if (groupHooks || harmony == null) return;
+                groupHooks = true;
+            }
+            var rm = typeof(ResourceManager);
+            Hooks.Patch(harmony, rm, "CheckLoadAssetCompleted", typeof(ArtSwap), prefix: nameof(GroupCheckPre), args: new[] { typeof(string), typeof(string) });
+            Hooks.Patch(harmony, rm, "CheckGroupLoadAssetCompleted", typeof(ArtSwap), prefix: nameof(GroupCheckPre), args: new[] { typeof(string) });
+            Hooks.Patch(harmony, rm, "DestroyGroupAsset", typeof(ArtSwap), prefix: nameof(DestroyGroupPre));
+            Hooks.Patch(harmony, rm, "DestroyAssetData", typeof(ArtSwap), prefix: nameof(DestroyDataPre), args: new[] { typeof(string) });
+            Kit.Info($"{Tag} new groups: load checks hooked ({newGroupNames.Count} groups)");
+        }
+
+        // the game checks a group (or one of its keys): a new group's atlas copy first, if `like`'s atlas is in
+        static void GroupCheckPre(ResourceManager __instance, string groupName)
+        {
+            try
+            {
+                if (groupName == null || !Hooks.IsA<ResourceManager>(__instance)) return;
+                DrainPending();
+                bool ours;
+                lock (gate) ours = newGroupNames.Contains(groupName);
+                if (ours || unmade != 0) EnsureNewAtlases(__instance, force: ours);
+            }
+            catch (Exception e) { Hooks.WarnOnce("art new group check", e); }
+        }
+
+        // keys and new groups that waited for AssetBundlePathMatch's path list (read after the plugins load)
+        static void DrainPending()
+        {
+            if (pending.Count > 0)
+            {
+                List<(string, string, string)> again;
+                lock (gate) { again = new List<(string, string, string)>(pending); pending.Clear(); }
+                foreach (var (g, k, a) in again) AddKey(g, k, a);
+            }
+            if (pendingGroups.Count > 0)
+            {
+                List<ArtNewGroups.Group> again;
+                lock (gate) { again = new List<ArtNewGroups.Group>(pendingGroups); pendingGroups.Clear(); }
+                foreach (var g in again) AddGroup(g);
+            }
+        }
+
+        // unloading a new group would release `like`'s atlas under `like`'s own NPCs and drop the copy: kept instead
+        static bool DestroyGroupPre(string groupName)
+        {
+            if (groupName == null) return true;
+            lock (gate) return !newGroupNames.Contains(groupName);
+        }
+
+        static bool DestroyDataPre(string addressName)
+        {
+            if (addressName == null) return true;
+            lock (gate) return !newAtlases.ContainsKey(addressName);
+        }
+
+        // every new atlas not in completeAssetDic yet: `like`'s requested at once (Addressables up), the copy made once
+        // it has loaded (NewAtlas)
+        static void EnsureNewAtlases(ResourceManager rm, bool force = false)
+        {
+            if (unmade == 0 && !force) return;
+            var dic = rm.completeAssetDic;
+            if (dic == null) return;
+            List<KeyValuePair<string, (string Like, string Atlas, string LikeGroup, string LikeKey)>> todo;
+            lock (gate) todo = new List<KeyValuePair<string, (string, string, string, string)>>(newAtlases);
+            int left = 0;
+            foreach (var kv in todo)
+            {
+                if (dic.ContainsKey(kv.Key) && dic[kv.Key] != null) continue;
+                left++;
+                if ((!dic.ContainsKey(kv.Value.Like) || dic[kv.Value.Like] == null) && rm.IsInitAddresable && likeAsked.Add(kv.Key))
+                {
+                    try
+                    {
+                        rm.RequestLoadAssetBundle<SpriteAtlas>(kv.Value.LikeGroup, kv.Value.LikeKey, false);
+                        Kit.Info($"{Tag} new group atlas {kv.Value.Atlas}: asked for {kv.Value.LikeGroup}/{kv.Value.LikeKey} ahead of any room");
+                    }
+                    catch (Exception e) { Hooks.WarnOnce("art new group preload " + kv.Value.Atlas, e); }
+                }
+                bool r = false;
+                NewAtlas(kv.Key, rm, ref r);
+                if (r) { left--; likeAsked.Remove(kv.Key); }
+            }
+            unmade = left;
         }
 
         // the game checks a new group's atlas address: a copy of `like`'s atlas named as the group's, once `like`'s is
@@ -409,18 +534,8 @@ namespace PrKit
             try
             {
                 if (addressName == null || !Hooks.IsA<ResourceManager>(__instance)) return;
-                if (pending.Count > 0)
-                {
-                    List<(string, string, string)> again;
-                    lock (gate) { again = new List<(string, string, string)>(pending); pending.Clear(); }
-                    foreach (var (g, k, a) in again) AddKey(g, k, a);
-                }
-                if (pendingGroups.Count > 0)
-                {
-                    List<ArtNewGroups.Group> again;
-                    lock (gate) { again = new List<ArtNewGroups.Group>(pendingGroups); pendingGroups.Clear(); }
-                    foreach (var g in again) AddGroup(g);
-                }
+                DrainPending();
+                if (newAtlases.Count > 0 && unmade != 0) EnsureNewAtlases(__instance);
                 if (newAtlases.Count > 0 && NewAtlas(addressName, __instance, ref __result)) return;
                 lock (gate)
                 {
