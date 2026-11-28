@@ -28,8 +28,6 @@ namespace PrKit.Ff6
 
         public static bool IsSpell(int id) => id >= First && id <= Last;
 
-        static bool Known(OwnedAbility a) => a?.Ability != null && IsSpell(a.Ability.Id) && a.SkillLevel > 0;
-
         // a character's natural magic up to `level`: the type-1 learning rows on its job (spells)
         public static HashSet<int> Natural(OwnedCharacterData c, int level) => Natural(c, level, out _, out _);
 
@@ -59,9 +57,8 @@ namespace PrKit.Ff6
             if (c == null || c.OwnedAbilityList == null) return "";
             var keep = new HashSet<int>(natural);
             if (granted != null) keep.UnionWith(granted);
-            var dropped = new List<int>();
-            foreach (var a in c.OwnedAbilityList)
-                if (Known(a) && !keep.Contains(a.Ability.Id)) { a.SkillLevel = 0; dropped.Add(a.Ability.Id); }
+            // any skill level, in either copy (StartSkills: the Abilities menu shows the dictionary's too)
+            var dropped = StartSkills.Forget(c, id => IsSpell(id) && !keep.Contains(id));
             var taught = new List<int>();
             foreach (var id in natural.OrderBy(x => x))
                 if (!StartSkills.Knows(c, id) && StartSkills.Teach(c, id)) taught.Add(id);
@@ -88,9 +85,9 @@ namespace PrKit.Ff6
                 if (c == null || !BuiltIn.TryGetValue(c.characterStatusId, out var builtIn) || !isRecruited(c.characterStatusId) ||
                     c.OwnedAbilityList == null) continue;
                 HashSet<int> nat = null;
-                foreach (var a in c.OwnedAbilityList)
+                foreach (var id in builtIn)
                 {
-                    if (!Known(a) || !builtIn.Contains(a.Ability.Id)) continue;
+                    if (StartSkills.Level(c, id) <= 0) continue;
                     if (espers == null)
                     {
                         espers = new HashSet<int>(); gear = new HashSet<int>();
@@ -107,9 +104,8 @@ namespace PrKit.Ff6
                         grant = granted?.Invoke() ?? new HashSet<int>();
                     }
                     nat ??= natural(c);
-                    int id = a.Ability.Id;
                     if (nat.Contains(id) || espers.Contains(id) || gear.Contains(id) || grant.Contains(id)) continue;
-                    a.SkillLevel = 0;
+                    StartSkills.Forget(c, id);
                     done.Add($"{c.characterStatusId}:{id}");
                 }
             }
